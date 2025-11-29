@@ -25,6 +25,7 @@ export interface AppConfig {
   allowedEmails: string[];
   googleClientId?: string;
   baseCurrency: string;
+  theme?: 'classic' | 'forest' | 'ocean';
 }
 
 export interface User {

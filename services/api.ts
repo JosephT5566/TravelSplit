@@ -7,6 +7,75 @@ interface GasResponse {
   message?: string;
 }
 
+export const getMockExpenses = (): Expense[] => {
+  const today = new Date();
+  const fmt = (d: Date) => d.toISOString().split('T')[0];
+  
+  return [
+    {
+      id: 'mock-1',
+      timestamp: new Date().toISOString(),
+      date: fmt(today),
+      day: today.toLocaleDateString('en-US', { weekday: 'long' }),
+      category: 'Food',
+      item: 'Welcome Dinner (Sushi)',
+      type: TransactionType.EXPENSE,
+      amount: 12000,
+      currency: 'JPY',
+      payer: 'demo@tripsplit.app',
+      settled: false,
+      remark: 'Team dinner',
+      exchangeRate: 0.22,
+      personalNote: 'Amazing fatty tuna!'
+    },
+    {
+      id: 'mock-2',
+      timestamp: new Date().toISOString(),
+      date: fmt(today),
+      day: today.toLocaleDateString('en-US', { weekday: 'long' }),
+      category: 'Transport',
+      item: 'Airport Express',
+      type: TransactionType.EXPENSE,
+      amount: 500,
+      currency: 'TWD',
+      payer: 'demo@tripsplit.app',
+      settled: true,
+      remark: '',
+      exchangeRate: 1,
+    },
+     {
+      id: 'mock-3',
+      timestamp: new Date().toISOString(),
+      date: fmt(today),
+      day: today.toLocaleDateString('en-US', { weekday: 'long' }),
+      category: 'Shopping',
+      item: 'Uniqlo Haul',
+      type: TransactionType.EXPENSE,
+      amount: 3500,
+      currency: 'TWD',
+      payer: 'demo@tripsplit.app',
+      settled: false,
+      remark: 'Gifts for family',
+      exchangeRate: 1,
+    },
+    {
+      id: 'mock-4',
+      timestamp: new Date().toISOString(),
+      date: fmt(today),
+      day: today.toLocaleDateString('en-US', { weekday: 'long' }),
+      category: 'Others',
+      item: 'Refund for Shared Taxi',
+      type: TransactionType.INCOME,
+      amount: 200,
+      currency: 'TWD',
+      payer: 'friend@test.com',
+      settled: true,
+      remark: '',
+      exchangeRate: 1,
+    }
+  ];
+};
+
 export const api = {
   /**
    * Fetches expenses from the Google Apps Script endpoint.
