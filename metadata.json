@@ -1,0 +1,5 @@
+{
+  "name": "TripSplit",
+  "description": "A serverless, offline-capable travel expense manager",
+  "requestFramePermissions": []
+}
