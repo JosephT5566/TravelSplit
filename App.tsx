@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { HashRouter, Routes, Route, Navigate } from "react-router-dom";
+import { useAuthActions } from "./src/stores/AuthStore";
 
 // Services & Types
 import { api, getMockExpenses } from "./services/api";
@@ -20,6 +21,7 @@ import { SearchPage } from "./pages/SearchPage";
 const DEMO_USER: User = { email: "demo@tripsplit.app", name: "Demo User" };
 
 export default function App() {
+    const { setSignIn, signOut: clearAuthState } = useAuthActions();
     const [config, setConfig] = useState<AppConfig | undefined>();
     const [user, setUser] = useState<User | undefined>();
     const [expenses, setExpenses] = useState<Expense[]>([]);
@@ -46,6 +48,9 @@ export default function App() {
                 if (storedConfig) setConfig(storedConfig);
                 if (storedUser) setUser(storedUser);
                 if (storedExpenses) setExpenses(storedExpenses);
+                if (storedUser) {
+                    setSignIn();
+                }
             } catch (e) {
                 console.error("Failed to load storage", e);
             } finally {
@@ -53,7 +58,7 @@ export default function App() {
             }
         };
         init();
-    }, []);
+    }, [setSignIn]);
 
     // --- Theme Logic ---
     useEffect(() => {
@@ -122,6 +127,7 @@ export default function App() {
 
     const handleLogout = async () => {
         await storage.clearUser();
+        clearAuthState();
         setUser(undefined);
         setExpenses([]);
         window.location.hash = "/login";
@@ -129,6 +135,7 @@ export default function App() {
 
     const handleLogin = async (newUser: User) => {
         await storage.saveUser(newUser);
+        setSignIn();
         setUser(newUser);
     };
 
