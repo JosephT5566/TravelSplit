@@ -1,17 +1,30 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Settings as SettingsIcon } from "lucide-react";
 import { AppConfig, User } from "../types";
+import { renderGoogleButton } from "../src/utils/auth";
 
 interface LoginProps {
     onLogin: (u: User) => void;
     config: AppConfig | undefined;
     demoUser: User;
+    googleButtonRef?: React.RefObject<HTMLDivElement>;
 }
 
-export const Login: React.FC<LoginProps> = ({ onLogin, config, demoUser }) => {
+export const Login: React.FC<LoginProps> = ({
+    onLogin,
+    config,
+    demoUser,
+    googleButtonRef,
+}) => {
     const [email, setEmail] = useState("");
     const [error, setError] = useState("");
+
+    useEffect(() => {
+        if (!googleButtonRef?.current) return;
+        if (!window.google?.accounts?.id) return;
+        renderGoogleButton(googleButtonRef.current);
+    }, [googleButtonRef]);
 
     const handleDemoLogin = () => {
         onLogin(demoUser);
@@ -106,6 +119,14 @@ export const Login: React.FC<LoginProps> = ({ onLogin, config, demoUser }) => {
                     >
                         Try Demo Mode (Skip Login)
                     </button>
+                </div>
+
+                <div className="mt-6">
+                    <div
+                        ref={googleButtonRef}
+                        className="flex justify-center"
+                        id="google-login-button"
+                    />
                 </div>
 
                 <div className="mt-6 pt-6 border-t border-border text-center">

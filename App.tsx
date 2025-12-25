@@ -1,6 +1,12 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { HashRouter, Routes, Route, Navigate } from "react-router-dom";
 import { useAuthActions } from "./src/stores/AuthStore";
+import {
+    getIsSignedIn,
+    getProfile,
+    initGsiOnce,
+    renderGoogleButton,
+} from "./src/utils/auth";
 
 // Services & Types
 import { api, getMockExpenses } from "./services/api";
@@ -22,6 +28,7 @@ const DEMO_USER: User = { email: "demo@tripsplit.app", name: "Demo User" };
 
 export default function App() {
     const { setSignIn, signOut: clearAuthState } = useAuthActions();
+    const googleButtonRef = useRef<HTMLDivElement | null>(null);
     const [config, setConfig] = useState<AppConfig | undefined>();
     const [user, setUser] = useState<User | undefined>();
     const [expenses, setExpenses] = useState<Expense[]>([]);
@@ -58,6 +65,53 @@ export default function App() {
             }
         };
         init();
+    }, [setSignIn]);
+
+    // Check Google sign-in status and render button if signed out
+    useEffect(() => {
+        const ensureAuthState = async () => {
+            const signedIn = getIsSignedIn();
+            if (signedIn) {
+                const profile = getProfile();
+                if (profile?.email) {
+                    setSignIn(profile);
+                    const mappedUser = {
+                        email: profile.email,
+                        name: profile.name || profile.email,
+                        picture: profile.picture,
+                    };
+                    setUser(mappedUser);
+                    await storage.saveUser(mappedUser);
+                }
+                return;
+            }
+
+            try {
+                initGsiOnce({
+                    onSignedIn: () => {
+                        const profileAfter = getProfile();
+                        if (profileAfter?.email) {
+                            setSignIn(profileAfter);
+                            const mappedUser = {
+                                email: profileAfter.email,
+                                name: profileAfter.name || profileAfter.email,
+                                picture: profileAfter.picture,
+                            };
+                            setUser(mappedUser);
+                            storage.saveUser(mappedUser);
+                        }
+                    },
+                    onError: (e) => console.error(e),
+                });
+                if (googleButtonRef.current && window.google?.accounts?.id) {
+                    renderGoogleButton(googleButtonRef.current);
+                }
+            } catch (err) {
+                console.error("Failed to initialize Google sign-in", err);
+            }
+        };
+
+        ensureAuthState();
     }, [setSignIn]);
 
     // --- Theme Logic ---
@@ -230,6 +284,7 @@ export default function App() {
                                     onLogin={handleLogin}
                                     config={config}
                                     demoUser={DEMO_USER}
+                                    googleButtonRef={googleButtonRef}
                                 />
                             )
                         }

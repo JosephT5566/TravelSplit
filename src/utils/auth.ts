@@ -163,6 +163,7 @@ export function renderGoogleButton(container: HTMLElement) {
 // ======== 登出 ========
 export function signOut() {
     clearToken();
+    buttonRendered = false;
     // 可選：通知 GIS 取消自動選擇
     try {
         window.google?.accounts?.id?.disableAutoSelect?.();
