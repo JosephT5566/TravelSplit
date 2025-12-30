@@ -1,4 +1,4 @@
-import { Expense, TransactionType } from "../types";
+import { Expense, TransactionType } from "../../types";
 
 // Mock response structure from GAS
 interface GasResponse {

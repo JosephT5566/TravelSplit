@@ -1,33 +1,20 @@
+"use client";
+
 import React, { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import Link from "next/link";
 import { Settings as SettingsIcon } from "lucide-react";
-import { AppConfig, User } from "../types";
-import { renderGoogleButton } from "../src/utils/auth";
+import { User } from "../../types";
+import { renderGoogleButton } from "../../src/utils/auth";
+import { useAppContext } from "../../components/AppContext";
 
-interface LoginProps {
-    onLogin: (u: User) => void;
-    config: AppConfig | undefined;
-    demoUser: User;
-    googleButtonRef?: React.RefObject<HTMLDivElement>;
-}
-
-export const Login: React.FC<LoginProps> = ({
-    onLogin,
-    config,
-    demoUser,
-    googleButtonRef,
-}) => {
+const LoginPageContent: React.FC = () => {
+    const { handleLogin, config, googleButtonRef } = useAppContext();
+    const demoUser: User = { email: "demo@tripsplit.app", name: "Demo User" };
     const [email, setEmail] = useState("");
     const [error, setError] = useState("");
 
-    useEffect(() => {
-        if (!googleButtonRef?.current) return;
-        if (!window.google?.accounts?.id) return;
-        renderGoogleButton(googleButtonRef.current);
-    }, [googleButtonRef]);
-
     const handleDemoLogin = () => {
-        onLogin(demoUser);
+        handleLogin(demoUser);
     };
 
     // 1. Setup Required State
@@ -45,7 +32,7 @@ export const Login: React.FC<LoginProps> = ({
                     </p>
                     <div className="space-y-3">
                         <Link
-                            to="/settings"
+                            href="/settings"
                             className="block w-full py-3 bg-primary text-primary-fg rounded-lg font-bold hover:opacity-90 transition"
                         >
                             Configure App
@@ -63,7 +50,7 @@ export const Login: React.FC<LoginProps> = ({
     }
 
     // 2. Login State
-    const handleLogin = (e: React.FormEvent) => {
+    const handleEmailLogin = (e: React.FormEvent) => {
         e.preventDefault();
         if (!config.allowedEmails.length) {
             setError("System not configured properly.");
@@ -71,7 +58,7 @@ export const Login: React.FC<LoginProps> = ({
         }
 
         if (config.allowedEmails.includes(email.trim())) {
-            onLogin({ email: email.trim(), name: email.split("@")[0] });
+            handleLogin({ email: email.trim(), name: email.split("@")[0] });
         } else {
             setError("This email is not in the allowed list.");
         }
@@ -87,7 +74,7 @@ export const Login: React.FC<LoginProps> = ({
                     Secure Travel Expense Tracker
                 </p>
 
-                <form onSubmit={handleLogin} className="space-y-4">
+                <form onSubmit={handleEmailLogin} className="space-y-4">
                     <div>
                         <label className="block text-sm font-medium mb-1 text-text-main">
                             Email Access
@@ -131,7 +118,7 @@ export const Login: React.FC<LoginProps> = ({
 
                 <div className="mt-6 pt-6 border-t border-border text-center">
                     <Link
-                        to="/settings"
+                        href="/settings"
                         className="text-sm text-primary hover:underline flex items-center justify-center gap-1"
                     >
                         <SettingsIcon size={14} /> Settings
@@ -141,3 +128,5 @@ export const Login: React.FC<LoginProps> = ({
         </div>
     );
 };
+
+export default LoginPageContent;

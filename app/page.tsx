@@ -1,21 +1,15 @@
+"use client";
+
 import React from "react";
 import { RefreshCw } from "lucide-react";
 import { ExpensePieChart } from "../components/Charts";
-import { Expense, TransactionType, ApiState } from "../types";
+import { TransactionType } from "../types";
+import { useAppContext } from "../components/AppContext";
 
-interface DashboardProps {
-    expenses: Expense[];
-    apiState: ApiState;
-    onRefresh: () => void;
-    baseCurrency: string;
-}
+const DashboardContent: React.FC = () => {
+    const { expenses, apiState, refreshExpenses, config } = useAppContext();
+    const baseCurrency = config?.baseCurrency || "TWD";
 
-export const Dashboard: React.FC<DashboardProps> = ({
-    expenses,
-    apiState,
-    onRefresh,
-    baseCurrency,
-}) => {
     const totalExpense = expenses
         .filter((e) => e.type === TransactionType.EXPENSE)
         .reduce((acc, curr) => acc + curr.amount * curr.exchangeRate, 0);
@@ -29,7 +23,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
             <div className="flex justify-between items-center">
                 <h2 className="text-2xl font-bold text-text-main">Overview</h2>
                 <button
-                    onClick={onRefresh}
+                    onClick={refreshExpenses}
                     disabled={apiState.isLoading}
                     className={`p-2 rounded-full bg-primary/10 text-primary hover:bg-primary/20 transition-colors ${
                         apiState.isLoading ? "animate-spin" : ""
@@ -70,3 +64,5 @@ export const Dashboard: React.FC<DashboardProps> = ({
         </div>
     );
 };
+
+export default DashboardContent;

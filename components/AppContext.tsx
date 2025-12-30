@@ -1,32 +1,56 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
-import { HashRouter, Routes, Route, Navigate } from "react-router-dom";
-import { useAuthActions } from "./src/stores/AuthStore";
+"use client";
+
+import React, {
+    useState,
+    useEffect,
+    useCallback,
+    useRef,
+    createContext,
+    useContext,
+} from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { useAuthActions } from "../src/stores/AuthStore";
 import {
     getIsSignedIn,
     getProfile,
     initGsiOnce,
     renderGoogleButton,
-} from "./src/utils/auth";
+} from "../src/utils/auth";
 
 // Services & Types
-import { api, getMockExpenses } from "./services/api";
-import { storage } from "./services/storage";
-import { AppConfig, Expense, User, ApiState } from "./types";
+import { api, getMockExpenses } from "../services/api";
+import { storage } from "../services/storage";
+import { AppConfig, Expense, User, ApiState } from "../../types";
 
 // Components
-import { Layout } from "./components/Layout";
-import { ExpenseForm } from "./components/ExpenseForm";
-
-// Pages
-import { Login } from "./pages/Login";
-import { Dashboard } from "./pages/Dashboard";
-import { ListPage } from "./pages/ListPage";
-import { SettingsPage } from "./pages/SettingsPage";
-import { SearchPage } from "./pages/SearchPage";
+import { ExpenseForm } from "./ExpenseForm";
+import { Layout } from "./Layout";
 
 const DEMO_USER: User = { email: "demo@tripsplit.app", name: "Demo User" };
 
-export default function App() {
+interface AppContextType {
+    config?: AppConfig;
+    user?: User;
+    expenses: Expense[];
+    apiState: ApiState;
+    isInitialized: boolean;
+    isDemo: boolean;
+    googleButtonRef: React.RefObject<HTMLDivElement | null>;
+    currentDate: Date;
+    refreshExpenses: () => Promise<void>;
+    handleSaveConfig: (newConfig: AppConfig) => Promise<void>;
+    handleLogout: () => Promise<void>;
+    handleLogin: (newUser: User) => Promise<void>;
+    openEditForm: (e: Expense) => void;
+    handleDeleteExpense: (id: string) => Promise<void>;
+    setCurrentDate: (date: Date) => void;
+    setShowForm: (show: boolean) => void;
+    setEditingExpense: (expense: Expense | null) => void;
+}
+
+const AppContext = createContext<AppContextType | null>(null);
+
+export function AppProvider({ children }: { children: React.ReactNode }) {
     const { setSignIn, signOut: clearAuthState } = useAuthActions();
     const googleButtonRef = useRef<HTMLDivElement | null>(null);
     const [config, setConfig] = useState<AppConfig | undefined>();
@@ -44,6 +68,9 @@ export default function App() {
     const [isInitialized, setIsInitialized] = useState(false);
     const [currentDate, setCurrentDate] = useState(new Date());
 
+    const router = useRouter();
+    const pathname = usePathname();
+
     // --- Initialization ---
     useEffect(() => {
         const init = async () => {
@@ -53,11 +80,11 @@ export default function App() {
                 const storedExpenses = await storage.getExpenses();
 
                 if (storedConfig) setConfig(storedConfig);
-                if (storedUser) setUser(storedUser);
-                if (storedExpenses) setExpenses(storedExpenses);
                 if (storedUser) {
+                    setUser(storedUser);
                     setSignIn();
                 }
+                if (storedExpenses) setExpenses(storedExpenses);
             } catch (e) {
                 console.error("Failed to load storage", e);
             } finally {
@@ -99,6 +126,7 @@ export default function App() {
                             };
                             setUser(mappedUser);
                             storage.saveUser(mappedUser);
+                            router.push("/");
                         }
                     },
                     onError: (e) => console.error(e),
@@ -111,8 +139,10 @@ export default function App() {
             }
         };
 
-        ensureAuthState();
-    }, [setSignIn]);
+        if (isInitialized && !user) {
+            ensureAuthState();
+        }
+    }, [setSignIn, isInitialized, user, router]);
 
     // --- Theme Logic ---
     useEffect(() => {
@@ -125,7 +155,6 @@ export default function App() {
 
     // --- API / Logic ---
     const refreshExpenses = useCallback(async () => {
-        // Demo Mode Logic
         if (user?.email === DEMO_USER.email) {
             if (expenses.length === 0) {
                 const mocks = getMockExpenses();
@@ -140,7 +169,6 @@ export default function App() {
             return;
         }
 
-        // Normal Logic
         if (!config?.gasUrl || !user) return;
 
         setApiState((prev) => ({ ...prev, isLoading: true, error: null }));
@@ -184,17 +212,17 @@ export default function App() {
         clearAuthState();
         setUser(undefined);
         setExpenses([]);
-        window.location.hash = "/login";
+        router.push("/login");
     };
 
     const handleLogin = async (newUser: User) => {
         await storage.saveUser(newUser);
         setSignIn();
         setUser(newUser);
+        router.push("/");
     };
 
     const handleSaveExpense = async (expense: Expense) => {
-        // Optimistic update
         const isEdit = !!editingExpense;
         let newExpenses;
         if (isEdit) {
@@ -210,7 +238,6 @@ export default function App() {
         setEditingExpense(null);
         await storage.saveExpenses(newExpenses);
 
-        // Sync Logic
         if (user?.email === DEMO_USER.email) return;
         if (!config?.gasUrl || !user) return;
 
@@ -258,6 +285,20 @@ export default function App() {
         setShowForm(true);
     };
 
+    // --- Route Protection ---
+    useEffect(() => {
+        if (!isInitialized) return;
+        const isPublicPage = ["/login"].includes(pathname);
+
+        if (!user && !isPublicPage) {
+            router.push("/login");
+        }
+        if (user && isPublicPage) {
+            router.push("/");
+        }
+    }, [isInitialized, user, pathname, router]);
+
+
     // --- Render ---
     if (!isInitialized) {
         return (
@@ -269,100 +310,48 @@ export default function App() {
 
     const isDemo = user?.email === DEMO_USER.email;
 
+    const contextValue = {
+        config,
+        user,
+        expenses,
+        apiState,
+        isInitialized,
+        isDemo,
+        googleButtonRef,
+        currentDate,
+        refreshExpenses,
+        handleSaveConfig,
+        handleLogout,
+        handleLogin,
+        openEditForm,
+        handleDeleteExpense,
+        setCurrentDate,
+        setShowForm,
+        setEditingExpense,
+    };
+    
+    const isPublicPage = ["/login"].includes(pathname);
+
     return (
-        <HashRouter>
+        <AppContext.Provider value={contextValue}>
             <div className="min-h-screen bg-background text-text-main font-sans transition-colors duration-300">
-                <Routes>
-                    {/* Public Routes */}
-                    <Route
-                        path="/login"
-                        element={
-                            user ? (
-                                <Navigate to="/" />
-                            ) : (
-                                <Login
-                                    onLogin={handleLogin}
-                                    config={config}
-                                    demoUser={DEMO_USER}
-                                    googleButtonRef={googleButtonRef}
-                                />
-                            )
-                        }
-                    />
-
-                    <Route
-                        path="/settings"
-                        element={
-                            <SettingsPage
-                                config={config}
-                                onSave={handleSaveConfig}
-                                onLogout={handleLogout}
-                            />
-                        }
-                    />
-
-                    <Route
-                        path="/search"
-                        element={
-                            user ? (
-                                <SearchPage
-                                    expenses={expenses}
-                                    onEdit={openEditForm}
-                                    onDelete={handleDeleteExpense}
-                                />
-                            ) : (
-                                <Navigate to="/login" />
-                            )
-                        }
-                    />
-
-                    {/* Protected Routes (wrapped in Layout) */}
-                    <Route
-                        path="/"
-                        element={
-                            !user ? (
-                                <Navigate to="/login" />
-                            ) : (
-                                <Layout
-                                    user={user}
-                                    isDemo={isDemo}
-                                    apiState={apiState}
-                                    onAddClick={() => {
-                                        setEditingExpense(null);
-                                        setShowForm(true);
-                                    }}
-                                />
-                            )
-                        }
+                
+                {!isPublicPage && user ? (
+                    <Layout
+                        user={user}
+                        isDemo={isDemo}
+                        apiState={apiState}
+                        onAddClick={() => {
+                            setEditingExpense(null);
+                            setShowForm(true);
+                        }}
                     >
-                        <Route
-                            index
-                            element={
-                                <Dashboard
-                                    expenses={expenses}
-                                    apiState={apiState}
-                                    onRefresh={refreshExpenses}
-                                    baseCurrency={config?.baseCurrency || "TWD"}
-                                />
-                            }
-                        />
-                        <Route
-                            path="list"
-                            element={
-                                <ListPage
-                                    expenses={expenses}
-                                    currentDate={currentDate}
-                                    onDateChange={setCurrentDate}
-                                    onEdit={openEditForm}
-                                    onDelete={handleDeleteExpense}
-                                    baseCurrency={config?.baseCurrency || "TWD"}
-                                />
-                            }
-                        />
-                    </Route>
-                </Routes>
+                        {children}
+                    </Layout>
+                ) : (
+                    children
+                )}
 
-                {/* Global Modal */}
                 {showForm && user && (
                     <ExpenseForm
                         initialData={editingExpense}
@@ -376,6 +365,14 @@ export default function App() {
                     />
                 )}
             </div>
-        </HashRouter>
+        </AppContext.Provider>
     );
+}
+
+export function useAppContext() {
+    const context = useContext(AppContext);
+    if (!context) {
+        throw new Error("useAppContext must be used within an AppProvider");
+    }
+    return context;
 }
