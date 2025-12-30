@@ -125,7 +125,7 @@ export const ExpenseList: React.FC<Props> = ({
                             <div className="flex-1">
                                 <div className="flex items-center justify-between pr-4">
                                     <h4 className="font-semibold text-text-main">
-                                        {exp.item}
+                                        {exp.itemName}
                                     </h4>
                                 </div>
                                 <div className="flex items-center gap-2 mt-1">
@@ -136,11 +136,11 @@ export const ExpenseList: React.FC<Props> = ({
                                         {exp.payer.split("@")[0]}
                                     </span>
                                 </div>
-                                {exp.remark && (
+                                {/* {exp.remark && (
                                     <p className="text-xs text-text-muted mt-1 italic">
                                         "{exp.remark}"
                                     </p>
-                                )}
+                                )} */}
                             </div>
 
                             <div className="text-right pl-2">

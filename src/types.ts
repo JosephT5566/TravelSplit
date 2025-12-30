@@ -1,4 +1,5 @@
 export type Expense = {
+    id?: string;
     timestamp: string;
     date: string;
     itemName: string;
@@ -7,6 +8,8 @@ export type Expense = {
     amount: number;
     currency: string;
     splitsJson: string;
+    type?: 'expense' | 'income';
+    exchangeRate?: number;
 };
 
 export type ExpensesResponse = AppScriptResponse<Expense[]>;
@@ -43,3 +46,23 @@ export const TransactionType = {
     EXPENSE: "expense",
     INCOME: "income",
 } as const;
+
+export type User = {
+    email: string;
+    name: string;
+    picture?: string;
+};
+
+export type ApiState = {
+    isLoading: boolean;
+    error: string | null;
+    lastUpdated: number | null;
+};
+
+export type AppConfig = {
+    gasUrl: string;
+    allowedEmails: string[];
+    baseCurrency: string;
+    googleClientId: string;
+    theme: string;
+};

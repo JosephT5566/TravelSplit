@@ -2,17 +2,14 @@
 
 import React from "react";
 import { ExpenseList } from "../../components/ExpenseList";
-import { useAppContext } from "../../components/AppContext";
+import { useExpenses } from "../../src/stores/ExpensesStore";
+import { useUI } from "../../src/stores/UIStore";
+import { useConfig } from "../../src/stores/ConfigStore";
 
 const ListPageContent: React.FC = () => {
-    const {
-        expenses,
-        currentDate,
-        setCurrentDate,
-        openEditForm,
-        handleDeleteExpense,
-        config,
-    } = useAppContext();
+    const { expenses, deleteExpense } = useExpenses();
+    const { currentDate, setCurrentDate, openExpenseForm } = useUI();
+    const { config } = useConfig();
 
     return (
         <div className="animate-in fade-in slide-in-from-right-4 duration-300">
@@ -20,8 +17,8 @@ const ListPageContent: React.FC = () => {
                 expenses={expenses}
                 currentDate={currentDate}
                 onDateChange={setCurrentDate}
-                onEdit={openEditForm}
-                onDelete={handleDeleteExpense}
+                onEdit={openExpenseForm}
+                onDelete={deleteExpense}
                 baseCurrency={config?.baseCurrency || "TWD"}
             />
         </div>

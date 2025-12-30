@@ -4,10 +4,13 @@ import React from "react";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { Settings } from "../../components/Settings";
-import { useAppContext } from "../../components/AppContext";
+import { useConfig } from "../../src/stores/ConfigStore";
+import { useAuthActions } from "../../src/stores/AuthStore";
+
 
 const SettingsPageContent: React.FC = () => {
-    const { config, handleSaveConfig, handleLogout } = useAppContext();
+    const { config, saveConfig } = useConfig();
+    const { signOut } = useAuthActions();
 
     return (
         <div className="pb-20 bg-background min-h-screen">
@@ -23,8 +26,8 @@ const SettingsPageContent: React.FC = () => {
             <div className="p-4 animate-in fade-in slide-in-from-bottom-4 duration-300">
                 <Settings
                     config={config}
-                    onSave={handleSaveConfig}
-                    onLogout={handleLogout}
+                    onSave={saveConfig}
+                    onLogout={signOut}
                 />
             </div>
         </div>

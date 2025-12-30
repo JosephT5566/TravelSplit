@@ -1,9 +1,12 @@
+"use client";
+
 import React, {
     createContext,
     useCallback,
     useContext,
     useMemo,
     useState,
+    useEffect,
 } from "react";
 import {
     getIsSignedIn,
@@ -12,48 +15,73 @@ import {
     signOut as clearSession,
     JwtPayload,
 } from "../utils/auth";
+import { storage } from "../../services/storage";
+import { User } from "../types";
 
 type AuthState = {
     isSignedIn: boolean;
+    user: User | null;
     profile: JwtPayload | null;
     token: string | null;
+    isInitialized: boolean;
 };
 
 type AuthContextValue = AuthState & {
-    setSignIn: (profileOverride?: JwtPayload | null) => void;
-    signOut: () => void;
-    refreshFromStorage: () => void;
+    setSignIn: (user: User) => Promise<void>;
+    signOut: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
-function buildState(): AuthState {
-    const token = getTokenIfValid();
-    return {
-        isSignedIn: getIsSignedIn() || !!token,
-        profile: getProfile(),
-        token,
-    };
-}
-
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-    const [state, setState] = useState<AuthState>(() => buildState());
+    const [state, setState] = useState<AuthState>({
+        isSignedIn: false,
+        user: null,
+        profile: null,
+        token: null,
+        isInitialized: false,
+    });
 
-    const refreshFromStorage = useCallback(() => {
-        setState(buildState());
+    useEffect(() => {
+        const initState = async () => {
+            const storedUser = await storage.getUser();
+            const signedIn = getIsSignedIn();
+            const profile = signedIn ? getProfile() : null;
+            const token = signedIn ? getTokenIfValid() : null;
+            
+            setState({
+                user: storedUser || null,
+                isSignedIn: signedIn && !!storedUser,
+                profile,
+                token,
+                isInitialized: true,
+            });
+        };
+        initState();
     }, []);
 
-    const setSignIn = useCallback((profileOverride?: JwtPayload | null) => {
-        setState({
-            isSignedIn: true,
-            profile: profileOverride ?? getProfile(),
-            token: getTokenIfValid(),
-        });
+    const setSignIn = useCallback(async (newUser: User) => {
+        await storage.saveUser(newUser);
+        const signedIn = getIsSignedIn();
+        setState((s) => ({
+            ...s,
+            user: newUser,
+            isSignedIn: signedIn,
+            profile: signedIn ? getProfile() : null,
+            token: signedIn ? getTokenIfValid() : null,
+        }));
     }, []);
 
-    const signOut = useCallback(() => {
+    const signOut = useCallback(async () => {
+        await storage.clearUser();
         clearSession();
-        setState({ isSignedIn: false, profile: null, token: null });
+        setState((s) => ({
+            ...s,
+            user: null,
+            isSignedIn: false,
+            profile: null,
+            token: null,
+        }));
     }, []);
 
     const value = useMemo(
@@ -61,9 +89,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             ...state,
             setSignIn,
             signOut,
-            refreshFromStorage,
         }),
-        [state, setSignIn, signOut, refreshFromStorage]
+        [state, setSignIn, signOut]
     );
 
     return (
@@ -71,20 +98,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     );
 }
 
-export function useAuthStore() {
-    const ctx = useContext(AuthContext);
-    if (!ctx) {
-        throw new Error("useAuthStore must be used within an AuthProvider");
+export function useAuth() {
+    const context = useContext(AuthContext);
+    if (!context) {
+        throw new Error("useAuth must be used within an AuthProvider");
     }
-    return ctx;
+    return context;
 }
 
 export function useAuthState() {
-    const { isSignedIn, profile, token } = useAuthStore();
-    return { isSignedIn, profile, token };
+    const { isSignedIn, user, profile, token, isInitialized } = useAuth();
+    return { isSignedIn, user, profile, token, isInitialized };
 }
 
 export function useAuthActions() {
-    const { setSignIn, signOut, refreshFromStorage } = useAuthStore();
-    return { setSignIn, signOut, refreshFromStorage };
+    const { setSignIn, signOut } = useAuth();
+    return { setSignIn, signOut };
 }

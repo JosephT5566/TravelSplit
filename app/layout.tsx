@@ -1,6 +1,11 @@
-import "./globals.css";
 import Script from "next/script";
-import { AppProvider } from "../components/AppContext";
+import { AuthProvider } from "../src/stores/AuthStore";
+import { ConfigProvider } from "../src/stores/ConfigStore";
+import { ExpensesProvider } from "../src/stores/ExpensesStore";
+import { UIProvider } from "../src/stores/UIStore";
+import { AppShell } from "../components/AppShell";
+
+import "./globals.css";
 
 export const metadata = {
     title: "TripSplit",
@@ -22,7 +27,15 @@ export default function RootLayout({
                 ></Script>
             </head>
             <body className="bg-background text-text-main transition-colors duration-200">
-                <AppProvider>{children}</AppProvider>
+                <AuthProvider>
+                    <ConfigProvider>
+                        <ExpensesProvider>
+                            <UIProvider>
+                                <AppShell>{children}</AppShell>
+                            </UIProvider>
+                        </ExpensesProvider>
+                    </ConfigProvider>
+                </AuthProvider>
             </body>
         </html>
     );

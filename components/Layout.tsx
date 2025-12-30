@@ -1,27 +1,32 @@
+"use client";
+
 import React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Plus, PieChart, List, Settings as SettingsIcon } from "lucide-react";
-import { User, ApiState } from "../src/types";
+import { useAuth } from "../src/stores/AuthStore";
+import { useExpenses } from "../src/stores/ExpensesStore";
 
 interface LayoutProps {
-    user: User;
-    isDemo: boolean;
-    apiState: ApiState;
     onAddClick: () => void;
     children: React.ReactNode;
 }
 
 export const Layout: React.FC<LayoutProps> = ({
-    user,
-    isDemo,
-    apiState,
     onAddClick,
     children,
 }) => {
     const pathname = usePathname();
+    const { user } = useAuth();
+    const { apiState } = useExpenses();
+    
+    const isDemo = user?.email === "demo@tripsplit.app";
     // Hide FAB on settings page
     const showFab = pathname !== "/settings";
+
+    if (!user) {
+        return <>{children}</>
+    }
 
     return (
         <>

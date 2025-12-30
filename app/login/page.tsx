@@ -1,23 +1,28 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import Link from "next/link";
 import { Settings as SettingsIcon } from "lucide-react";
 import { User } from "../../src/types";
-import { renderGoogleButton } from "../../src/utils/auth";
-import { useAppContext } from "../../components/AppContext";
+import { useConfig } from "../../src/stores/ConfigStore";
+import { useAuthActions } from "../../src/stores/AuthStore";
+import { SignInManager } from "../../components/SignInManager";
 
 const LoginPageContent: React.FC = () => {
-    const { handleLogin, config, googleButtonRef } = useAppContext();
+    const { config } = useConfig();
+    const { setSignIn } = useAuthActions();
     const demoUser: User = { email: "demo@tripsplit.app", name: "Demo User" };
     const [email, setEmail] = useState("");
     const [error, setError] = useState("");
+
+    const handleLogin = (user: User) => {
+        setSignIn(user);
+    };
 
     const handleDemoLogin = () => {
         handleLogin(demoUser);
     };
 
-    // 1. Setup Required State
     if (!config || !config.gasUrl) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-background px-4 transition-colors">
@@ -49,7 +54,6 @@ const LoginPageContent: React.FC = () => {
         );
     }
 
-    // 2. Login State
     const handleEmailLogin = (e: React.FormEvent) => {
         e.preventDefault();
         if (!config.allowedEmails.length) {
@@ -107,13 +111,16 @@ const LoginPageContent: React.FC = () => {
                         Try Demo Mode (Skip Login)
                     </button>
                 </div>
+                
+                <div className="relative flex py-5 items-center">
+                    <div className="flex-grow border-t border-border"></div>
+                    <span className="flex-shrink mx-4 text-text-muted text-sm">Or</span>
+                    <div className="flex-grow border-t border-border"></div>
+                </div>
 
-                <div className="mt-6">
-                    <div
-                        ref={googleButtonRef}
-                        className="flex justify-center"
-                        id="google-login-button"
-                    />
+
+                <div className="mt-2 flex justify-center">
+                    <SignInManager />
                 </div>
 
                 <div className="mt-6 pt-6 border-t border-border text-center">
@@ -130,3 +137,4 @@ const LoginPageContent: React.FC = () => {
 };
 
 export default LoginPageContent;
+

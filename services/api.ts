@@ -1,4 +1,9 @@
-import { Expense, ExpensesResponse, isSuccess } from "../src/types";
+import {
+    Expense,
+    ExpensesResponse,
+    isSuccess,
+    TransactionType,
+} from "../src/types";
 
 export const getMockExpenses = (): Expense[] => {
     const today = new Date();
@@ -14,7 +19,7 @@ export const getMockExpenses = (): Expense[] => {
             currency: "JPY",
             payer: "demo@tripsplit.app",
             // settled: false,
-            splitsJson: ''
+            splitsJson: "",
         },
         {
             timestamp: new Date().toISOString(),
@@ -25,7 +30,7 @@ export const getMockExpenses = (): Expense[] => {
             currency: "TWD",
             payer: "demo@tripsplit.app",
             // settled: true,
-            splitsJson: ''
+            splitsJson: "",
         },
         {
             timestamp: new Date().toISOString(),
@@ -36,7 +41,7 @@ export const getMockExpenses = (): Expense[] => {
             currency: "TWD",
             payer: "demo@tripsplit.app",
             // settled: false,
-            splitsJson: ''
+            splitsJson: "",
         },
         {
             timestamp: new Date().toISOString(),
@@ -47,27 +52,28 @@ export const getMockExpenses = (): Expense[] => {
             currency: "TWD",
             payer: "friend@test.com",
             // settled: true,
-            splitsJson: ''
+            splitsJson: "",
         },
     ];
 };
 
 export const api = {
-    async getExpenses(): Promise<Expense[]> {
+    async getExpenses(userEmail: string): Promise<Expense[]> {
         const gasUrl = process.env.NEXT_PUBLIC_APP_SCRIPT_URL;
         if (!gasUrl) {
             throw new Error("Missing NEXT_PUBLIC_APP_SCRIPT_URL env variable.");
         }
 
         const response = await fetch(gasUrl, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            redirect: 'follow',
+            method: "POST",
             body: JSON.stringify({
-                action: 'getExpenses'
+                action: "getExpenses",
+                payload: { email: userEmail },
             }),
+            headers: {
+                "Content-Type": "application/json",
+            },
+            redirect: "follow",
         });
 
         if (!response.ok) {
@@ -81,5 +87,39 @@ export const api = {
         } else {
             throw new Error(result.error || "Unknown error from server");
         }
+    },
+
+    async syncTransaction(
+        userEmail: string,
+        action: "add" | "edit" | "delete",
+        expense: Expense
+    ): Promise<void> {
+        const gasUrl = process.env.NEXT_PUBLIC_APP_SCRIPT_URL;
+        if (!gasUrl) {
+            throw new Error("Missing NEXT_PUBLIC_APP_SCRIPT_URL env variable.");
+        }
+
+        const signedAmount =
+            expense.type === TransactionType.EXPENSE
+                ? -Math.abs(expense.amount)
+                : Math.abs(expense.amount);
+
+        const payload = {
+            action,
+            user: userEmail,
+            data: {
+                ...expense,
+                amount: signedAmount,
+            },
+        };
+
+        const response = await fetch(gasUrl, {
+            method: "POST",
+            mode: "no-cors",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify(payload),
+        });
     },
 };

@@ -1,22 +1,28 @@
 "use client";
 
-import React from "react";
+import React, { useEffect } from "react";
 import { RefreshCw } from "lucide-react";
 import { ExpensePieChart } from "../components/Charts";
 import { TransactionType } from "../src/types";
-import { useAppContext } from "../components/AppContext";
+import { useExpenses } from "../src/stores/ExpensesStore";
+import { useConfig } from "../src/stores/ConfigStore";
 
 const DashboardContent: React.FC = () => {
-    const { expenses, apiState, refreshExpenses, config } = useAppContext();
+    const { expenses, apiState, refreshExpenses } = useExpenses();
+    const { config } = useConfig();
     const baseCurrency = config?.baseCurrency || "TWD";
+
+    useEffect(() => {
+        refreshExpenses();
+    }, [refreshExpenses]);
 
     const totalExpense = expenses
         .filter((e) => e.type === TransactionType.EXPENSE)
-        .reduce((acc, curr) => acc + curr.amount * curr.exchangeRate, 0);
+        .reduce((acc, curr) => acc + curr.amount * (curr.exchangeRate || 1), 0);
 
     const totalIncome = expenses
         .filter((e) => e.type === TransactionType.INCOME)
-        .reduce((acc, curr) => acc + curr.amount * curr.exchangeRate, 0);
+        .reduce((acc, curr) => acc + curr.amount * (curr.exchangeRate || 1), 0);
 
     return (
         <div className="space-y-6 animate-in fade-in duration-500">
