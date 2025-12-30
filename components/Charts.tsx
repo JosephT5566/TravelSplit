@@ -7,7 +7,7 @@ import {
     Tooltip,
     Legend,
 } from "recharts";
-import { Expense, TransactionType } from "../types";
+import { Expense, TransactionType } from "../src/types";
 
 interface Props {
     expenses: Expense[];

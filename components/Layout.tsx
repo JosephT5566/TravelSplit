@@ -1,13 +1,15 @@
 import React from "react";
-import { NavLink, Outlet, useLocation } from "react-router-dom";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { Plus, PieChart, List, Settings as SettingsIcon } from "lucide-react";
-import { User, ApiState } from "../types";
+import { User, ApiState } from "../src/types";
 
 interface LayoutProps {
     user: User;
     isDemo: boolean;
     apiState: ApiState;
     onAddClick: () => void;
+    children: React.ReactNode;
 }
 
 export const Layout: React.FC<LayoutProps> = ({
@@ -15,10 +17,11 @@ export const Layout: React.FC<LayoutProps> = ({
     isDemo,
     apiState,
     onAddClick,
+    children,
 }) => {
-    const location = useLocation();
+    const pathname = usePathname();
     // Hide FAB on settings page
-    const showFab = location.pathname !== "/settings";
+    const showFab = pathname !== "/settings";
 
     return (
         <>
@@ -48,7 +51,7 @@ export const Layout: React.FC<LayoutProps> = ({
                         {apiState.error}
                     </div>
                 )}
-                <Outlet />
+                {children}
             </div>
 
             {/* FAB */}
@@ -64,45 +67,39 @@ export const Layout: React.FC<LayoutProps> = ({
 
             {/* Bottom Nav */}
             <nav className="fixed bottom-0 left-0 right-0 bg-surface border-t border-border flex justify-around p-3 z-30 transition-colors pb-safe">
-                <NavLink
-                    to="/"
-                    className={({ isActive }) =>
-                        `flex flex-col items-center transition-colors ${
-                            isActive
-                                ? "text-primary"
-                                : "text-text-muted hover:text-text-main"
-                        }`
-                    }
+                <Link
+                    href="/"
+                    className={`flex flex-col items-center transition-colors ${
+                        pathname === "/"
+                            ? "text-primary"
+                            : "text-text-muted hover:text-text-main"
+                    }`}
                 >
                     <PieChart size={24} />
                     <span className="text-xs mt-1">Stats</span>
-                </NavLink>
-                <NavLink
-                    to="/list"
-                    className={({ isActive }) =>
-                        `flex flex-col items-center transition-colors ${
-                            isActive
-                                ? "text-primary"
-                                : "text-text-muted hover:text-text-main"
-                        }`
-                    }
+                </Link>
+                <Link
+                    href="/list"
+                    className={`flex flex-col items-center transition-colors ${
+                        pathname === "/list"
+                            ? "text-primary"
+                            : "text-text-muted hover:text-text-main"
+                    }`}
                 >
                     <List size={24} />
                     <span className="text-xs mt-1">Expenses</span>
-                </NavLink>
-                <NavLink
-                    to="/settings"
-                    className={({ isActive }) =>
-                        `flex flex-col items-center transition-colors ${
-                            isActive
-                                ? "text-primary"
-                                : "text-text-muted hover:text-text-main"
-                        }`
-                    }
+                </Link>
+                <Link
+                    href="/settings"
+                    className={`flex flex-col items-center transition-colors ${
+                        pathname === "/settings"
+                            ? "text-primary"
+                            : "text-text-muted hover:text-text-main"
+                    }`}
                 >
                     <SettingsIcon size={24} />
                     <span className="text-xs mt-1">Settings</span>
-                </NavLink>
+                </Link>
             </nav>
         </>
     );

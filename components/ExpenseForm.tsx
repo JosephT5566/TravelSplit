@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Expense, TransactionType, User } from "../types";
+import { Expense, TransactionType, User } from "../src/types";
 import { format } from "date-fns";
 import {
     X,

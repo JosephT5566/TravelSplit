@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from "react";
-import { useNavigate } from "react-router-dom";
-import { Expense, TransactionType } from "../types";
+import { useRouter } from "next/navigation";
+import { Expense, TransactionType } from "../src/types";
 import { Search, ArrowLeft, Edit2, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 
@@ -15,7 +15,7 @@ export const ExpenseSearch: React.FC<Props> = ({
     onEdit,
     onDelete,
 }) => {
-    const navigate = useNavigate();
+    const router = useRouter();
     const [query, setQuery] = useState("");
 
     const groupedResults = useMemo(() => {
@@ -60,7 +60,7 @@ export const ExpenseSearch: React.FC<Props> = ({
             {/* Header */}
             <div className="p-4 bg-surface shadow sticky top-0 z-10 flex items-center gap-3 border-b border-border">
                 <button
-                    onClick={() => navigate(-1)}
+                    onClick={() => router.back()}
                     className="text-text-muted hover:text-text-main"
                 >
                     <ArrowLeft size={24} />

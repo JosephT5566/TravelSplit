@@ -1,6 +1,6 @@
 import React, { useMemo } from "react";
-import { useNavigate } from "react-router-dom";
-import { Expense, TransactionType } from "../types";
+import { useRouter } from "next/navigation";
+import { Expense, TransactionType } from "../src/types";
 import { format, addDays } from "date-fns";
 import {
     ChevronLeft,
@@ -28,7 +28,7 @@ export const ExpenseList: React.FC<Props> = ({
     onDelete,
     baseCurrency,
 }) => {
-    const navigate = useNavigate();
+    const router = useRouter();
     const dateStr = format(currentDate, "yyyy-MM-dd");
 
     const dailyExpenses = useMemo(() => {
@@ -99,7 +99,7 @@ export const ExpenseList: React.FC<Props> = ({
             {/* Action Bar (Search) */}
             <div className="flex justify-end mb-2 px-2">
                 <button
-                    onClick={() => navigate("/search")}
+                    onClick={() => router.push("/search")}
                     className="text-sm flex items-center gap-1 text-primary font-medium bg-surface border border-border px-3 py-1.5 rounded-full hover:bg-background"
                 >
                     <Search size={14} /> Search All

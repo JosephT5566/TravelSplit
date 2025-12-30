@@ -173,7 +173,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
         setApiState((prev) => ({ ...prev, isLoading: true, error: null }));
         try {
-            const data = await api.fetchExpenses(config.gasUrl, user.email);
+            const data = await api.getExpenses(config.gasUrl, user.email);
             setExpenses(data);
             await storage.saveExpenses(data);
             setApiState((prev) => ({

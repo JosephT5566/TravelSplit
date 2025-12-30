@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { Settings as SettingsIcon } from "lucide-react";
-import { User } from "../../types";
+import { User } from "../../src/types";
 import { renderGoogleButton } from "../../src/utils/auth";
 import { useAppContext } from "../../components/AppContext";
 

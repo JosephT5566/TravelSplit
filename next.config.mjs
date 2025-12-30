@@ -1,6 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Your Next.js configuration options here
+    output: 'export', // enable static export
 };
 
 export default nextConfig;

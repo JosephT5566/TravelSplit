@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { AppConfig } from "../types";
+import { AppConfig } from "../src/types";
 
 interface Props {
     config: AppConfig | undefined;

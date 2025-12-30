@@ -3,7 +3,7 @@
 import React from "react";
 import { RefreshCw } from "lucide-react";
 import { ExpensePieChart } from "../components/Charts";
-import { TransactionType } from "../types";
+import { TransactionType } from "../src/types";
 import { useAppContext } from "../components/AppContext";
 
 const DashboardContent: React.FC = () => {
