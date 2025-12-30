@@ -2,7 +2,7 @@
 
 import React, { useEffect } from "react";
 import { RefreshCw } from "lucide-react";
-import { ExpensePieChart } from "../components/Charts";
+// import { ExpensePieChart } from "../components/Charts";
 import { TransactionType } from "../src/types";
 import { useExpenses } from "../src/stores/ExpensesStore";
 import { useConfig } from "../src/stores/ConfigStore";
@@ -65,7 +65,7 @@ const DashboardContent: React.FC = () => {
                 <h3 className="font-semibold mb-4 text-text-main">
                     Category Breakdown
                 </h3>
-                <ExpensePieChart expenses={expenses} />
+                {/* <ExpensePieChart expenses={expenses} /> */}
             </div>
         </div>
     );

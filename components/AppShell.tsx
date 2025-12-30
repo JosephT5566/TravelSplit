@@ -3,7 +3,7 @@
 import React, { useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { Layout } from "./Layout";
-import { ExpenseForm } from "./ExpenseForm";
+// import { ExpenseForm } from "./ExpenseForm";
 import { useAuth } from "../src/stores/AuthStore";
 import { useExpenses } from "../src/stores/ExpensesStore";
 import { useUI } from "../src/stores/UIStore";
@@ -62,7 +62,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 children
             )}
 
-            {showForm && user && (
+            {/* {showForm && user && (
                 <ExpenseForm
                     initialData={editingExpense}
                     defaultDate={currentDate}
@@ -70,7 +70,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                     onSave={handleSaveExpense}
                     onCancel={closeExpenseForm}
                 />
-            )}
+            )} */}
         </div>
     );
 }

@@ -11,11 +11,11 @@ const SearchPageContent: React.FC = () => {
 
     return (
         <div className="bg-gray-50 dark:bg-gray-900 min-h-screen animate-in fade-in duration-200">
-            <ExpenseSearch
+            {/* <ExpenseSearch
                 expenses={expenses}
                 onEdit={openExpenseForm}
                 onDelete={deleteExpense}
-            />
+            /> */}
         </div>
     );
 };

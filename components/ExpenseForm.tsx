@@ -46,7 +46,7 @@ export const ExpenseForm: React.FC<Props> = ({
         exchangeRate: 1,
         category: "Food",
         payer: currentUser.email,
-        settled: false,
+        // settled: false,
         item: "",
         amount: "" as any,
         personalNote: "",
@@ -88,7 +88,7 @@ export const ExpenseForm: React.FC<Props> = ({
             currency: formData.currency!,
             payer: formData.payer!,
             personalNote: formData.personalNote || "",
-            settled: formData.settled || false,
+            // settled: formData.settled || false,
             remark: formData.remark || "",
             exchangeRate: Number(formData.exchangeRate),
         };
@@ -353,7 +353,7 @@ export const ExpenseForm: React.FC<Props> = ({
                                 onClick={() =>
                                     setFormData({
                                         ...formData,
-                                        settled: !formData.settled,
+                                        // settled: !formData.settled,
                                     })
                                 }
                                 className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors ${

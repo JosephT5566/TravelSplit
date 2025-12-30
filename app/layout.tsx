@@ -1,11 +1,10 @@
+import "./globals.css";
 import Script from "next/script";
 import { AuthProvider } from "../src/stores/AuthStore";
 import { ConfigProvider } from "../src/stores/ConfigStore";
 import { ExpensesProvider } from "../src/stores/ExpensesStore";
 import { UIProvider } from "../src/stores/UIStore";
 import { AppShell } from "../components/AppShell";
-
-import "./globals.css";
 
 export const metadata = {
     title: "TripSplit",

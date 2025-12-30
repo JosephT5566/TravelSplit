@@ -29,7 +29,7 @@ export const ExpensePieChart: React.FC<Props> = ({ expenses }) => {
         expenses.forEach((exp) => {
             // Only count actual expenses (negative amounts logic)
             if (exp.type === TransactionType.EXPENSE) {
-                const amountInBase = exp.amount * exp.exchangeRate;
+                const amountInBase = exp.amount;// * exp.exchangeRate;
                 categoryMap[exp.category] =
                     (categoryMap[exp.category] || 0) + amountInBase;
             }
