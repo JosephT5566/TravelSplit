@@ -1,5 +1,4 @@
 export type Expense = {
-    id?: string;
     timestamp: string;
     date: string;
     itemName: string;
@@ -8,7 +7,6 @@ export type Expense = {
     amount: number;
     currency: string;
     splitsJson: string;
-    type?: 'expense' | 'income';
     exchangeRate?: number;
 };
 
@@ -41,11 +39,6 @@ export const isSuccess = <T, E = string>(
 export const isFailure = <T, E = string>(
     r: AppScriptResponse<T, E>
 ): r is FailureResponse<E> => !r.ok;
-
-export const TransactionType = {
-    EXPENSE: "expense",
-    INCOME: "income",
-} as const;
 
 export type User = {
     email: string;

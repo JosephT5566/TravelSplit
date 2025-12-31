@@ -7,7 +7,7 @@ import {
     Tooltip,
     Legend,
 } from "recharts";
-import { Expense, TransactionType } from "../src/types";
+import { Expense } from "../src/types";
 
 interface Props {
     expenses: Expense[];
@@ -25,15 +25,6 @@ const COLORS = [
 export const ExpensePieChart: React.FC<Props> = ({ expenses }) => {
     const data = useMemo(() => {
         const categoryMap: Record<string, number> = {};
-
-        expenses.forEach((exp) => {
-            // Only count actual expenses (negative amounts logic)
-            if (exp.type === TransactionType.EXPENSE) {
-                const amountInBase = exp.amount;// * exp.exchangeRate;
-                categoryMap[exp.category] =
-                    (categoryMap[exp.category] || 0) + amountInBase;
-            }
-        });
 
         return Object.entries(categoryMap)
             .map(([name, value]) => ({ name, value }))

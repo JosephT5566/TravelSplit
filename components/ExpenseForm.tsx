@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Expense, TransactionType, User } from "../src/types";
+import { Expense, User } from "../src/types";
 import { format } from "date-fns";
 import {
     X,
@@ -41,20 +41,15 @@ export const ExpenseForm: React.FC<Props> = ({
 }) => {
     const [formData, setFormData] = useState<Partial<Expense>>({
         date: format(defaultDate || new Date(), "yyyy-MM-dd"),
-        type: TransactionType.EXPENSE,
         currency: "TWD",
         exchangeRate: 1,
         category: "Food",
         payer: currentUser.email,
-        // settled: false,
-        item: "",
+        itemName: "",
         amount: "" as any,
-        personalNote: "",
-        remark: "",
     });
 
-    const isExpense = formData.type === TransactionType.EXPENSE;
-    const themeColor = isExpense ? "red" : "green";
+    const themeColor = "red";
 
     useEffect(() => {
         if (initialData) {
@@ -70,27 +65,18 @@ export const ExpenseForm: React.FC<Props> = ({
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        if (!formData.item || !formData.amount) return;
-
-        const dayName = new Date(formData.date!).toLocaleDateString("en-US", {
-            weekday: "long",
-        });
+        if (!formData.itemName || !formData.amount) return;
 
         const newExpense: Expense = {
-            id: initialData?.id || crypto.randomUUID(),
             timestamp: initialData?.timestamp || new Date().toISOString(),
             date: formData.date!,
-            day: dayName,
             category: formData.category!,
-            item: formData.item!,
-            type: formData.type!,
+            itemName: formData.itemName!,
             amount: Number(formData.amount),
             currency: formData.currency!,
             payer: formData.payer!,
-            personalNote: formData.personalNote || "",
-            // settled: formData.settled || false,
-            remark: formData.remark || "",
             exchangeRate: Number(formData.exchangeRate),
+            splitsJson: "",
         };
 
         onSave(newExpense);
@@ -145,44 +131,6 @@ export const ExpenseForm: React.FC<Props> = ({
                     onSubmit={handleSubmit}
                     className="flex-1 overflow-y-auto custom-scrollbar bg-surface"
                 >
-                    {/* Type Selector (Segmented Control) */}
-                    <div className="p-4 pb-0">
-                        <div className="bg-background p-1 rounded-xl flex relative border border-border">
-                            <button
-                                type="button"
-                                onClick={() =>
-                                    setFormData({
-                                        ...formData,
-                                        type: TransactionType.EXPENSE,
-                                    })
-                                }
-                                className={`flex-1 py-2 text-sm font-semibold rounded-lg transition-all duration-200 z-10 ${
-                                    isExpense
-                                        ? "bg-surface shadow text-red-600"
-                                        : "text-text-muted"
-                                }`}
-                            >
-                                Expense
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() =>
-                                    setFormData({
-                                        ...formData,
-                                        type: TransactionType.INCOME,
-                                    })
-                                }
-                                className={`flex-1 py-2 text-sm font-semibold rounded-lg transition-all duration-200 z-10 ${
-                                    !isExpense
-                                        ? "bg-surface shadow text-green-600"
-                                        : "text-text-muted"
-                                }`}
-                            >
-                                Income / Refund
-                            </button>
-                        </div>
-                    </div>
-
                     {/* Main Amount Input */}
                     <div className="px-6 py-8 flex flex-col items-center justify-center">
                         <div className="flex items-baseline gap-2 text-text-main">
@@ -235,11 +183,11 @@ export const ExpenseForm: React.FC<Props> = ({
                                 required
                                 placeholder="What is this for?"
                                 className="w-full bg-transparent text-lg border-b border-transparent focus:border-border outline-none transition-colors pb-1 text-text-main placeholder-text-muted/50"
-                                value={formData.item}
+                                value={formData.itemName}
                                 onChange={(e) =>
                                     setFormData({
                                         ...formData,
-                                        item: e.target.value,
+                                        itemName: e.target.value,
                                     })
                                 }
                             />
@@ -322,55 +270,6 @@ export const ExpenseForm: React.FC<Props> = ({
                                 }
                             />
                         </InputGroup>
-
-                        {/* Settled Toggle */}
-                        <div className="flex items-center justify-between py-4 border-t border-border mt-4">
-                            <div className="flex items-center gap-3">
-                                <div
-                                    className={`p-2 rounded-full ${
-                                        formData.settled
-                                            ? "bg-green-100 text-green-600"
-                                            : "bg-background text-text-muted"
-                                    }`}
-                                >
-                                    {formData.settled ? (
-                                        <CheckCircle2 size={24} />
-                                    ) : (
-                                        <Circle size={24} />
-                                    )}
-                                </div>
-                                <div>
-                                    <p className="font-medium text-text-main">
-                                        Mark as Settled
-                                    </p>
-                                    <p className="text-xs text-text-muted">
-                                        No further action needed
-                                    </p>
-                                </div>
-                            </div>
-                            <button
-                                type="button"
-                                onClick={() =>
-                                    setFormData({
-                                        ...formData,
-                                        // settled: !formData.settled,
-                                    })
-                                }
-                                className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors ${
-                                    formData.settled
-                                        ? "bg-green-500"
-                                        : "bg-background border border-border"
-                                }`}
-                            >
-                                <span
-                                    className={`inline-block h-5 w-5 transform rounded-full bg-surface shadow transition-transform ${
-                                        formData.settled
-                                            ? "translate-x-6"
-                                            : "translate-x-1"
-                                    }`}
-                                />
-                            </button>
-                        </div>
                     </div>
                 </form>
             </div>

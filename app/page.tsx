@@ -2,8 +2,7 @@
 
 import React, { useEffect } from "react";
 import { RefreshCw } from "lucide-react";
-// import { ExpensePieChart } from "../components/Charts";
-import { TransactionType } from "../src/types";
+import { ExpensePieChart } from "../components/Charts";
 import { useExpenses } from "../src/stores/ExpensesStore";
 import { useConfig } from "../src/stores/ConfigStore";
 
@@ -17,11 +16,6 @@ const DashboardContent: React.FC = () => {
     }, [refreshExpenses]);
 
     const totalExpense = expenses
-        .filter((e) => e.type === TransactionType.EXPENSE)
-        .reduce((acc, curr) => acc + curr.amount * (curr.exchangeRate || 1), 0);
-
-    const totalIncome = expenses
-        .filter((e) => e.type === TransactionType.INCOME)
         .reduce((acc, curr) => acc + curr.amount * (curr.exchangeRate || 1), 0);
 
     return (
@@ -40,7 +34,7 @@ const DashboardContent: React.FC = () => {
                 </button>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4">
                 <div className="p-4 bg-surface rounded-xl shadow border-l-4 border-red-500 transition-colors">
                     <p className="text-sm text-text-muted">Total Spent</p>
                     <p
@@ -50,22 +44,13 @@ const DashboardContent: React.FC = () => {
                         {baseCurrency} {totalExpense.toFixed(0)}
                     </p>
                 </div>
-                <div className="p-4 bg-surface rounded-xl shadow border-l-4 border-green-500 transition-colors">
-                    <p className="text-sm text-text-muted">Reimbursed</p>
-                    <p
-                        className="text-xl font-bold text-green-500 truncate"
-                        title={`${baseCurrency} ${totalIncome.toFixed(0)}`}
-                    >
-                        {baseCurrency} {totalIncome.toFixed(0)}
-                    </p>
-                </div>
             </div>
 
             <div className="bg-surface p-4 rounded-xl shadow transition-colors border border-border">
                 <h3 className="font-semibold mb-4 text-text-main">
                     Category Breakdown
                 </h3>
-                {/* <ExpensePieChart expenses={expenses} /> */}
+                <ExpensePieChart expenses={expenses} />
             </div>
         </div>
     );

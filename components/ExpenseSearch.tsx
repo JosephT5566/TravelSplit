@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { Expense, TransactionType } from "../src/types";
+import { Expense } from "../src/types";
 import { Search, ArrowLeft, Edit2, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 
@@ -25,11 +25,10 @@ export const ExpenseSearch: React.FC<Props> = ({
         const filtered = expenses
             .filter(
                 (e) =>
-                    e.item.toLowerCase().includes(lowerQuery) ||
+                    e.itemName.toLowerCase().includes(lowerQuery) ||
                     e.category.toLowerCase().includes(lowerQuery) ||
                     e.payer.toLowerCase().includes(lowerQuery) ||
-                    e.amount.toString().includes(lowerQuery) ||
-                    (e.remark && e.remark.toLowerCase().includes(lowerQuery))
+                    e.amount.toString().includes(lowerQuery)
             )
             .sort(
                 (a, b) =>
@@ -106,12 +105,12 @@ export const ExpenseSearch: React.FC<Props> = ({
                         <div className="space-y-3">
                             {group.items.map((exp) => (
                                 <div
-                                    key={exp.id}
+                                    key={exp.timestamp}
                                     className="bg-surface p-4 rounded-xl shadow flex justify-between items-center border border-border"
                                 >
                                     <div className="flex-1">
                                         <h4 className="font-semibold text-text-main">
-                                            {exp.item}
+                                            {exp.itemName}
                                         </h4>
                                         <p className="text-sm text-text-muted">
                                             {exp.category} •{" "}
@@ -120,17 +119,9 @@ export const ExpenseSearch: React.FC<Props> = ({
                                     </div>
                                     <div className="text-right">
                                         <p
-                                            className={`font-bold ${
-                                                exp.type ===
-                                                TransactionType.EXPENSE
-                                                    ? "text-red-500"
-                                                    : "text-green-500"
-                                            }`}
+                                            className="font-bold text-red-500"
                                         >
-                                            {exp.type ===
-                                            TransactionType.EXPENSE
-                                                ? "-"
-                                                : "+"}
+                                            -
                                             {exp.amount}{" "}
                                             <span className="text-xs text-text-muted">
                                                 {exp.currency}
@@ -144,7 +135,11 @@ export const ExpenseSearch: React.FC<Props> = ({
                                                 <Edit2 size={16} />
                                             </button>
                                             <button
-                                                onClick={() => onDelete(exp.id)}
+                                                onClick={() => {
+                                                    if (exp.timestamp) {
+                                                        onDelete(exp.timestamp);
+                                                    }
+                                                }}
                                                 className="text-text-muted hover:text-red-500"
                                             >
                                                 <Trash2 size={16} />

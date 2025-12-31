@@ -1,6 +1,6 @@
 import React, { useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { Expense, TransactionType } from "../src/types";
+import { Expense } from "../src/types";
 import { format, addDays } from "date-fns";
 import {
     ChevronLeft,
@@ -37,10 +37,8 @@ export const ExpenseList: React.FC<Props> = ({
 
     const dailyTotal = useMemo(() => {
         return dailyExpenses.reduce((acc, curr) => {
-            const amount = curr.amount * curr.exchangeRate;
-            return curr.type === TransactionType.EXPENSE
-                ? acc - amount
-                : acc + amount;
+            const amount = curr.amount * (curr.exchangeRate || 1);
+            return acc - amount;
         }, 0);
     }, [dailyExpenses]);
 
@@ -86,11 +84,9 @@ export const ExpenseList: React.FC<Props> = ({
                 <div className="px-4 py-2 bg-background border-t border-border flex justify-between items-center text-sm">
                     <span className="text-text-muted">Daily Total</span>
                     <span
-                        className={`font-bold ${
-                            dailyTotal < 0 ? "text-red-500" : "text-green-500"
-                        }`}
+                        className="font-bold text-red-500"
                     >
-                        {dailyTotal < 0 ? "-" : ""}
+                        -
                         {baseCurrency} {Math.abs(dailyTotal).toFixed(1)}
                     </span>
                 </div>
@@ -119,7 +115,7 @@ export const ExpenseList: React.FC<Props> = ({
                 ) : (
                     dailyExpenses.map((exp) => (
                         <div
-                            key={exp.id}
+                            key={exp.timestamp}
                             className="bg-surface p-4 rounded-xl shadow flex justify-between items-center border border-border hover:border-primary transition-all"
                         >
                             <div className="flex-1">
@@ -145,16 +141,9 @@ export const ExpenseList: React.FC<Props> = ({
 
                             <div className="text-right pl-2">
                                 <p
-                                    className={`text-lg font-bold ${
-                                        exp.type === TransactionType.EXPENSE
-                                            ? "text-red-500"
-                                            : "text-green-500"
-                                    }`}
+                                    className="text-lg font-bold text-red-500"
                                 >
-                                    {exp.type === TransactionType.EXPENSE
-                                        ? "-"
-                                        : "+"}
-                                    {exp.amount}
+                                    -{exp.amount}
                                 </p>
                                 <p className="text-xs text-text-muted font-medium">
                                     {exp.currency}
@@ -173,7 +162,9 @@ export const ExpenseList: React.FC<Props> = ({
                                     <button
                                         onClick={(e) => {
                                             e.stopPropagation();
-                                            onDelete(exp.id);
+                                            if (exp.timestamp) {
+                                                onDelete(exp.timestamp);
+                                            }
                                         }}
                                         className="text-text-muted hover:text-red-500"
                                     >

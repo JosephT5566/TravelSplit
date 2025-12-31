@@ -1,5 +1,5 @@
 import { get, set, del } from "idb-keyval";
-import { AppConfig, Expense, User } from "../../types";
+import { AppConfig, Expense, User } from "../src/types";
 
 const CONFIG_KEY = "tripsplit_config";
 const EXPENSES_KEY = "tripsplit_expenses";
