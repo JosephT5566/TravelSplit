@@ -1,52 +1,52 @@
 @import "tailwindcss";
-@tailwind utilities;
+
+/* Tailwind CSS Custom Variants */
+/* https://github.com/tailwindlabs/tailwindcss/discussions/18471#discussioncomment-13936727 */
+@custom-variant forest (&:where([data-theme="forest"], [data-theme="forest"] *));
+@custom-variant ocean (&:where([data-theme="ocean"], [data-theme="ocean"] *));
 
 :root {
-  /* Classic (Default Light/System) - Fallback */
-  --color-bg: 249 250 251; /* gray-50 */
-  --color-surface: 255 255 255; /* white */
-  --color-primary: 37 99 235; /* blue-600 */
-  --color-primary-fg: 255 255 255;
-  --color-text-main: 17 24 39; /* gray-900 */
-  --color-text-muted: 107 114 128; /* gray-500 */
-  --color-border: 229 231 235; /* gray-200 */
+    /* Classic (Default Light/System) - Fallback */
+    --theme-bg: rgb(249, 250, 251); /* gray-50 */
+    --theme-surface: rgb(255, 255, 255); /* white */
+    --theme-primary: rgb(37, 99, 235); /* blue-600 */
+    --theme-primary-fg: rgb(255, 255, 255);
+    --theme-text-main: rgb(17, 24, 39); /* gray-900 */
+    --theme-text-muted: rgb(107, 114, 128); /* gray-500 */
+    --theme-border: rgb(229, 231, 235); /* gray-200 */
 }
 
-/* Classic Dark Mode Support (System preference) */
-@media (prefers-color-scheme: dark) {
-  :root {
-    --color-bg: 17 24 39; /* gray-900 */
-    --color-surface: 31 41 55; /* gray-800 */
-    --color-primary: 59 130 246; /* blue-500 */
-    --color-text-main: 243 244 246; /* gray-100 */
-    --color-text-muted: 156 163 175; /* gray-400 */
-    --color-border: 55 65 81; /* gray-700 */
-  }
+@theme {
+    --color-background: rgb(249, 250, 251);
+    --color-surface: rgb(255, 255, 255);
+    --color-primary: rgb(37, 99, 235);
+    --color-primary-fg: rgb(255, 255, 255);
+    --color-text-main: rgb(17, 24, 39);
+    --color-text-muted: rgb(107, 114, 128);
+    --color-border: rgb(229, 231, 235);
 }
 
-/* Enforce Classic via data-attribute (Optional override) */
-[data-theme='classic'] {
-   /* Uses system pref or default defined in :root above */
-}
+@layer theme {
+    :root,
+    :host {
+        @variant forest {
+            --color-bg: rgb(44, 57, 48); /* #2C3930 */
+            --color-surface: rgb(63, 79, 68); /* #3F4F44 */
+            --color-primary: rgb(162, 123, 92); /* #A27B5C */
+            --color-primary-fg: rgb(44, 57, 48);
+            --color-text-main: rgb(220, 215, 201); /* #DCD7C9 */
+            --color-text-muted: rgb(160, 155, 140); /* Dimmer #DCD7C9 */
+            --color-border: rgb(80, 90, 80);
+        }
 
-/* Forest Theme */
-[data-theme='forest'] {
-  --color-bg: 44 57 48; /* #2C3930 */
-  --color-surface: 63 79 68; /* #3F4F44 */
-  --color-primary: 162 123 92; /* #A27B5C */
-  --color-primary-fg: 44 57 48;
-  --color-text-main: 220 215 201; /* #DCD7C9 */
-  --color-text-muted: 160 155 140; /* Dimmer #DCD7C9 */
-  --color-border: 80 90 80;
-}
-
-/* Ocean Theme */
-[data-theme='ocean'] {
-  --color-bg: 242 239 231; /* #F2EFE7 */
-  --color-surface: 255 255 255;
-  --color-primary: 0 106 113; /* #006A71 */
-  --color-primary-fg: 255 255 255;
-  --color-text-main: 0 60 65; /* Darker teal/black */
-  --color-text-muted: 72 166 167; /* #48A6A7 */
-  --color-border: 154 203 208; /* #9ACBD0 */
+        @variant ocean {
+            --color-bg: rgb(242, 239, 231); /* #F2EFE7 */
+            --color-surface: rgb(255, 255, 255);
+            --color-primary: rgb(0, 106, 113); /* #006A71 */
+            --color-primary-fg: rgb(255, 255, 255);
+            --color-text-main: rgb(0, 60, 65); /* Darker teal/black */
+            --color-text-muted: rgb(72, 166, 167); /* #48A6A7 */
+            --color-border: rgb(154, 203, 208); /* #9ACBD0 */
+        }
+    }
 }

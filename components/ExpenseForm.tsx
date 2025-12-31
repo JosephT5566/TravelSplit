@@ -275,7 +275,7 @@ export const ExpenseForm: React.FC<Props> = ({
                             <input
                                 type="date"
                                 required
-                                className="w-full bg-transparent text-base outline-none text-text-main dark:[color-scheme:dark]"
+                                className="w-full bg-transparent text-base outline-none text-text-main dark:scheme-dark"
                                 value={formData.date}
                                 onChange={(e) =>
                                     setFormData({
