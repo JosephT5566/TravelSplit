@@ -49,7 +49,9 @@ export function ExpensesProvider({ children }: { children: React.ReactNode }) {
     }, []);
 
     const refreshExpenses = useCallback(async () => {
-        if (!config?.gasUrl || !user?.email) return;
+        if (!config?.gasUrl || !user?.email) {
+            return;
+        }
 
         setApiState((prev) => ({ ...prev, isLoading: true, error: null }));
         try {
@@ -71,50 +73,71 @@ export function ExpensesProvider({ children }: { children: React.ReactNode }) {
         }
     }, [config, user]);
 
-    const addExpense = useCallback(async (expense: Expense) => {
-        if (!user) return;
-        const newExpenses = [expense, ...expenses];
-        setExpenses(newExpenses);
-        await storage.saveExpenses(newExpenses);
+    const addExpense = useCallback(
+        async (expense: Expense) => {
+            if (!user) {
+                return;
+            }
+            const newExpenses = [expense, ...expenses];
+            setExpenses(newExpenses);
+            await storage.saveExpenses(newExpenses);
 
-        try {
-            await api.syncTransaction(user.email, "add", expense);
-            await refreshExpenses();
-        } catch (err) {
-            console.error("Failed to add expense:", err);
-        }
-    }, [expenses, user, refreshExpenses]);
+            try {
+                await api.syncTransaction(user.email, "add", expense);
+                await refreshExpenses();
+            } catch (err) {
+                console.error("Failed to add expense:", err);
+            }
+        },
+        [expenses, user, refreshExpenses]
+    );
 
-    const updateExpense = useCallback(async (expense: Expense) => {
-        if (!user) return;
-        const newExpenses = expenses.map(e => e.id === expense.id ? expense : e);
-        setExpenses(newExpenses);
-        await storage.saveExpenses(newExpenses);
+    const updateExpense = useCallback(
+        async (expense: Expense) => {
+            if (!user) return;
+            const newExpenses = expenses.map((e) =>
+                e.timestamp === expense.timestamp ? expense : e
+            );
+            setExpenses(newExpenses);
+            await storage.saveExpenses(newExpenses);
 
-        try {
-            await api.syncTransaction(user.email, "edit", expense);
-            await refreshExpenses();
-        } catch (err) {
-            console.error("Failed to update expense:", err);
-        }
-    }, [expenses, user, refreshExpenses]);
+            try {
+                await api.syncTransaction(user.email, "edit", expense);
+                await refreshExpenses();
+            } catch (err) {
+                console.error("Failed to update expense:", err);
+            }
+        },
+        [expenses, user, refreshExpenses]
+    );
 
-    const deleteExpense = useCallback(async (id: string) => {
-        if (!user) return;
-        const expenseToDelete = expenses.find(e => e.id === id);
-        if (!expenseToDelete) return;
+    const deleteExpense = useCallback(
+        async (timestamp: string) => {
+            if (!user) return;
+            const expenseToDelete = expenses.find(
+                (e) => e.timestamp === timestamp
+            );
+            if (!expenseToDelete) return;
 
-        const newExpenses = expenses.filter(e => e.id !== id);
-        setExpenses(newExpenses);
-        await storage.saveExpenses(newExpenses);
+            const newExpenses = expenses.filter(
+                (e) => e.timestamp !== timestamp
+            );
+            setExpenses(newExpenses);
+            await storage.saveExpenses(newExpenses);
 
-        try {
-            await api.syncTransaction(user.email, "delete", expenseToDelete);
-            await refreshExpenses();
-        } catch (err) {
-            console.error("Failed to delete expense:", err);
-        }
-    }, [expenses, user, refreshExpenses]);
+            try {
+                await api.syncTransaction(
+                    user.email,
+                    "delete",
+                    expenseToDelete
+                );
+                await refreshExpenses();
+            } catch (err) {
+                console.error("Failed to delete expense:", err);
+            }
+        },
+        [expenses, user, refreshExpenses]
+    );
 
     const value = useMemo(
         () => ({
@@ -125,7 +148,14 @@ export function ExpensesProvider({ children }: { children: React.ReactNode }) {
             updateExpense,
             deleteExpense,
         }),
-        [expenses, apiState, refreshExpenses, addExpense, updateExpense, deleteExpense]
+        [
+            expenses,
+            apiState,
+            refreshExpenses,
+            addExpense,
+            updateExpense,
+            deleteExpense,
+        ]
     );
 
     return (

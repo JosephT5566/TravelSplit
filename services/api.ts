@@ -2,7 +2,6 @@ import {
     Expense,
     ExpensesResponse,
     isSuccess,
-    TransactionType,
 } from "../src/types";
 
 export const getMockExpenses = (): Expense[] => {
@@ -17,6 +16,7 @@ export const getMockExpenses = (): Expense[] => {
             itemName: "Welcome Dinner (Sushi)",
             amount: 12000,
             currency: "JPY",
+            exchangeRate: 0.2,
             payer: "demo@tripsplit.app",
             // settled: false,
             splitsJson: "",
@@ -28,6 +28,7 @@ export const getMockExpenses = (): Expense[] => {
             itemName: "Airport Express",
             amount: 500,
             currency: "TWD",
+            exchangeRate: 1,
             payer: "demo@tripsplit.app",
             // settled: true,
             splitsJson: "",
@@ -38,6 +39,7 @@ export const getMockExpenses = (): Expense[] => {
             category: "Shopping",
             itemName: "Uniqlo Haul",
             amount: 3500,
+            exchangeRate: 1,
             currency: "TWD",
             payer: "demo@tripsplit.app",
             // settled: false,
@@ -49,6 +51,7 @@ export const getMockExpenses = (): Expense[] => {
             category: "Others",
             itemName: "Refund for Shared Taxi",
             amount: 200,
+            exchangeRate: 1,
             currency: "TWD",
             payer: "friend@test.com",
             // settled: true,
@@ -99,10 +102,7 @@ export const api = {
             throw new Error("Missing NEXT_PUBLIC_APP_SCRIPT_URL env variable.");
         }
 
-        const signedAmount =
-            expense.type === TransactionType.EXPENSE
-                ? -Math.abs(expense.amount)
-                : Math.abs(expense.amount);
+        const signedAmount = -Math.abs(expense.amount);
 
         const payload = {
             action,

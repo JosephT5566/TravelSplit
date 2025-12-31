@@ -7,7 +7,7 @@ export type Expense = {
     amount: number;
     currency: string;
     splitsJson: string;
-    exchangeRate?: number;
+    exchangeRate: number;
 };
 
 export type ExpensesResponse = AppScriptResponse<Expense[]>;

@@ -100,7 +100,10 @@ export function initGsiOnce(options?: InitOptions) {
         throw new Error("Google Identity Services 未載入");
     }
 
-    const EMAIL_WHITE_LIST: string[] = process.env.NEXT_PUBLIC_EMAIL_WHITE_LIST.split(",");
+    const EMAIL_WHITE_LIST: string[] = (
+        process.env.NEXT_PUBLIC_EMAIL_WHITE_LIST || ""
+    ).split(",");
+
     if (gsiInitialized) {
         return;
     }
