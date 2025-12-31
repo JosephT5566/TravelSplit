@@ -20,7 +20,7 @@ export const Layout: React.FC<LayoutProps> = ({
     const { user } = useAuth();
     const { apiState } = useExpenses();
     
-    const isDemo = user?.email === "demo@tripsplit.app";
+    const isDemo = false;
     // Hide FAB on settings page
     const showFab = pathname !== "/settings";
 

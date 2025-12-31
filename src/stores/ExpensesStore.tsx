@@ -7,6 +7,7 @@ import React, {
     useEffect,
     useCallback,
     useMemo,
+    useRef,
 } from "react";
 import { storage } from "../../services/storage";
 import { api } from "../../services/api";
@@ -17,7 +18,7 @@ import { useConfig } from "./ConfigStore";
 interface ExpensesContextValue {
     expenses: Expense[];
     apiState: ApiState;
-    refreshExpenses: () => Promise<void>;
+    refreshExpenses: (options?: { force?: boolean }) => Promise<void>;
     addExpense: (expense: Expense) => Promise<void>;
     updateExpense: (expense: Expense) => Promise<void>;
     deleteExpense: (id: string) => Promise<void>;
@@ -34,44 +35,83 @@ export function ExpensesProvider({ children }: { children: React.ReactNode }) {
         error: null,
         lastUpdated: null,
     });
+    const refreshInFlight = useRef<Promise<void> | null>(null);
+    const isMountedRef = useRef(true);
 
     const { user } = useAuth();
     const { config } = useConfig();
 
     useEffect(() => {
-        const loadStoredExpenses = async () => {
+        const loadStoredData = async () => {
             const storedExpenses = await storage.getExpenses();
             if (storedExpenses) {
                 setExpenses(storedExpenses);
             }
+            const lastUpdated = await storage.getLastUpdated();
+            if (lastUpdated) {
+                setApiState((prev) => ({ ...prev, lastUpdated }));
+            }
         };
-        loadStoredExpenses();
+        loadStoredData();
+
+        return () => {
+            isMountedRef.current = false;
+        };
     }, []);
 
-    const refreshExpenses = useCallback(async () => {
+    const refreshExpenses = useCallback(async (options?: { force?: boolean }) => {
+        const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+
+        if (refreshInFlight.current) {
+            return refreshInFlight.current;
+        }
+
+        if (apiState.isLoading) {
+            return;
+        }
+
+        const isCacheFresh = apiState.lastUpdated && Date.now() - apiState.lastUpdated < CACHE_DURATION;
+        if (options?.force !== true && isCacheFresh) {
+            return;
+        }
+
         if (!config?.gasUrl || !user?.email) {
             return;
         }
 
-        setApiState((prev) => ({ ...prev, isLoading: true, error: null }));
-        try {
-            const data = await api.getExpenses(user.email);
-            setExpenses(data);
-            await storage.saveExpenses(data);
-            setApiState((prev) => ({
-                ...prev,
-                isLoading: false,
-                lastUpdated: Date.now(),
-            }));
-        } catch (err: any) {
-            setApiState((prev) => ({
-                ...prev,
-                isLoading: false,
-                error: err.message,
-            }));
-            console.error(err);
-        }
-    }, [config, user]);
+        const refreshPromise = (async () => {
+            setApiState((prev) => ({ ...prev, isLoading: true, error: null }));
+            try {
+                const data = await api.getExpenses(user.email);
+                if (!isMountedRef.current) return;
+
+                setExpenses(data);
+                await storage.saveExpenses(data);
+                const now = Date.now();
+                await storage.saveLastUpdated(now);
+                setApiState((prev) => ({
+                    ...prev,
+                    isLoading: false,
+                    error: null,
+                    lastUpdated: now,
+                }));
+            } catch (err: unknown) {
+                if (!isMountedRef.current) return;
+                const message = err instanceof Error ? err.message : "Failed to refresh expenses";
+                setApiState((prev) => ({
+                    ...prev,
+                    isLoading: false,
+                    error: message,
+                }));
+                console.error(err);
+            } finally {
+                refreshInFlight.current = null;
+            }
+        })();
+
+        refreshInFlight.current = refreshPromise;
+        return refreshPromise;
+    }, [config, user, apiState.isLoading, apiState.lastUpdated]);
 
     const addExpense = useCallback(
         async (expense: Expense) => {
@@ -84,7 +124,7 @@ export function ExpensesProvider({ children }: { children: React.ReactNode }) {
 
             try {
                 await api.syncTransaction(user.email, "add", expense);
-                await refreshExpenses();
+                await refreshExpenses({ force: true });
             } catch (err) {
                 console.error("Failed to add expense:", err);
             }
@@ -103,7 +143,7 @@ export function ExpensesProvider({ children }: { children: React.ReactNode }) {
 
             try {
                 await api.syncTransaction(user.email, "edit", expense);
-                await refreshExpenses();
+                await refreshExpenses({ force: true });
             } catch (err) {
                 console.error("Failed to update expense:", err);
             }
@@ -131,7 +171,7 @@ export function ExpensesProvider({ children }: { children: React.ReactNode }) {
                     "delete",
                     expenseToDelete
                 );
-                await refreshExpenses();
+                await refreshExpenses({ force: true });
             } catch (err) {
                 console.error("Failed to delete expense:", err);
             }

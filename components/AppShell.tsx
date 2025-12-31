@@ -3,37 +3,20 @@
 import React, { useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { Layout } from "./Layout";
-// import { ExpenseForm } from "./ExpenseForm";
+import { LoginView } from "./LoginView";
 import { useAuth } from "../src/stores/AuthStore";
 import { useExpenses } from "../src/stores/ExpensesStore";
 import { useUI } from "../src/stores/UIStore";
 import { Expense } from "../src/types";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
-    const pathname = usePathname();
-    const router = useRouter();
     const { user, isInitialized } = useAuth();
     const { addExpense, updateExpense } = useExpenses();
     const {
-        showForm,
         editingExpense,
-        currentDate,
-        openExpenseForm,
         closeExpenseForm,
+        openExpenseForm,
     } = useUI();
-
-    const isPublicPage = ["/login"].includes(pathname);
-
-    useEffect(() => {
-        if (isInitialized) {
-            if (!user && !isPublicPage) {
-                router.push("/login");
-            }
-            if (user && isPublicPage) {
-                router.push("/");
-            }
-        }
-    }, [isInitialized, user, isPublicPage, pathname, router]);
 
     const handleSaveExpense = async (expense: Expense) => {
         if (editingExpense) {
@@ -44,7 +27,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         closeExpenseForm();
     };
 
-    if (!isInitialized || (!user && !isPublicPage)) {
+    if (!isInitialized) {
         return (
             <div className="flex h-screen w-screen items-center justify-center bg-background">
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
@@ -52,15 +35,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         );
     }
     
+    if (!user) {
+        return <LoginView />;
+    }
+
     return (
         <div className="min-h-screen bg-background text-text-main font-sans transition-colors duration-300">
-            {!isPublicPage && user ? (
-                <Layout onAddClick={() => openExpenseForm()}>
-                    {children}
-                </Layout>
-            ) : (
-                children
-            )}
+            <Layout onAddClick={() => openExpenseForm()}>
+                {children}
+            </Layout>
 
             {/* {showForm && user && (
                 <ExpenseForm
@@ -74,3 +57,4 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
     );
 }
+

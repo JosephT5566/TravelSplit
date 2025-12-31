@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useEffect, useRef } from "react";
-import { useRouter } from "next/navigation";
 import { useAuthActions } from "../src/stores/AuthStore";
 import {
     getProfile,
@@ -11,7 +10,6 @@ import {
 import { User } from "../src/types";
 
 export function SignInManager() {
-    const router = useRouter();
     const { setSignIn } = useAuthActions();
     const googleButtonRef = useRef<HTMLDivElement>(null);
 
@@ -27,7 +25,6 @@ export function SignInManager() {
                             picture: profile.picture,
                         };
                         await setSignIn(user);
-                        router.push("/");
                     }
                 },
                 onError: (e) => console.error(e),
@@ -39,7 +36,7 @@ export function SignInManager() {
         } catch (err) {
             console.error("Failed to initialize Google sign-in", err);
         }
-    }, [setSignIn, router]);
+    }, [setSignIn]);
 
     return <div ref={googleButtonRef} />;
 }
