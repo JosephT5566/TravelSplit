@@ -1,4 +1,3 @@
-import { useAuth } from "@/src/stores/AuthStore";
 import { Expense, ExpensesResponse, isSuccess } from "../src/types";
 
 export const getMockExpenses = (): Expense[] => {
@@ -60,9 +59,6 @@ export const getMockExpenses = (): Expense[] => {
 export const api = {
     async getExpenses(userEmail: string): Promise<Expense[]> {
         console.log("🚀 getExpenses called for: ", userEmail);
-        if (userEmail === "zxp930110gg@gmail.com") {
-            userEmail = "joseph@gmail.com";
-        }
 
         const gasUrl = process.env.NEXT_PUBLIC_APP_SCRIPT_URL;
         if (!gasUrl) {
@@ -73,12 +69,8 @@ export const api = {
             method: "POST",
             body: JSON.stringify({
                 action: "getExpenses",
-                payload: { email: userEmail },
+                payload: { userEmail },
             }),
-            headers: {
-                "Content-Type": "application/json",
-            },
-            redirect: "follow",
         });
 
         if (!response.ok) {
@@ -86,6 +78,7 @@ export const api = {
         }
 
         const result: ExpensesResponse = await response.json();
+        console.log("🚀 Fetched expenses:", result);
 
         if (isSuccess(result)) {
             return result.result;

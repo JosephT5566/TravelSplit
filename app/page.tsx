@@ -11,11 +11,6 @@ const MainPage: React.FC = () => {
     const { config } = useConfig();
     const baseCurrency = config?.baseCurrency || "TWD";
 
-    useEffect(() => {
-        console.log("Dashboard mounted, refreshing expenses...");
-        refreshExpenses();
-    }, [refreshExpenses]);
-
     const totalExpense = expenses
         .reduce((acc, curr) => acc + curr.amount * (curr.exchangeRate || 1), 0);
 

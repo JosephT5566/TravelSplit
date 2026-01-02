@@ -6,7 +6,7 @@ import React, {
     useCallback,
     useMemo,
 } from "react";
-import { useExpenses as useExpensesQuery, useSaveExpenses } from "../../services/cacheStorage";
+import { useExpenses as useExpensesQuery, useSaveExpenses } from "../../services/dataFetcher";
 import { api } from "../../services/api";
 import { Expense, ApiState } from "../types";
 import { useAuth } from "./AuthStore";

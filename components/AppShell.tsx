@@ -1,31 +1,16 @@
 "use client";
 
-import React, { useEffect } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import React from "react";
 import { Layout } from "./Layout";
 import { LoginView } from "./LoginView";
 import { useAuth } from "../src/stores/AuthStore";
-import { useExpenses } from "../src/stores/ExpensesStore";
 import { useUI } from "../src/stores/UIStore";
-import { Expense } from "../src/types";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
     const { user, isInitialized } = useAuth();
-    const { addExpense, updateExpense } = useExpenses();
     const {
-        editingExpense,
-        closeExpenseForm,
         openExpenseForm,
     } = useUI();
-
-    const handleSaveExpense = async (expense: Expense) => {
-        if (editingExpense) {
-            await updateExpense(expense);
-        } else {
-            await addExpense(expense);
-        }
-        closeExpenseForm();
-    };
 
     if (!isInitialized) {
         return (

@@ -65,6 +65,7 @@ export const useExpenses = (userEmail: string | undefined) => {
             if (!userEmail) {
                 return Promise.resolve([]);
             }
+            console.log("🚀 Fetching expenses api for user:", userEmail);
             return api.getExpenses(userEmail);
         },
         enabled: !!userEmail,

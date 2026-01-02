@@ -7,7 +7,7 @@ import React, {
     useCallback,
     useMemo,
 } from "react";
-import { useConfig as useConfigQuery, useSaveConfig } from "../../services/cacheStorage";
+import { useConfig as useConfigQuery, useSaveConfig } from "../../services/dataFetcher";
 import { AppConfig } from "../types";
 
 interface ConfigContextValue {

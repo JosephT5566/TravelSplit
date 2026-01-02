@@ -13,7 +13,7 @@ import {
     signOut as clearSession,
     JwtPayload,
 } from "../utils/auth";
-import { useUser, useSaveUser, useClearUser } from "../../services/cacheStorage";
+import { useUser, useSaveUser, useClearUser } from "../../services/dataFetcher";
 import { User } from "../types";
 
 type AuthState = {
