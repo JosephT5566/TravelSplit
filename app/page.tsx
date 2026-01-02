@@ -6,12 +6,13 @@ import { ExpensePieChart } from "../components/Charts";
 import { useExpenses } from "../src/stores/ExpensesStore";
 import { useConfig } from "../src/stores/ConfigStore";
 
-const DashboardContent: React.FC = () => {
+const MainPage: React.FC = () => {
     const { expenses, apiState, refreshExpenses } = useExpenses();
     const { config } = useConfig();
     const baseCurrency = config?.baseCurrency || "TWD";
 
     useEffect(() => {
+        console.log("Dashboard mounted, refreshing expenses...");
         refreshExpenses();
     }, [refreshExpenses]);
 
@@ -56,4 +57,4 @@ const DashboardContent: React.FC = () => {
     );
 };
 
-export default DashboardContent;
+export default MainPage;

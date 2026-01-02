@@ -1,8 +1,5 @@
-import {
-    Expense,
-    ExpensesResponse,
-    isSuccess,
-} from "../src/types";
+import { useAuth } from "@/src/stores/AuthStore";
+import { Expense, ExpensesResponse, isSuccess } from "../src/types";
 
 export const getMockExpenses = (): Expense[] => {
     const today = new Date();
@@ -61,7 +58,14 @@ export const getMockExpenses = (): Expense[] => {
 };
 
 export const api = {
-    async getExpenses(userEmail: string): Promise<Expense[]> {
+    async getExpenses(): Promise<Expense[]> {
+        const { user } = useAuth();
+
+        console.log("🚀 getExpenses called for: ", user?.email);
+        if (user?.email === "zxp930110gg@gmail.com") {
+            user.email = "joseph@gmail.com";
+        }
+
         const gasUrl = process.env.NEXT_PUBLIC_APP_SCRIPT_URL;
         if (!gasUrl) {
             throw new Error("Missing NEXT_PUBLIC_APP_SCRIPT_URL env variable.");

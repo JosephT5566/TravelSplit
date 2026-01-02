@@ -15,7 +15,7 @@ import {
     signOut as clearSession,
     JwtPayload,
 } from "../utils/auth";
-import { storage } from "../../services/storage";
+import { storage } from "../../services/cacheStorage";
 import { User } from "../types";
 
 type AuthState = {

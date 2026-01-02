@@ -9,7 +9,7 @@ import React, {
     useMemo,
     useRef,
 } from "react";
-import { storage } from "../../services/storage";
+import { storage } from "../../services/cacheStorage";
 import { api } from "../../services/api";
 import { Expense, ApiState } from "../types";
 import { useAuth } from "./AuthStore";
@@ -35,7 +35,6 @@ export function ExpensesProvider({ children }: { children: React.ReactNode }) {
         error: null,
         lastUpdated: null,
     });
-    const refreshInFlight = useRef<Promise<void> | null>(null);
     const isMountedRef = useRef(true);
 
     const { user } = useAuth();
@@ -62,10 +61,6 @@ export function ExpensesProvider({ children }: { children: React.ReactNode }) {
     const refreshExpenses = useCallback(async (options?: { force?: boolean }) => {
         const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
-        if (refreshInFlight.current) {
-            return refreshInFlight.current;
-        }
-
         if (apiState.isLoading) {
             return;
         }
@@ -75,14 +70,15 @@ export function ExpensesProvider({ children }: { children: React.ReactNode }) {
             return;
         }
 
-        if (!config?.gasUrl || !user?.email) {
+        return;
+        if (!user?.email) {
             return;
         }
 
         const refreshPromise = (async () => {
             setApiState((prev) => ({ ...prev, isLoading: true, error: null }));
             try {
-                const data = await api.getExpenses(user.email);
+                const data = await api.getExpenses();
                 if (!isMountedRef.current) return;
 
                 setExpenses(data);
@@ -104,12 +100,9 @@ export function ExpensesProvider({ children }: { children: React.ReactNode }) {
                     error: message,
                 }));
                 console.error(err);
-            } finally {
-                refreshInFlight.current = null;
             }
         })();
 
-        refreshInFlight.current = refreshPromise;
         return refreshPromise;
     }, [config, user, apiState.isLoading, apiState.lastUpdated]);
 

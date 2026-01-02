@@ -8,7 +8,7 @@ import React, {
     useCallback,
     useMemo,
 } from "react";
-import { storage } from "../../services/storage";
+import { storage } from "../../services/cacheStorage";
 import { AppConfig } from "../types";
 
 interface ConfigContextValue {
