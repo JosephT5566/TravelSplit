@@ -58,12 +58,10 @@ export const getMockExpenses = (): Expense[] => {
 };
 
 export const api = {
-    async getExpenses(): Promise<Expense[]> {
-        const { user } = useAuth();
-
-        console.log("🚀 getExpenses called for: ", user?.email);
-        if (user?.email === "zxp930110gg@gmail.com") {
-            user.email = "joseph@gmail.com";
+    async getExpenses(userEmail: string): Promise<Expense[]> {
+        console.log("🚀 getExpenses called for: ", userEmail);
+        if (userEmail === "zxp930110gg@gmail.com") {
+            userEmail = "joseph@gmail.com";
         }
 
         const gasUrl = process.env.NEXT_PUBLIC_APP_SCRIPT_URL;

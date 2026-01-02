@@ -3,12 +3,11 @@
 import React, {
     createContext,
     useContext,
-    useState,
     useEffect,
     useCallback,
     useMemo,
 } from "react";
-import { storage } from "../../services/cacheStorage";
+import { useConfig as useConfigQuery, useSaveConfig } from "../../services/cacheStorage";
 import { AppConfig } from "../types";
 
 interface ConfigContextValue {
@@ -20,24 +19,8 @@ interface ConfigContextValue {
 const ConfigContext = createContext<ConfigContextValue | undefined>(undefined);
 
 export function ConfigProvider({ children }: { children: React.ReactNode }) {
-    const [config, setConfig] = useState<AppConfig | undefined>();
-    const [isInitialized, setIsInitialized] = useState(false);
-
-    useEffect(() => {
-        const init = async () => {
-            try {
-                const storedConfig = await storage.getConfig();
-                if (storedConfig) {
-                    setConfig(storedConfig);
-                }
-            } catch (e) {
-                console.error("Failed to load config from storage", e);
-            } finally {
-                setIsInitialized(true);
-            }
-        };
-        init();
-    }, []);
+    const { data: config, isSuccess: isInitialized } = useConfigQuery();
+    const { mutateAsync: saveConfigMutation } = useSaveConfig();
 
     useEffect(() => {
         if (config?.theme) {
@@ -48,10 +31,9 @@ export function ConfigProvider({ children }: { children: React.ReactNode }) {
     }, [config?.theme]);
 
     const saveConfig = useCallback(async (newConfig: AppConfig) => {
-        await storage.saveConfig(newConfig);
-        setConfig(newConfig);
+        await saveConfigMutation(newConfig);
         alert("Configuration saved.");
-    }, []);
+    }, [saveConfigMutation]);
 
     const value = useMemo(
         () => ({

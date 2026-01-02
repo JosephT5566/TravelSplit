@@ -5,8 +5,6 @@ import React, {
     useCallback,
     useContext,
     useMemo,
-    useState,
-    useEffect,
 } from "react";
 import {
     getIsSignedIn,
@@ -15,7 +13,7 @@ import {
     signOut as clearSession,
     JwtPayload,
 } from "../utils/auth";
-import { storage } from "../../services/cacheStorage";
+import { useUser, useSaveUser, useClearUser } from "../../services/cacheStorage";
 import { User } from "../types";
 
 type AuthState = {
@@ -34,63 +32,34 @@ type AuthContextValue = AuthState & {
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-    const [state, setState] = useState<AuthState>({
-        isSignedIn: false,
-        user: null,
-        profile: null,
-        token: null,
-        isInitialized: false,
-    });
+    const { data: user, isSuccess: isInitialized } = useUser();
+    const { mutateAsync: saveUser } = useSaveUser();
+    const { mutateAsync: clearUser } = useClearUser();
 
-    useEffect(() => {
-        const initState = async () => {
-            const storedUser = await storage.getUser();
-            const signedIn = getIsSignedIn();
-            const profile = signedIn ? getProfile() : null;
-            const token = signedIn ? getTokenIfValid() : null;
-            
-            setState({
-                user: storedUser || null,
-                isSignedIn: signedIn && !!storedUser,
-                profile,
-                token,
-                isInitialized: true,
-            });
-        };
-        initState();
-    }, []);
+    const signedIn = getIsSignedIn() && !!user;
+    const profile = signedIn ? getProfile() : null;
+    const token = signedIn ? getTokenIfValid() : null;
 
     const setSignIn = useCallback(async (newUser: User) => {
-        await storage.saveUser(newUser);
-        const signedIn = getIsSignedIn();
-        setState((s) => ({
-            ...s,
-            user: newUser,
-            isSignedIn: signedIn,
-            profile: signedIn ? getProfile() : null,
-            token: signedIn ? getTokenIfValid() : null,
-        }));
-    }, []);
+        await saveUser(newUser);
+    }, [saveUser]);
 
     const signOut = useCallback(async () => {
-        await storage.clearUser();
+        await clearUser();
         clearSession();
-        setState((s) => ({
-            ...s,
-            user: null,
-            isSignedIn: false,
-            profile: null,
-            token: null,
-        }));
-    }, []);
+    }, [clearUser]);
 
     const value = useMemo(
         () => ({
-            ...state,
+            isSignedIn: signedIn,
+            user: user || null,
+            profile,
+            token,
+            isInitialized,
             setSignIn,
             signOut,
         }),
-        [state, setSignIn, signOut]
+        [signedIn, user, profile, token, isInitialized, setSignIn, signOut]
     );
 
     return (

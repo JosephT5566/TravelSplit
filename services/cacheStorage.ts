@@ -1,44 +1,82 @@
-import { get, set, del } from "idb-keyval";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { AppConfig, Expense, User } from "../src/types";
+import { storage } from "./idbStorage"; // We will create this file
 
 const CONFIG_KEY = "tripsplit_config";
 const EXPENSES_KEY = "tripsplit_expenses";
 const USER_KEY = "tripsplit_user";
-const LAST_UPDATED_KEY = "tripsplit_last_updated";
 
-export const storage = {
-    // Configuration
-    async getConfig(): Promise<AppConfig | undefined> {
-        return get(CONFIG_KEY);
-    },
-    async saveConfig(config: AppConfig): Promise<void> {
-        return set(CONFIG_KEY, config);
-    },
+// AppConfig hooks
+export const useConfig = () => {
+    const queryClient = useQueryClient();
+    return useQuery<AppConfig | undefined, Error>({
+        queryKey: [CONFIG_KEY],
+        queryFn: storage.getConfig,
+        initialData: undefined,
+    });
+};
 
-    // User
-    async getUser(): Promise<User | undefined> {
-        return get(USER_KEY);
-    },
-    async saveUser(user: User): Promise<void> {
-        return set(USER_KEY, user);
-    },
-    async clearUser(): Promise<void> {
-        return del(USER_KEY);
-    },
+export const useSaveConfig = () => {
+    const queryClient = useQueryClient();
+    return useMutation<void, Error, AppConfig>({
+        mutationFn: storage.saveConfig,
+        onSuccess: (data, variables) => {
+            queryClient.setQueryData([CONFIG_KEY], variables);
+        },
+    });
+};
 
-    // Expenses Cache
-    async getExpenses(): Promise<Expense[]> {
-        return (await get(EXPENSES_KEY)) || [];
-    },
-    async saveExpenses(expenses: Expense[]): Promise<void> {
-        return set(EXPENSES_KEY, expenses);
-    },
+// User hooks
+export const useUser = () => {
+    return useQuery<User | undefined, Error>({
+        queryKey: [USER_KEY],
+        queryFn: storage.getUser,
+        initialData: undefined,
+    });
+};
 
-    // Cache Timestamp
-    async getLastUpdated(): Promise<number | undefined> {
-        return get(LAST_UPDATED_KEY);
-    },
-    async saveLastUpdated(timestamp: number): Promise<void> {
-        return set(LAST_UPDATED_KEY, timestamp);
-    },
+export const useSaveUser = () => {
+    const queryClient = useQueryClient();
+    return useMutation<void, Error, User>({
+        mutationFn: storage.saveUser,
+        onSuccess: (data, variables) => {
+            queryClient.setQueryData([USER_KEY], variables);
+        },
+    });
+};
+
+export const useClearUser = () => {
+    const queryClient = useQueryClient();
+    return useMutation<void, Error, void>({
+        mutationFn: storage.clearUser,
+        onSuccess: () => {
+            queryClient.setQueryData([USER_KEY], undefined);
+        },
+    });
+};
+
+// Expenses hooks
+import { api } from "./api";
+
+export const useExpenses = (userEmail: string | undefined) => {
+    return useQuery<Expense[], Error>({
+        queryKey: [EXPENSES_KEY, userEmail],
+        queryFn: () => {
+            if (!userEmail) {
+                return Promise.resolve([]);
+            }
+            return api.getExpenses(userEmail);
+        },
+        enabled: !!userEmail,
+    });
+};
+
+export const useSaveExpenses = () => {
+    const queryClient = useQueryClient();
+    return useMutation<void, Error, Expense[]>({
+        mutationFn: storage.saveExpenses,
+        onSuccess: (data, variables) => {
+            queryClient.setQueryData([EXPENSES_KEY], variables);
+        },
+    });
 };

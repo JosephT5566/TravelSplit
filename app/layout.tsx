@@ -5,6 +5,7 @@ import { ConfigProvider } from "../src/stores/ConfigStore";
 import { ExpensesProvider } from "../src/stores/ExpensesStore";
 import { UIProvider } from "../src/stores/UIStore";
 import { AppShell } from "../components/AppShell";
+import { ClientProviders } from "./ClientProviders";
 
 export const metadata = {
     title: "TripSplit",
@@ -26,15 +27,17 @@ export default function RootLayout({
                 ></Script>
             </head>
             <body className="bg-background text-text-main transition-colors duration-200">
-                <AuthProvider>
-                    <ConfigProvider>
-                        <ExpensesProvider>
-                            <UIProvider>
-                                <AppShell>{children}</AppShell>
-                            </UIProvider>
-                        </ExpensesProvider>
-                    </ConfigProvider>
-                </AuthProvider>
+                <ClientProviders>
+                    <AuthProvider>
+                        <ConfigProvider>
+                            <ExpensesProvider>
+                                <UIProvider>
+                                    <AppShell>{children}</AppShell>
+                                </UIProvider>
+                            </ExpensesProvider>
+                        </ConfigProvider>
+                    </AuthProvider>
+                </ClientProviders>
             </body>
         </html>
     );
