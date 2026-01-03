@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Expense } from "../src/types";
 import { format, addDays } from "date-fns";
@@ -9,26 +9,26 @@ import {
     Calendar,
     Edit2,
     Trash2,
+    Plus,
 } from "lucide-react";
 
 interface Props {
     expenses: Expense[];
-    currentDate: Date;
-    onDateChange: (date: Date) => void;
     onEdit: (e: Expense) => void;
     onDelete: (id: string) => void;
+    onAdd: (expense: null, date: Date) => void;
     baseCurrency: string;
 }
 
 export const ExpenseList: React.FC<Props> = ({
     expenses,
-    currentDate,
-    onDateChange,
     onEdit,
     onDelete,
+    onAdd,
     baseCurrency,
 }) => {
     const router = useRouter();
+    const [currentDate, setCurrentDate] = useState(new Date());
     const dateStr = format(currentDate, "yyyy-MM-dd");
 
     const dailyExpenses = useMemo(() => {
@@ -48,7 +48,7 @@ export const ExpenseList: React.FC<Props> = ({
             <div className="bg-surface shadow-sm mb-4 rounded-xl overflow-hidden border border-border">
                 <div className="flex items-center justify-between p-2">
                     <button
-                        onClick={() => onDateChange(addDays(currentDate, -1))}
+                        onClick={() => setCurrentDate(addDays(currentDate, -1))}
                         className="p-2 rounded-full hover:bg-background text-text-muted transition-colors"
                     >
                         <ChevronLeft size={24} />
@@ -60,10 +60,11 @@ export const ExpenseList: React.FC<Props> = ({
                             <input
                                 type="date"
                                 className="absolute inset-0 opacity-0 cursor-pointer"
+                                max={new Date().toISOString()}
                                 value={dateStr}
                                 onChange={(e) => {
                                     if (e.target.valueAsDate)
-                                        onDateChange(e.target.valueAsDate);
+                                        setCurrentDate(e.target.valueAsDate);
                                 }}
                             />
                         </label>
@@ -73,7 +74,7 @@ export const ExpenseList: React.FC<Props> = ({
                     </div>
 
                     <button
-                        onClick={() => onDateChange(addDays(currentDate, 1))}
+                        onClick={() => setCurrentDate(addDays(currentDate, 1))}
                         className="p-2 rounded-full hover:bg-background text-text-muted transition-colors"
                     >
                         <ChevronRight size={24} />
@@ -83,11 +84,8 @@ export const ExpenseList: React.FC<Props> = ({
                 {/* Daily Summary Bar */}
                 <div className="px-4 py-2 bg-background border-t border-border flex justify-between items-center text-sm">
                     <span className="text-text-muted">Daily Total</span>
-                    <span
-                        className="font-bold text-red-500"
-                    >
-                        -
-                        {baseCurrency} {Math.abs(dailyTotal).toFixed(1)}
+                    <span className="font-bold text-red-500">
+                        -{baseCurrency} {Math.abs(dailyTotal).toFixed(1)}
                     </span>
                 </div>
             </div>
@@ -140,9 +138,7 @@ export const ExpenseList: React.FC<Props> = ({
                             </div>
 
                             <div className="text-right pl-2">
-                                <p
-                                    className="text-lg font-bold text-red-500"
-                                >
+                                <p className="text-lg font-bold text-red-500">
                                     -{exp.amount}
                                 </p>
                                 <p className="text-xs text-text-muted font-medium">
@@ -176,6 +172,14 @@ export const ExpenseList: React.FC<Props> = ({
                     ))
                 )}
             </div>
+
+            <button
+                onClick={() => onAdd(null, currentDate)}
+                className="fixed bottom-20 right-4 w-14 h-14 bg-primary text-primary-fg rounded-full shadow-lg flex items-center justify-center hover:opacity-90 transition-transform hover:scale-105 active:scale-95 z-40"
+                aria-label="Add Expense"
+            >
+                <Plus size={28} />
+            </button>
         </div>
     );
 };

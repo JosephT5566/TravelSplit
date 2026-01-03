@@ -12,10 +12,9 @@ import { Expense } from "../types";
 interface UIContextValue {
     showForm: boolean;
     editingExpense: Expense | null;
-    currentDate: Date;
-    openExpenseForm: (expense?: Expense | null) => void;
+    formDefaultDate: Date;
+    openExpenseForm: (expense?: Expense | null, defaultDate?: Date) => void;
     closeExpenseForm: () => void;
-    setCurrentDate: (date: Date) => void;
 }
 
 const UIContext = createContext<UIContextValue | undefined>(undefined);
@@ -23,10 +22,15 @@ const UIContext = createContext<UIContextValue | undefined>(undefined);
 export function UIProvider({ children }: { children: React.ReactNode }) {
     const [showForm, setShowForm] = useState(false);
     const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
-    const [currentDate, setCurrentDate] = useState(new Date());
+    const [formDefaultDate, setFormDefaultDate] = useState(new Date());
 
-    const openExpenseForm = useCallback((expense: Expense | null = null) => {
+    const openExpenseForm = useCallback((expense: Expense | null = null, defaultDate?: Date) => {
         setEditingExpense(expense);
+        if (expense) {
+            setFormDefaultDate(new Date(expense.date));
+        } else {
+            setFormDefaultDate(defaultDate || new Date());
+        }
         setShowForm(true);
     }, []);
 
@@ -39,18 +43,16 @@ export function UIProvider({ children }: { children: React.ReactNode }) {
         () => ({
             showForm,
             editingExpense,
-            currentDate,
+            formDefaultDate,
             openExpenseForm,
             closeExpenseForm,
-            setCurrentDate,
         }),
         [
             showForm,
             editingExpense,
-            currentDate,
+            formDefaultDate,
             openExpenseForm,
             closeExpenseForm,
-            setCurrentDate,
         ]
     );
 

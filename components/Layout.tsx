@@ -3,17 +3,15 @@
 import React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Plus, PieChart, List, Settings as SettingsIcon } from "lucide-react";
+import { PieChart, List, Settings as SettingsIcon } from "lucide-react";
 import { useAuth } from "../src/stores/AuthStore";
 import { useExpenses } from "../src/stores/ExpensesStore";
 
 interface LayoutProps {
-    onAddClick: () => void;
     children: React.ReactNode;
 }
 
 export const Layout: React.FC<LayoutProps> = ({
-    onAddClick,
     children,
 }) => {
     const pathname = usePathname();
@@ -58,17 +56,6 @@ export const Layout: React.FC<LayoutProps> = ({
                 )}
                 {children}
             </div>
-
-            {/* FAB */}
-            {showFab && (
-                <button
-                    onClick={onAddClick}
-                    className="fixed bottom-20 right-4 w-14 h-14 bg-primary text-primary-fg rounded-full shadow-lg flex items-center justify-center hover:opacity-90 transition-transform hover:scale-105 active:scale-95 z-40"
-                    aria-label="Add Expense"
-                >
-                    <Plus size={28} />
-                </button>
-            )}
 
             {/* Bottom Nav */}
             <nav className="fixed bottom-0 left-0 right-0 bg-surface border-t border-border flex justify-around p-3 z-30 transition-colors pb-safe">

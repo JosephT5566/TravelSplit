@@ -4,13 +4,9 @@ import React from "react";
 import { Layout } from "./Layout";
 import { LoginView } from "./LoginView";
 import { useAuth } from "../src/stores/AuthStore";
-import { useUI } from "../src/stores/UIStore";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
     const { user, isInitialized } = useAuth();
-    const {
-        openExpenseForm,
-    } = useUI();
 
     if (!isInitialized) {
         return (
@@ -26,19 +22,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
     return (
         <div className="min-h-screen bg-background text-text-main font-sans transition-colors duration-300">
-            <Layout onAddClick={() => openExpenseForm()}>
+            <Layout>
                 {children}
             </Layout>
-
-            {/* {showForm && user && (
-                <ExpenseForm
-                    initialData={editingExpense}
-                    defaultDate={currentDate}
-                    currentUser={user}
-                    onSave={handleSaveExpense}
-                    onCancel={closeExpenseForm}
-                />
-            )} */}
         </div>
     );
 }

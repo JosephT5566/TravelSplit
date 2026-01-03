@@ -12,10 +12,10 @@ import {
     Banknote,
     type LucideIcon,
 } from "lucide-react";
+import { useUI } from "../src/stores/UIStore";
 
 interface Props {
     initialData?: Expense | null;
-    defaultDate?: Date;
     currentUser: User;
     onSave: (data: Expense) => void;
     onCancel: () => void;
@@ -34,13 +34,13 @@ const CURRENCIES = ["TWD", "JPY", "USD", "EUR", "KRW"];
 
 export const ExpenseForm: React.FC<Props> = ({
     initialData,
-    defaultDate,
     currentUser,
     onSave,
     onCancel,
 }) => {
+    const { formDefaultDate } = useUI();
     const [formData, setFormData] = useState<Partial<Expense>>({
-        date: format(defaultDate || new Date(), "yyyy-MM-dd"),
+        date: format(formDefaultDate, "yyyy-MM-dd"),
         currency: "TWD",
         exchangeRate: 1,
         category: "Food",
@@ -54,14 +54,14 @@ export const ExpenseForm: React.FC<Props> = ({
     useEffect(() => {
         if (initialData) {
             setFormData(initialData);
-        } else if (defaultDate) {
+        } else {
             // If opening new form, respect the view's date
             setFormData((prev) => ({
                 ...prev,
-                date: format(defaultDate, "yyyy-MM-dd"),
+                date: format(formDefaultDate, "yyyy-MM-dd"),
             }));
         }
-    }, [initialData, defaultDate]);
+    }, [initialData, formDefaultDate]);
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
