@@ -58,7 +58,7 @@ export const useClearUser = () => {
 // Expenses hooks
 import { api } from "./api";
 
-export const useExpenses = (userEmail: string | undefined) => {
+export const useExpensesQuery = (userEmail: string | undefined) => {
     return useQuery<Expense[], Error>({
         queryKey: [EXPENSES_KEY, userEmail],
         queryFn: () => {

@@ -6,10 +6,10 @@ import React, {
     useCallback,
     useMemo,
 } from "react";
-import { useExpenses as useExpensesQuery, useSaveExpenses } from "../../services/dataFetcher";
+import { useExpensesQuery, useSaveExpenses } from "../../services/dataFetcher";
 import { api } from "../../services/api";
 import { Expense, ApiState } from "../types";
-import { useAuth } from "./AuthStore";
+import { useAuth, useAuthState } from "./AuthStore";
 
 interface ExpensesContextValue {
     expenses: Expense[];
@@ -25,7 +25,7 @@ const ExpensesContext = createContext<ExpensesContextValue | undefined>(
 );
 
 export function ExpensesProvider({ children }: { children: React.ReactNode }) {
-    const { user } = useAuth();
+    const { user } = useAuthState();
     const { data: expenses, isLoading, error, refetch } = useExpensesQuery(user?.email);
     const { mutateAsync: saveExpenses } = useSaveExpenses();
 

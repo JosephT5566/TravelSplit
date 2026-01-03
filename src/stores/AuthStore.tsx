@@ -1,11 +1,6 @@
 "use client";
 
-import React, {
-    createContext,
-    useCallback,
-    useContext,
-    useMemo,
-} from "react";
+import React, { createContext, useCallback, useContext, useMemo } from "react";
 import {
     getIsSignedIn,
     getProfile,
@@ -40,9 +35,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const profile = signedIn ? getProfile() : null;
     const token = signedIn ? getTokenIfValid() : null;
 
-    const setSignIn = useCallback(async (newUser: User) => {
-        await saveUser(newUser);
-    }, [saveUser]);
+    const setSignIn = useCallback(
+        async (newUser: User) => {
+            await saveUser(newUser);
+        },
+        [saveUser]
+    );
 
     const signOut = useCallback(async () => {
         await clearUser();
@@ -77,7 +75,13 @@ export function useAuth() {
 
 export function useAuthState() {
     const { isSignedIn, user, profile, token, isInitialized } = useAuth();
-    return { isSignedIn, user, profile, token, isInitialized };
+    return {
+        isSignedIn,
+        user: { ...user, email: "joseph@gmail.com" }, // TODO: use mock user for testing
+        profile,
+        token,
+        isInitialized,
+    };
 }
 
 export function useAuthActions() {

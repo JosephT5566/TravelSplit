@@ -1,3 +1,4 @@
+import { useAuth } from "@/src/stores/AuthStore";
 import { Expense, ExpensesResponse, isSuccess } from "../src/types";
 
 export const getMockExpenses = (): Expense[] => {

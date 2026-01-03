@@ -8,6 +8,7 @@ import {
     Legend,
 } from "recharts";
 import { Expense } from "../src/types";
+import { useAuthState } from "../src/stores/AuthStore";
 
 interface Props {
     expenses: Expense[];
@@ -23,13 +24,29 @@ const COLORS = [
 ];
 
 export const ExpensePieChart: React.FC<Props> = ({ expenses }) => {
+    const { user } = useAuthState();
     const data = useMemo(() => {
         const categoryMap: Record<string, number> = {};
+
+        if (!user || !user.email) {
+            return [];
+        }
+
+        expenses.forEach((expense) => {
+            const userShare = expense.splitsJson[user.email];
+            if (userShare) {
+                if (categoryMap[expense.category]) {
+                    categoryMap[expense.category] += userShare;
+                } else {
+                    categoryMap[expense.category] = userShare;
+                }
+            }
+        });
 
         return Object.entries(categoryMap)
             .map(([name, value]) => ({ name, value }))
             .sort((a, b) => b.value - a.value);
-    }, [expenses]);
+    }, [expenses, user]);
 
     if (data.length === 0) {
         return (

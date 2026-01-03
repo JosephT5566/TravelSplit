@@ -37,7 +37,7 @@ export const ExpenseList: React.FC<Props> = ({
 
     const dailyTotal = useMemo(() => {
         return dailyExpenses.reduce((acc, curr) => {
-            const amount = curr.amount * (curr.exchangeRate || 1);
+            const amount = curr.amount;
             return acc - amount;
         }, 0);
     }, [dailyExpenses]);

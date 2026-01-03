@@ -5,14 +5,18 @@ import { RefreshCw } from "lucide-react";
 import { ExpensePieChart } from "../components/Charts";
 import { useExpenses } from "../src/stores/ExpensesStore";
 import { useConfig } from "../src/stores/ConfigStore";
+import { useAuthState } from "../src/stores/AuthStore";
 
 const MainPage: React.FC = () => {
     const { expenses, apiState, refreshExpenses } = useExpenses();
+    const { user } = useAuthState();
     const { config } = useConfig();
-    const baseCurrency = config?.baseCurrency || "TWD";
+    const baseCurrency = "TWD";
 
-    const totalExpense = expenses
-        .reduce((acc, curr) => acc + curr.amount * (curr.exchangeRate || 1), 0);
+    const totalExpense = expenses.reduce(
+        (acc, curr) => acc + Number(curr.splitsJson?.[user.email]),
+        0
+    );
 
     return (
         <div className="space-y-6 animate-in fade-in duration-500">
@@ -35,9 +39,9 @@ const MainPage: React.FC = () => {
                     <p className="text-sm text-text-muted">Total Spent</p>
                     <p
                         className="text-xl font-bold text-red-500 truncate"
-                        title={`${baseCurrency} ${totalExpense.toFixed(0)}`}
+                        title={`${baseCurrency} ${totalExpense.toFixed(2)}`}
                     >
-                        {baseCurrency} {totalExpense.toFixed(0)}
+                        {baseCurrency} {totalExpense.toFixed(2)}
                     </p>
                 </div>
             </div>

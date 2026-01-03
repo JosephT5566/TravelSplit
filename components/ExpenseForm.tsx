@@ -249,27 +249,6 @@ export const ExpenseForm: React.FC<Props> = ({
                                 }
                             />
                         </InputGroup>
-
-                        {/* Exchange Rate */}
-                        <InputGroup
-                            icon={Banknote}
-                            label={`Exchange Rate (1 ${formData.currency} = ? Base)`}
-                        >
-                            <input
-                                type="number"
-                                step="0.0001"
-                                className="w-full bg-transparent text-base outline-none text-text-main"
-                                value={formData.exchangeRate}
-                                onChange={(e) =>
-                                    setFormData({
-                                        ...formData,
-                                        exchangeRate: parseFloat(
-                                            e.target.value
-                                        ),
-                                    })
-                                }
-                            />
-                        </InputGroup>
                     </div>
                 </form>
             </div>
