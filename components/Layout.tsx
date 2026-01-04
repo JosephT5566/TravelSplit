@@ -67,19 +67,19 @@ export const Layout: React.FC<LayoutProps> = ({
                             : "text-text-muted hover:text-text-main"
                     }`}
                 >
-                    <PieChart size={24} />
-                    <span className="text-xs mt-1">Stats</span>
+                    <List size={24} />
+                    <span className="text-xs mt-1">Expenses</span>
                 </Link>
                 <Link
-                    href="/list"
+                    href="/summary"
                     className={`flex flex-col items-center transition-colors ${
-                        pathname === "/list"
+                        pathname === "/summary"
                             ? "text-primary"
                             : "text-text-muted hover:text-text-main"
                     }`}
                 >
-                    <List size={24} />
-                    <span className="text-xs mt-1">Expenses</span>
+                    <PieChart size={24} />
+                    <span className="text-xs mt-1">Summary</span>
                 </Link>
                 <Link
                     href="/settings"

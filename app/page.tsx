@@ -1,57 +1,47 @@
 "use client";
 
-import React, { useEffect } from "react";
-import { RefreshCw } from "lucide-react";
-import { ExpensePieChart } from "../components/Charts";
+import React from "react";
+import { ExpenseList } from "../components/ExpenseList";
 import { useExpenses } from "../src/stores/ExpensesStore";
+import { useUI } from "../src/stores/UIStore";
 import { useConfig } from "../src/stores/ConfigStore";
-import { useAuthState } from "../src/stores/AuthStore";
+import { useAuth } from "../src/stores/AuthStore";
+import { ExpenseForm } from "../components/ExpenseForm";
+import { Expense } from "../src/types";
 
 const MainPage: React.FC = () => {
-    const { expenses, apiState, refreshExpenses } = useExpenses();
-    const { user } = useAuthState();
+    const { expenses, deleteExpense, addExpense, updateExpense } = useExpenses();
+    const { showForm, editingExpense, openExpenseForm, closeExpenseForm } = useUI();
     const { config } = useConfig();
-    const baseCurrency = "TWD";
+    const { user } = useAuth();
 
-    const totalExpense = expenses.reduce(
-        (acc, curr) => acc + Number(curr.splitsJson?.[user.email]),
-        0
-    );
+    const handleSaveExpense = async (expense: Expense) => {
+        if (editingExpense) {
+            await updateExpense(expense);
+        } else {
+            await addExpense(expense);
+        }
+        closeExpenseForm();
+    };
 
     return (
-        <div className="space-y-6 animate-in fade-in duration-500">
-            <div className="flex justify-between items-center">
-                <h2 className="text-2xl font-bold text-text-main">Overview</h2>
-                <button
-                    onClick={() => refreshExpenses()}
-                    disabled={apiState.isLoading}
-                    className={`p-2 rounded-full bg-primary/10 text-primary hover:bg-primary/20 transition-colors ${
-                        apiState.isLoading ? "animate-spin" : ""
-                    }`}
-                    aria-label="Refresh Data"
-                >
-                    <RefreshCw size={20} />
-                </button>
-            </div>
+        <div className="animate-in fade-in slide-in-from-right-4 duration-300">
+            <ExpenseList
+                expenses={expenses}
+                onEdit={openExpenseForm}
+                onDelete={deleteExpense}
+                baseCurrency={config?.baseCurrency || "TWD"}
+                onAdd={openExpenseForm}
+            />
 
-            <div className="grid grid-cols-1 gap-4">
-                <div className="p-4 bg-surface rounded-xl shadow border-l-4 border-red-500 transition-colors">
-                    <p className="text-sm text-text-muted">Total Spent</p>
-                    <p
-                        className="text-xl font-bold text-red-500 truncate"
-                        title={`${baseCurrency} ${totalExpense.toFixed(2)}`}
-                    >
-                        {baseCurrency} {totalExpense.toFixed(2)}
-                    </p>
-                </div>
-            </div>
-
-            <div className="bg-surface p-4 rounded-xl shadow transition-colors border border-border">
-                <h3 className="font-semibold mb-4 text-text-main">
-                    Category Breakdown
-                </h3>
-                <ExpensePieChart expenses={expenses} />
-            </div>
+            {showForm && user && (
+                <ExpenseForm
+                    initialData={editingExpense}
+                    currentUser={user}
+                    onSave={handleSaveExpense}
+                    onCancel={closeExpenseForm}
+                />
+            )}
         </div>
     );
 };
