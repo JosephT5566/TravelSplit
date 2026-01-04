@@ -2,23 +2,18 @@ import React, { useState, useEffect } from "react";
 import { Expense, User } from "../src/types";
 import { format } from "date-fns";
 import {
-    X,
     Calendar,
     Tag,
     FileText,
     User as UserIcon,
-    CheckCircle2,
-    Circle,
-    Banknote,
     type LucideIcon,
 } from "lucide-react";
 
 interface Props {
-    initialData?: Expense | null;
+    initialData?: Partial<Expense> | null;
     currentUser: User;
     onSave: (data: Expense) => void;
     onCancel: () => void;
-    formDefaultDate: Date;
 }
 
 const CATEGORIES = [
@@ -37,10 +32,9 @@ export const ExpenseForm: React.FC<Props> = ({
     currentUser,
     onSave,
     onCancel,
-    formDefaultDate,
 }) => {
     const [formData, setFormData] = useState<Partial<Expense>>({
-        date: format(formDefaultDate, "yyyy-MM-dd"),
+        date: format(new Date(), "yyyy-MM-dd"),
         currency: "TWD",
         exchangeRate: 1,
         category: "Food",
@@ -52,16 +46,26 @@ export const ExpenseForm: React.FC<Props> = ({
     const themeColor = "red";
 
     useEffect(() => {
-        if (initialData) {
-            setFormData(initialData);
-        } else {
-            // If opening new form, respect the view's date
-            setFormData((prev) => ({
-                ...prev,
-                date: format(formDefaultDate, "yyyy-MM-dd"),
-            }));
-        }
-    }, [initialData, formDefaultDate]);
+        const defaultValues = {
+            currency: "TWD",
+            exchangeRate: 1,
+            category: "Food",
+            payer: currentUser.email,
+            itemName: "",
+            amount: "" as any,
+        };
+
+        const dateToUse =
+            initialData && initialData.date
+                ? new Date(initialData.date)
+                : new Date();
+
+        setFormData({
+            ...defaultValues,
+            ...(initialData || {}),
+            date: format(dateToUse, "yyyy-MM-dd"),
+        });
+    }, [initialData, currentUser.email]);
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -116,7 +120,9 @@ export const ExpenseForm: React.FC<Props> = ({
                     Cancel
                 </button>
                 <span className="font-semibold text-lg text-text-main">
-                    {initialData ? "Edit Transaction" : "New Transaction"}
+                    {initialData && initialData.timestamp
+                        ? "Edit Transaction"
+                        : "New Transaction"}
                 </span>
                 <button
                     onClick={handleSubmit}
@@ -139,7 +145,7 @@ export const ExpenseForm: React.FC<Props> = ({
                         <input
                             type="number"
                             placeholder="0"
-                            autoFocus={!initialData}
+                            autoFocus={!initialData?.timestamp}
                             className={`bg-transparent text-6xl font-bold text-center outline-none w-full max-w-[240px] placeholder-text-muted/30 caret-${themeColor}-500 text-text-main`}
                             value={formData.amount}
                             onChange={(e) =>

@@ -14,9 +14,8 @@ import {
 
 interface Props {
     expenses: Expense[];
-    onEdit: (e: Expense) => void;
     onDelete: (id: string) => void;
-    onAdd: (expense: null, date: Date) => void;
+    onOpenExpenseForm: (expense?: Expense) => void;
     baseCurrency: string;
     onRefresh: () => void;
     isRefreshing: boolean;
@@ -24,25 +23,35 @@ interface Props {
 
 export const ExpenseList: React.FC<Props> = ({
     expenses,
-    onEdit,
     onDelete,
-    onAdd,
+    onOpenExpenseForm,
     baseCurrency,
     onRefresh,
     isRefreshing,
 }) => {
-    const router = useRouter();
     const [currentDate, setCurrentDate] = useState(new Date());
     const dateStr = format(currentDate, "yyyy-MM-dd");
 
     const dailyExpenses = useMemo(() => {
-        return expenses.filter((e) => e.date === dateStr);
-    }, [expenses, dateStr]);
+        const formattedCurrentDate = format(currentDate, "yyyy-MM-dd");
+
+        return expenses.filter((e) => {
+            if (!e || !e.date) {
+                return false;
+            }
+            const d = new Date(e.date);
+            // Check if the date is valid
+            if (isNaN(d.getTime())) {
+                return false;
+            }
+            return format(d, "yyyy-MM-dd") === formattedCurrentDate;
+        });
+    }, [expenses, currentDate]);
 
     const dailyTotal = useMemo(() => {
         return dailyExpenses.reduce((acc, curr) => {
             const amount = curr.amount;
-            return acc - amount;
+            return acc + amount;
         }, 0);
     }, [dailyExpenses]);
 
@@ -89,12 +98,12 @@ export const ExpenseList: React.FC<Props> = ({
                 <div className="px-4 py-2 bg-background border-t border-border flex justify-between items-center text-sm">
                     <span className="text-text-muted">Daily Total</span>
                     <span className="font-bold text-red-500">
-                        -{baseCurrency} {Math.abs(dailyTotal).toFixed(1)}
+                        {baseCurrency} {dailyTotal.toFixed(1)}
                     </span>
                 </div>
             </div>
 
-            {/* Action Bar (Search) */}
+            {/* Action Bar (Refresh) */}
             <div className="flex justify-end mb-2 px-2 gap-2">
                 <button
                     onClick={onRefresh}
@@ -139,16 +148,11 @@ export const ExpenseList: React.FC<Props> = ({
                                         {exp.payer.split("@")[0]}
                                     </span>
                                 </div>
-                                {/* {exp.remark && (
-                                    <p className="text-xs text-text-muted mt-1 italic">
-                                        "{exp.remark}"
-                                    </p>
-                                )} */}
                             </div>
 
                             <div className="text-right pl-2">
                                 <p className="text-lg font-bold text-red-500">
-                                    -{exp.amount}
+                                    {exp.amount}
                                 </p>
                                 <p className="text-xs text-text-muted font-medium">
                                     {exp.currency}
@@ -158,7 +162,7 @@ export const ExpenseList: React.FC<Props> = ({
                                     <button
                                         onClick={(e) => {
                                             e.stopPropagation();
-                                            onEdit(exp);
+                                            onOpenExpenseForm(exp);
                                         }}
                                         className="text-text-muted hover:text-primary"
                                     >
@@ -183,7 +187,7 @@ export const ExpenseList: React.FC<Props> = ({
             </div>
 
             <button
-                onClick={() => onAdd(null, currentDate)}
+                onClick={() => onOpenExpenseForm()}
                 className="fixed bottom-20 right-4 w-14 h-14 bg-primary text-primary-fg rounded-full shadow-lg flex items-center justify-center hover:opacity-90 transition-transform hover:scale-105 active:scale-95 z-40"
                 aria-label="Add Expense"
             >

@@ -19,19 +19,17 @@ const MainPage: React.FC = () => {
     } = useExpenses();
     const { config } = useConfig();
     const { user } = useAuth();
-    const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
-    const [formDefaultDate, setFormDefaultDate] = useState(new Date());
+    const [expense, setExpense] = useState<Partial<Expense> | null>(
+        null
+    );
 
     const dialogRef = useRef<HTMLDialogElement>(null);
 
-    const openExpenseForm = (expense?: Expense, defaultDate?: Date) => {
+    const openExpenseForm = (expense?: Expense) => {
         if (expense) {
-            setEditingExpense(expense);
-            setFormDefaultDate(new Date(expense.date));
-        }
-        else {
-            setEditingExpense(null);
-            setFormDefaultDate(defaultDate || new Date());
+            setExpense(expense);
+        } else {
+            setExpense(null);
         }
         dialogRef.current?.showModal();
     };
@@ -41,27 +39,25 @@ const MainPage: React.FC = () => {
     };
 
     const handleSaveExpense = async (expense: Expense) => {
-        if (editingExpense) {
+        if (expense && expense.timestamp) {
             await updateExpense(expense);
-        }
-        else {
+        } else {
             await addExpense(expense);
         }
         closeExpenseForm();
     };
 
     const handleDialogClose = () => {
-        setEditingExpense(null);
+        setExpense(null);
     };
 
     return (
         <div className="animate-in fade-in slide-in-from-right-4 duration-300">
             <ExpenseList
                 expenses={expenses}
-                onEdit={openExpenseForm}
+                onOpenExpenseForm={openExpenseForm}
                 onDelete={deleteExpense}
                 baseCurrency={config?.baseCurrency || "TWD"}
-                onAdd={() => openExpenseForm()}
                 onRefresh={refreshExpenses}
                 isRefreshing={apiState.isLoading}
             />
@@ -74,11 +70,10 @@ const MainPage: React.FC = () => {
                     closedby="any"
                 >
                     <ExpenseForm
-                        initialData={editingExpense}
+                        initialData={expense}
                         currentUser={user}
                         onSave={handleSaveExpense}
                         onCancel={closeExpenseForm}
-                        formDefaultDate={formDefaultDate}
                     />
                 </dialog>
             )}
