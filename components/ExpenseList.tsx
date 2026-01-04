@@ -5,11 +5,11 @@ import { format, addDays } from "date-fns";
 import {
     ChevronLeft,
     ChevronRight,
-    Search,
     Calendar,
     Edit2,
     Trash2,
     Plus,
+    RefreshCw,
 } from "lucide-react";
 
 interface Props {
@@ -18,6 +18,8 @@ interface Props {
     onDelete: (id: string) => void;
     onAdd: (expense: null, date: Date) => void;
     baseCurrency: string;
+    onRefresh: () => void;
+    isRefreshing: boolean;
 }
 
 export const ExpenseList: React.FC<Props> = ({
@@ -26,6 +28,8 @@ export const ExpenseList: React.FC<Props> = ({
     onDelete,
     onAdd,
     baseCurrency,
+    onRefresh,
+    isRefreshing,
 }) => {
     const router = useRouter();
     const [currentDate, setCurrentDate] = useState(new Date());
@@ -91,12 +95,17 @@ export const ExpenseList: React.FC<Props> = ({
             </div>
 
             {/* Action Bar (Search) */}
-            <div className="flex justify-end mb-2 px-2">
+            <div className="flex justify-end mb-2 px-2 gap-2">
                 <button
-                    onClick={() => router.push("/search")}
-                    className="text-sm flex items-center gap-1 text-primary font-medium bg-surface border border-border px-3 py-1.5 rounded-full hover:bg-background"
+                    onClick={onRefresh}
+                    disabled={isRefreshing}
+                    className="text-sm flex items-center gap-1 text-primary font-medium bg-surface border border-border px-3 py-1.5 rounded-full hover:bg-background disabled:opacity-50"
                 >
-                    <Search size={14} /> Search All
+                    <RefreshCw
+                        size={14}
+                        className={isRefreshing ? "animate-spin" : ""}
+                    />
+                    Refresh
                 </button>
             </div>
 
