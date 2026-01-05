@@ -6,7 +6,12 @@ import { useExpenses } from "../src/stores/ExpensesStore";
 import { useConfig } from "../src/stores/ConfigStore";
 import { useAuth } from "../src/stores/AuthStore";
 import { ExpenseForm } from "../components/ExpenseForm";
-import { Expense } from "../src/types";
+import {
+    AddExpenseRequest,
+    EditExpenseRequest,
+    Expense,
+    isAddExpenseRequest,
+} from "../src/types";
 
 const MainPage: React.FC = () => {
     const {
@@ -19,14 +24,13 @@ const MainPage: React.FC = () => {
     } = useExpenses();
     const { config } = useConfig();
     const { user } = useAuth();
-    const [expense, setExpense] = useState<Partial<Expense> | null>(
-        null
-    );
+    const [expense, setExpense] = useState<Partial<Expense> | null>(null);
 
     const dialogRef = useRef<HTMLDialogElement>(null);
 
     const openExpenseForm = (expense?: Expense) => {
         if (expense) {
+            console.log("Editing expense:", expense);
             setExpense(expense);
         } else {
             setExpense(null);
@@ -38,8 +42,10 @@ const MainPage: React.FC = () => {
         dialogRef.current?.close();
     };
 
-    const handleSaveExpense = async (expense: Expense) => {
-        if (expense && expense.timestamp) {
+    const handleSaveExpense = async (
+        expense: AddExpenseRequest | EditExpenseRequest
+    ) => {
+        if (!isAddExpenseRequest(expense)) {
             await updateExpense(expense);
         } else {
             await addExpense(expense);
@@ -66,12 +72,10 @@ const MainPage: React.FC = () => {
                 <dialog
                     ref={dialogRef}
                     onClose={handleDialogClose}
-                    className="p-0 m-0 border-none modal bg-transparent fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2"
                     closedby="any"
                 >
                     <ExpenseForm
                         initialData={expense}
-                        currentUser={user}
                         onSave={handleSaveExpense}
                         onCancel={closeExpenseForm}
                     />

@@ -6,13 +6,23 @@ export type Expense = {
     payer: string;
     amount: number;
     currency: string;
-    splitsJson: string;
+    splitsJson: Record<string, number>;
     exchangeRate: number;
 };
 
 export type ExpensesResponse = AppScriptResponse<Expense[]>;
 
-export type AddExpenseRequest = Omit<Expense, "timestamp">;
+export type AddExpenseRequest = Omit<Expense, "timestamp" | "splitsJson"> & {
+    splitsJson: string;
+};
+
+export type EditExpenseRequest = Omit<Expense, "splitsJson"> & {
+    splitsJson: string;
+};
+
+export const isAddExpenseRequest = (
+    r: AddExpenseRequest | EditExpenseRequest
+): r is AddExpenseRequest => "timestamp" in r;
 
 export type AppScriptResponse<T, E = string> =
     | { ok: true; result: T }
