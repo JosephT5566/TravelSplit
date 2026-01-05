@@ -7,8 +7,11 @@ import React, {
     useCallback,
     useMemo,
 } from "react";
-import { useConfig as useConfigQuery, useSaveConfig } from "../../services/dataFetcher";
-import { AppConfig } from "../types";
+import {
+    useGetConfig,
+    useSaveConfig,
+} from "../../services/dataFetcher";
+import { AppConfig, ApiState } from "../types";
 
 interface ConfigContextValue {
     config?: AppConfig;
@@ -19,7 +22,7 @@ interface ConfigContextValue {
 const ConfigContext = createContext<ConfigContextValue | undefined>(undefined);
 
 export function ConfigProvider({ children }: { children: React.ReactNode }) {
-    const { data: config, isSuccess: isInitialized } = useConfigQuery();
+    const { data: config, isSuccess: isInitialized } = useGetConfig();
     const { mutateAsync: saveConfigMutation } = useSaveConfig();
 
     useEffect(() => {
@@ -30,10 +33,13 @@ export function ConfigProvider({ children }: { children: React.ReactNode }) {
         }
     }, [config?.theme]);
 
-    const saveConfig = useCallback(async (newConfig: AppConfig) => {
-        await saveConfigMutation(newConfig);
-        alert("Configuration saved.");
-    }, [saveConfigMutation]);
+    const saveConfig = useCallback(
+        async (newConfig: AppConfig) => {
+            await saveConfigMutation(newConfig);
+            alert("Configuration saved.");
+        },
+        [saveConfigMutation]
+    );
 
     const value = useMemo(
         () => ({

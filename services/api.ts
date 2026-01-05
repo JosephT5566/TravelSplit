@@ -5,6 +5,7 @@ import {
     Expense,
     ExpensesResponse,
     isSuccess,
+    SheetConfig,
 } from "../src/types";
 
 export const getMockExpenses = (): Expense[] => {
@@ -22,7 +23,7 @@ export const getMockExpenses = (): Expense[] => {
             exchangeRate: 0.2,
             payer: "demo@tripsplit.app",
             // settled: false,
-            splitsJson: "",
+            splitsJson: {},
         },
         {
             timestamp: new Date().toISOString(),
@@ -34,7 +35,7 @@ export const getMockExpenses = (): Expense[] => {
             exchangeRate: 1,
             payer: "demo@tripsplit.app",
             // settled: true,
-            splitsJson: "",
+            splitsJson: {},
         },
         {
             timestamp: new Date().toISOString(),
@@ -46,7 +47,7 @@ export const getMockExpenses = (): Expense[] => {
             currency: "TWD",
             payer: "demo@tripsplit.app",
             // settled: false,
-            splitsJson: "",
+            splitsJson: {},
         },
         {
             timestamp: new Date().toISOString(),
@@ -58,12 +59,40 @@ export const getMockExpenses = (): Expense[] => {
             currency: "TWD",
             payer: "friend@test.com",
             // settled: true,
-            splitsJson: "",
+            splitsJson: {},
         },
     ];
 };
 
 export const api = {
+    async getSheetConfig(): Promise<SheetConfig> {
+        const gasUrl = process.env.NEXT_PUBLIC_APP_SCRIPT_URL;
+
+        if (!gasUrl) {
+            throw new Error("Missing NEXT_PUBLIC_APP_SCRIPT_URL env variable.");
+        }
+
+        const response = await fetch(gasUrl, {
+            method: "POST",
+            body: JSON.stringify({
+                action: "getConfig",
+            }),
+        });
+
+        if (!response.ok) {
+            throw new Error(`Failed to fetch: ${response.statusText}`);
+        }
+
+        const result: AppScriptResponse<SheetConfig> = await response.json();
+        console.log("🚀 Fetched sheet config result:", result);
+
+        if (isSuccess(result)) {
+            return result.result;
+        } else {
+            throw new Error(result.error || "Unknown error from server");
+        }
+    },
+
     async addExpense(expense: AddExpenseRequest): Promise<string> {
         console.log("🚀 addExpense called with: ", expense);
 

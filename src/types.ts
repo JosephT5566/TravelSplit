@@ -55,9 +55,13 @@ export type ApiState = {
 };
 
 export type AppConfig = {
-    gasUrl: string;
-    allowedEmails: string[];
-    baseCurrency: string;
-    googleClientId: string;
     theme: string;
 };
+
+export type SheetConfig = {
+    currencies: Record<string, number>;
+    users: Record<string, string>;
+    categories: string[];
+}
+
+export type Config = AppConfig & SheetConfig;
