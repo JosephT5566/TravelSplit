@@ -12,15 +12,7 @@ export type Expense = {
 
 export type ExpensesResponse = AppScriptResponse<Expense[]>;
 
-export type AddExpenseRequest = {
-    date: string;
-    itemName: string;
-    category: string;
-    payer: string;
-    amount: number;
-    currency: string;
-    splitsJson: string;
-};
+export type AddExpenseRequest = Omit<Expense, "timestamp">;
 
 export type AppScriptResponse<T, E = string> =
     | { ok: true; result: T }

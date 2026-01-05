@@ -1,5 +1,11 @@
 import { useAuth } from "@/src/stores/AuthStore";
-import { Expense, ExpensesResponse, isSuccess } from "../src/types";
+import {
+    AddExpenseRequest,
+    AppScriptResponse,
+    Expense,
+    ExpensesResponse,
+    isSuccess,
+} from "../src/types";
 
 export const getMockExpenses = (): Expense[] => {
     const today = new Date();
@@ -58,6 +64,36 @@ export const getMockExpenses = (): Expense[] => {
 };
 
 export const api = {
+    async addExpense(expense: AddExpenseRequest): Promise<string> {
+        console.log("🚀 addExpense called with: ", expense);
+
+        const gasUrl = process.env.NEXT_PUBLIC_APP_SCRIPT_URL;
+        if (!gasUrl) {
+            throw new Error("Missing NEXT_PUBLIC_APP_SCRIPT_URL env variable.");
+        }
+
+        const response = await fetch(gasUrl, {
+            method: "POST",
+            body: JSON.stringify({
+                action: "addExpense",
+                payload: expense,
+            }),
+        });
+
+        if (!response.ok) {
+            throw new Error(`Failed to fetch: ${response.statusText}`);
+        }
+
+        const result: AppScriptResponse<string> = await response.json();
+        console.log("🚀 Added expense result:", result);
+
+        if (isSuccess(result)) {
+            return result.result;
+        } else {
+            throw new Error(result.error || "Unknown error from server");
+        }
+    },
+
     async getExpenses(userEmail: string): Promise<Expense[]> {
         console.log("🚀 getExpenses called for: ", userEmail);
 

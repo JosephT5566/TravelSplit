@@ -8,14 +8,14 @@ import React, {
 } from "react";
 import { useExpensesQuery, useSaveExpenses } from "../../services/dataFetcher";
 import { api } from "../../services/api";
-import { Expense, ApiState } from "../types";
+import { Expense, ApiState, AddExpenseRequest } from "../types";
 import { useAuth, useAuthState } from "./AuthStore";
 
 interface ExpensesContextValue {
     expenses: Expense[];
     apiState: ApiState;
     refreshExpenses: (options?: { force?: boolean }) => Promise<void>;
-    addExpense: (expense: Expense) => Promise<void>;
+    addExpense: (expense: AddExpenseRequest) => Promise<void>;
     updateExpense: (expense: Expense) => Promise<void>;
     deleteExpense: (id: string) => Promise<void>;
 }
@@ -40,18 +40,17 @@ export function ExpensesProvider({ children }: { children: React.ReactNode }) {
     }, [refetch]);
 
     const addExpense = useCallback(
-        async (expense: Expense) => {
+        async (expense: AddExpenseRequest) => {
             if (!user) return;
-            const newExpenses = [expense, ...(expenses || [])];
-            await saveExpenses(newExpenses);
             try {
-                await api.syncTransaction(user.email, "add", expense);
-                await refreshExpenses();
+                const result = await api.addExpense(expense);
+                console.log("Added expense:", result);
+                // await refreshExpenses();
             } catch (err) {
                 console.error("Failed to add expense:", err);
             }
         },
-        [expenses, user, saveExpenses, refreshExpenses]
+        [user, refreshExpenses]
     );
 
     const updateExpense = useCallback(
