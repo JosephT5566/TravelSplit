@@ -1,5 +1,4 @@
 import React, { useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
 import { Expense } from "../src/types";
 import { format, addDays } from "date-fns";
 import {
@@ -11,6 +10,7 @@ import {
     Plus,
     RefreshCw,
 } from "lucide-react";
+import { useAuthState } from "@/src/stores/AuthStore";
 
 interface Props {
     expenses: Expense[];
@@ -31,6 +31,7 @@ export const ExpenseList: React.FC<Props> = ({
 }) => {
     const [currentDate, setCurrentDate] = useState(new Date());
     const dateStr = format(currentDate, "yyyy-MM-dd");
+    const { user } = useAuthState();
 
     const dailyExpenses = useMemo(() => {
         const formattedCurrentDate = format(currentDate, "yyyy-MM-dd");
@@ -50,7 +51,7 @@ export const ExpenseList: React.FC<Props> = ({
 
     const dailyTotal = useMemo(() => {
         return dailyExpenses.reduce((acc, curr) => {
-            const amount = curr.amount;
+            const amount = curr.splitsJson[user.email] || 0;
             return acc + amount;
         }, 0);
     }, [dailyExpenses]);
@@ -132,7 +133,8 @@ export const ExpenseList: React.FC<Props> = ({
                     dailyExpenses.map((exp) => (
                         <div
                             key={exp.timestamp}
-                            className="bg-surface p-4 rounded-xl shadow flex justify-between items-center border border-border hover:border-primary transition-all"
+                            className="bg-surface p-4 rounded-xl shadow flex justify-between items-center border border-border hover:border-primary transition-all cursor-pointer"
+                            onClick={() => onOpenExpenseForm(exp)}
                         >
                             <div className="flex-1">
                                 <div className="flex items-center justify-between pr-4">
@@ -152,22 +154,13 @@ export const ExpenseList: React.FC<Props> = ({
 
                             <div className="text-right pl-2">
                                 <p className="text-lg font-bold text-red-500">
-                                    {exp.amount}
+                                    {exp.splitsJson[user.email]}
                                 </p>
                                 <p className="text-xs text-text-muted font-medium">
                                     {exp.currency}
                                 </p>
 
                                 <div className="flex gap-3 justify-end mt-2 opacity-50 hover:opacity-100 transition-opacity">
-                                    <button
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            onOpenExpenseForm(exp);
-                                        }}
-                                        className="text-text-muted hover:text-primary"
-                                    >
-                                        <Edit2 size={16} />
-                                    </button>
                                     <button
                                         onClick={(e) => {
                                             e.stopPropagation();

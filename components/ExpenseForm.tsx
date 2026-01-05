@@ -1,11 +1,6 @@
 import React, { useState, useEffect } from "react";
 import classNames from "classnames";
-import {
-    AddExpenseRequest,
-    EditExpenseRequest,
-    Expense,
-    User,
-} from "../src/types";
+import { AddExpenseRequest, Expense, User } from "../src/types";
 import { format } from "date-fns";
 import {
     X,
@@ -17,10 +12,12 @@ import {
     type LucideIcon,
 } from "lucide-react";
 import { useAuth } from "../src/stores/AuthStore";
+import ExpenseDetail from "./ExpenseDetail";
+import ExpenseContainer from "./ExpenseContainer";
 
 interface Props {
-    initialData?: Partial<Expense> | null;
-    onSave: (data: AddExpenseRequest | EditExpenseRequest) => void;
+    initialData?: Expense | null;
+    onSave: (data: AddExpenseRequest) => void;
     onCancel: () => void;
 }
 
@@ -76,6 +73,10 @@ export const ExpenseForm: React.FC<Props> = ({
         return null;
     }
 
+    if (initialData) {
+        return <ExpenseDetail expense={initialData} onCancel={onCancel} />;
+    }
+
     const [date, setDate] = useState(format(new Date(), "yyyy-MM-dd"));
     const [currency, setCurrency] = useState("TWD");
     const [exchangeRate, setExchangeRate] = useState<number | string>(1);
@@ -94,43 +95,7 @@ export const ExpenseForm: React.FC<Props> = ({
     >({});
     const [splitError, setSplitError] = useState<string | null>(null);
 
-    const isEditMode = !!initialData;
     const themeColor = "red";
-
-    // init the formData
-    useEffect(() => {
-        if (initialData) {
-            const dateToUse = initialData.date
-                ? new Date(initialData.date)
-                : new Date();
-            setDate(format(dateToUse, "yyyy-MM-dd"));
-            setCurrency(initialData.currency || "TWD");
-            setExchangeRate(initialData.exchangeRate || 1);
-            setCategory(initialData.category || "Food");
-            setPayer(initialData.payer || currentUser.email);
-            setItemName(initialData.itemName || "");
-            setAmount(initialData.amount || "");
-
-            if (initialData.splitsJson) {
-                const splits = initialData.splitsJson;
-                const participants = Object.keys(splits);
-                if (
-                    participants.length <= 1 &&
-                    (!participants[0] || participants[0] === currentUser.email)
-                ) {
-                    setPayType("myself");
-                    setSelectedUsers([]);
-                } else {
-                    setPayType("others");
-                    setSplitMode("specific"); // Default to specific to show stored values
-                    setSelectedUsers(
-                        participants.filter((p) => p !== currentUser.email)
-                    );
-                }
-                setSpecificSplits(splits);
-            }
-        }
-    }, [initialData, currentUser.email]);
 
     // Update specificSplits when splitting equally
     useEffect(() => {
@@ -217,52 +182,29 @@ export const ExpenseForm: React.FC<Props> = ({
             }
         }
 
-        const payerEmail = Object.keys(USERS).find(key => USERS[key] === payer);
-        if (!payerEmail) {
-            alert(`Payer not found: ${payer}`);
-            return;
-        }
-
         const expenseData = {
             date,
             category,
             itemName,
             amount: Number(amount),
             currency,
-            payer: payerEmail,
+            payer,
             exchangeRate: Number(exchangeRate),
             splitsJson: JSON.stringify(cleanedSplits),
         };
 
-        if (isEditMode) {
-            onSave({
-                ...expenseData,
-                timestamp: initialData.timestamp,
-            });
-        } else {
-            onSave(expenseData);
-        }
+        onSave(expenseData);
     };
 
     return (
-        <div
-            className={classNames(
-                "bg-surface min-h-[70vh] shadow-2xl flex flex-col overflow-auto animate-in slide-in-from-bottom-8 fade-in duration-200",
-                "w-full, sm:w-160",
-                "fixed bottom-0 sm:top-1/2 sm:left-1/2 sm:transform sm:-translate-x-1/2 sm:-translate-y-1/2",
-                "max-h-[90vh] sm:max-h-[85vh]",
-                "rounded-t-3xl sm:rounded-2xl"
-            )}
-        >
+        <ExpenseContainer>
             <div className="flex justify-center pt-3 pb-1 sm:hidden">
                 <span className="h-1.5 w-14 rounded-full bg-text-muted/30" />
             </div>
             {/* Header */}
             <div className="px-4 py-3 border-b border-border flex align-center justify-between items-center bg-surface/95 backdrop-blur supports-[backdrop-filter]:bg-surface/80 sticky top-0 z-20">
                 <span className="font-semibold text-lg text-text-main">
-                    {initialData && initialData.timestamp
-                        ? "Edit Transaction"
-                        : "New Transaction"}
+                    New Transaction
                 </span>
                 <button
                     type="button"
@@ -288,7 +230,7 @@ export const ExpenseForm: React.FC<Props> = ({
                                 <input
                                     type="number"
                                     placeholder="0"
-                                    autoFocus={!initialData?.timestamp}
+                                    autoFocus
                                     className={`bg-transparent text-6xl font-bold text-center outline-none w-full max-w-[240px] placeholder-text-muted/30 caret-${themeColor}-500 text-text-main`}
                                     value={amount}
                                     onChange={(e) =>
@@ -369,7 +311,7 @@ export const ExpenseForm: React.FC<Props> = ({
                                 onChange={(e) => setPayer(e.target.value)}
                             >
                                 {Object.entries(USERS).map(([email, name]) => (
-                                    <option key={email} value={name}>
+                                    <option key={email} value={email}>
                                         {name}
                                     </option>
                                 ))}
@@ -548,6 +490,6 @@ export const ExpenseForm: React.FC<Props> = ({
                     </button>
                 </div>
             </form>
-        </div>
+        </ExpenseContainer>
     );
 };

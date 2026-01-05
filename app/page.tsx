@@ -24,9 +24,24 @@ const MainPage: React.FC = () => {
     } = useExpenses();
     const { config } = useConfig();
     const { user } = useAuth();
-    const [expense, setExpense] = useState<Partial<Expense> | null>(null);
+    const [expense, setExpense] = useState<Expense | null>(null);
 
     const dialogRef = useRef<HTMLDialogElement>(null);
+
+    useEffect(() => {
+        const clickOutside = (e: MouseEvent) => {
+            if (e.target === dialogRef.current) {
+                e.stopPropagation();
+                dialogRef.current?.close();
+            }
+        };
+
+        dialogRef.current?.addEventListener("click", clickOutside);
+
+        return () => {
+            dialogRef.current?.removeEventListener("click", clickOutside);
+        };
+    }, []);
 
     const openExpenseForm = (expense?: Expense) => {
         if (expense) {
@@ -72,7 +87,6 @@ const MainPage: React.FC = () => {
                 <dialog
                     ref={dialogRef}
                     onClose={handleDialogClose}
-                    closedby="any"
                 >
                     <ExpenseForm
                         initialData={expense}
