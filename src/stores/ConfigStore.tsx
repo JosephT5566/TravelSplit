@@ -9,12 +9,14 @@ import React, {
     useMemo,
 } from "react";
 import { useGetSheetConfig } from "../../services/dataFetcher";
-import { AppConfig, ApiState, SheetConfig } from "../types";
+import { AppConfig, SheetConfig } from "../types";
 import { storage } from "../../services/idbStorage";
 import { set } from "lodash";
+import { TWD_CURRENCY } from "../utils/const";
 
 interface ConfigContextValue {
-    config?: SheetConfig;
+    sheetConfig: SheetConfig;
+    appConfig: AppConfig;
     isInitialized: boolean;
     saveAppConfig: (appConfig: AppConfig) => Promise<void>;
 }
@@ -56,13 +58,32 @@ export function ConfigProvider({ children }: { children: React.ReactNode }) {
         [storage.saveAppConfig]
     );
 
+    const sheetConfigWithDefault: SheetConfig = useMemo(
+        () =>
+            sheetConfig
+                ? {
+                      ...sheetConfig,
+                      currencies: {
+                          ...TWD_CURRENCY,
+                          ...sheetConfig.currencies,
+                      },
+                  }
+                : {
+                      currencies: TWD_CURRENCY,
+                      categories: [],
+                      users: {},
+                  },
+        [sheetConfig]
+    );
+
     const value = useMemo(
         () => ({
-            config: sheetConfig,
+            sheetConfig: sheetConfigWithDefault,
+            appConfig,
             isInitialized,
             saveAppConfig,
         }),
-        [sheetConfig, isInitialized, saveAppConfig]
+        [sheetConfig, appConfig, isInitialized, saveAppConfig]
     );
 
     return (

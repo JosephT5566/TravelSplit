@@ -13,15 +13,9 @@ import {
     type LucideIcon,
     ArrowRight,
 } from "lucide-react";
-import { useAuth, useAuthState } from "../src/stores/AuthStore";
+import { useAuthState } from "../src/stores/AuthStore";
+import { useConfig } from "../src/stores/ConfigStore";
 import ExpenseContainer from "./ExpenseContainer";
-
-const USERS = {
-    "joseph@gmail.com": "香菇",
-    "casper@gmail.com": "阿肥",
-    "david@gmail.com": "建銘",
-    "hardy@gmail.com": "豪",
-};
 
 interface InfoGroupProps {
     icon: LucideIcon;
@@ -60,13 +54,19 @@ const ExpenseDetail: React.FC<Props> = ({ expense, onCancel }) => {
         return null;
     }
 
+    const { sheetConfig: config } = useConfig();
+    if (!config) {
+        return null;
+    }
+    const { users } = config;
+
     const { amount, currency, itemName, category, date, payer, splitsJson } =
         expense;
 
     const myCost = splitsJson[currentUser.email] || 0;
     console.log("ExpenseDetail splitsJson:", splitsJson, currentUser.email);
     const payerEmail =
-        Object.keys(USERS).find((email) => USERS[email] === payer) || "Unknown";
+        Object.keys(users).find((email) => users[email] === payer) || "Unknown";
     const themeColor = "red";
 
     const renderSplits = () => {
@@ -94,7 +94,7 @@ const ExpenseDetail: React.FC<Props> = ({ expense, onCancel }) => {
                         >
                             <div className="flex items-center gap-2">
                                 <span className="font-semibold">
-                                    {USERS[email] || "Unknown"}
+                                    {users[email] || "Unknown"}
                                 </span>
                                 <span className="text-sm text-text-muted">
                                     pays you

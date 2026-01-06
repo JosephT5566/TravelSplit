@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import classNames from "classnames";
+import { isEmpty, isFinite } from "lodash";
 import { AddExpenseRequest, Expense, User } from "../src/types";
 import { format } from "date-fns";
 import {
@@ -12,6 +13,7 @@ import {
     type LucideIcon,
 } from "lucide-react";
 import { useAuth } from "../src/stores/AuthStore";
+import { useConfig } from "../src/stores/ConfigStore";
 import ExpenseDetail from "./ExpenseDetail";
 import ExpenseContainer from "./ExpenseContainer";
 
@@ -19,26 +21,8 @@ interface Props {
     initialData?: Expense | null;
     onSave: (data: AddExpenseRequest) => void;
     onCancel: () => void;
+    isDialogOpen: boolean;
 }
-
-const CATEGORIES = [
-    "機票",
-    "交通",
-    "活動、門票",
-    "住宿",
-    "吃飯",
-    "喝喝",
-    "滑雪",
-    "戰利品",
-    "伴手禮",
-];
-const CURRENCIES = ["TWD", "JPY"];
-const USERS = {
-    "joseph@gmail.com": "香菇",
-    "casper@gmail.com": "阿肥",
-    "david@gmail.com": "建銘",
-    "hardy@gmail.com": "豪",
-};
 
 const InputGroup = ({
     icon: Icon,
@@ -66,6 +50,7 @@ export const ExpenseForm: React.FC<Props> = ({
     initialData,
     onSave,
     onCancel,
+    isDialogOpen,
 }) => {
     const { user } = useAuth();
     const currentUser = user;
@@ -73,17 +58,25 @@ export const ExpenseForm: React.FC<Props> = ({
         return null;
     }
 
+    const { sheetConfig: config } = useConfig();
+    if (!config) {
+        return null;
+    }
+    const { categories, currencies, users } = config;
+
     if (initialData) {
         return <ExpenseDetail expense={initialData} onCancel={onCancel} />;
     }
 
     const [date, setDate] = useState(format(new Date(), "yyyy-MM-dd"));
     const [currency, setCurrency] = useState("TWD");
-    const [exchangeRate, setExchangeRate] = useState<number | string>(1);
-    const [category, setCategory] = useState("Food");
+    const [exchangeRate, setExchangeRate] = useState<number>(
+        currencies[currency]
+    );
+    const [category, setCategory] = useState("");
     const [payer, setPayer] = useState(currentUser.email);
     const [itemName, setItemName] = useState("");
-    const [amount, setAmount] = useState<number | string>("");
+    const [amount, setAmount] = useState<string>("");
 
     const [payType, setPayType] = useState<"myself" | "others">("myself");
     const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
@@ -91,11 +84,36 @@ export const ExpenseForm: React.FC<Props> = ({
         "equally"
     );
     const [specificSplits, setSpecificSplits] = useState<
-        Record<string, number | string>
+        Record<string, string>
     >({});
-    const [splitError, setSplitError] = useState<string | null>(null);
+    const [splitSum, setSplitSum] = useState<number>(0);
+
+    // New error states
+    const [amountError, setAmountError] = useState<string | null>(null);
+    const [itemNameError, setItemNameError] = useState<string | null>(null);
+    const [categoryError, setCategoryError] = useState<string | null>(null);
 
     const themeColor = "red";
+
+    useEffect(() => {
+        if (isDialogOpen) {
+            return;
+        }
+
+        // Reset all state values to their initial values
+        setDate(format(new Date(), "yyyy-MM-dd"));
+        setCurrency("TWD");
+        setExchangeRate(currencies["TWD"]);
+        setCategory("");
+        setPayer(currentUser.email);
+        setItemName("");
+        setAmount("");
+        setPayType("myself");
+        setSelectedUsers([]);
+        setSplitMode("equally");
+        setSpecificSplits({});
+        setSplitSum(0);
+    }, [isDialogOpen]);
 
     // Update specificSplits when splitting equally
     useEffect(() => {
@@ -104,26 +122,25 @@ export const ExpenseForm: React.FC<Props> = ({
         }
 
         const numAmount = Number(amount) || 0;
-        const participants = [currentUser.email, ...selectedUsers];
+        const participants = [...selectedUsers];
 
         if (numAmount > 0 && participants.length > 0) {
-            const totalCents = Math.round(numAmount * 100);
-            const splitCents = Math.floor(totalCents / participants.length);
-            const remainderCents =
-                totalCents - splitCents * participants.length;
+            const totalCents = numAmount;
+            const splitCents = totalCents / participants.length;
 
             const splitsInCents: Record<string, number> = {};
             participants.forEach((p) => {
-                splitsInCents[p] = splitCents;
+                console.log(
+                    "Setting split",
+                    splitCents * currencies[currency],
+                    currencies[currency]
+                );
+                splitsInCents[p] = splitCents * currencies[currency]; // convert to TWD
             });
 
-            if (participants.includes(currentUser.email)) {
-                splitsInCents[currentUser.email] += remainderCents;
-            }
-
-            const finalSplits: Record<string, number> = {};
+            const finalSplits: Record<string, string> = {};
             Object.keys(splitsInCents).forEach((email) => {
-                finalSplits[email] = splitsInCents[email] / 100;
+                finalSplits[email] = String(splitsInCents[email]);
             });
             setSpecificSplits(finalSplits);
         } else {
@@ -134,9 +151,8 @@ export const ExpenseForm: React.FC<Props> = ({
     // Update specificSplits for "myself"
     useEffect(() => {
         if (payType === "myself") {
-            const numAmount = Number(amount) || 0;
-            if (numAmount > 0) {
-                setSpecificSplits({ [currentUser.email]: numAmount });
+            if (Number(amount) > 0) {
+                setSpecificSplits({ [currentUser.email]: amount });
             } else {
                 setSpecificSplits({});
             }
@@ -145,32 +161,47 @@ export const ExpenseForm: React.FC<Props> = ({
 
     // Validate specific splits
     useEffect(() => {
-        setSplitError(null);
+        setSplitSum(0);
         if (payType === "others" && splitMode === "specific") {
-            const numAmount = Number(amount) || 0;
             const specifiedValues = Object.values(specificSplits).map(
                 (v) => Number(v) || 0
             );
             const sumOfSplits = specifiedValues.reduce((a, b) => a + b, 0);
-
-            if (Math.abs(sumOfSplits - numAmount) > 0.01) {
-                setSplitError(
-                    `Sum of splits (${sumOfSplits.toFixed(
-                        2
-                    )}) must equal total amount (${numAmount}).`
-                );
-            }
+            setSplitSum(sumOfSplits);
         }
     }, [amount, payType, splitMode, specificSplits]);
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        if (!itemName || !amount) {
-            return;
+
+        // Reset errors
+        setAmountError(null);
+        setItemNameError(null);
+        setCategoryError(null);
+
+        let isValid = true;
+
+        if (isEmpty(amount) || Number(amount) <= 0) {
+            console.log("Invalid amount:", amount);
+            setAmountError("Amount must be a positive number.");
+            isValid = false;
         }
 
-        if (splitError) {
-            alert(`Please fix the split amounts: ${splitError}`);
+        if (isEmpty(itemName.trim())) {
+            setItemNameError("Item description cannot be empty.");
+            isValid = false;
+        }
+
+        if (isEmpty(category)) {
+            setCategoryError("Please select a category.");
+            isValid = false;
+        }
+
+        if (splitSum > 0 && splitSum > Number(amount)) {
+            isValid = false; // Prevent submission if split error exists
+        }
+
+        if (!isValid) {
             return;
         }
 
@@ -182,7 +213,8 @@ export const ExpenseForm: React.FC<Props> = ({
             }
         }
 
-        const expenseData = {
+        const expenseData: AddExpenseRequest = {
+            // Explicitly type to AddExpenseRequest
             date,
             category,
             itemName,
@@ -190,10 +222,12 @@ export const ExpenseForm: React.FC<Props> = ({
             currency,
             payer,
             exchangeRate: Number(exchangeRate),
-            splitsJson: JSON.stringify(cleanedSplits),
+            splitsJson: cleanedSplits,
         };
 
-        onSave(expenseData);
+        console.log("Submitting expense data:", expenseData);
+
+        // onSave(expenseData);
     };
 
     return (
@@ -230,21 +264,41 @@ export const ExpenseForm: React.FC<Props> = ({
                                 <input
                                     type="number"
                                     placeholder="0"
+                                    pattern="[0-9]*"
                                     autoFocus
-                                    className={`bg-transparent text-6xl font-bold text-center outline-none w-full max-w-[240px] placeholder-text-muted/30 caret-${themeColor}-500 text-text-main`}
+                                    required
+                                    className={`bg-transparent text-6xl font-bold text-center outline-none w-full max-w-[240px] placeholder-text-muted/30 caret-${themeColor}-500 text-text-main ${
+                                        amountError ? "border-red-500" : ""
+                                    }`}
+                                    min="0"
                                     value={amount}
-                                    onChange={(e) =>
-                                        setAmount(e.target.value as any)
-                                    }
+                                    onChange={(e) => {
+                                        const newAmount =
+                                            e.target.value.replace(
+                                                /^0+(?=\d)/,
+                                                ""
+                                            );
+                                        setAmount(newAmount);
+                                        setAmountError(null);
+                                    }}
                                 />
                             </div>
+                            {amountError && (
+                                <p className="text-red-500 text-sm mt-2 text-center">
+                                    {amountError}
+                                </p>
+                            )}
+
                             {/* Currency Quick Switch */}
                             <div className="flex gap-2 mt-4 overflow-x-auto max-w-full pb-2 no-scrollbar justify-center">
-                                {CURRENCIES.map((curr) => (
+                                {Object.keys(currencies).map((curr) => (
                                     <button
                                         key={curr}
                                         type="button"
-                                        onClick={() => setCurrency(curr)}
+                                        onClick={() => {
+                                            setCurrency(curr);
+                                            setExchangeRate(currencies[curr]);
+                                        }}
                                         className={`px-3 py-1 text-xs rounded-full border transition-colors ${
                                             currency === curr
                                                 ? `border-${themeColor}-500 bg-${themeColor}-500/10 text-${themeColor}-600`
@@ -260,25 +314,46 @@ export const ExpenseForm: React.FC<Props> = ({
 
                     <div className="px-4 pb-6 space-y-3">
                         {/* Item Name */}
-                        <InputGroup icon={FileText} label="Item Description">
+                        <InputGroup icon={FileText} label="Item Description *">
                             <input
                                 type="text"
                                 required
                                 placeholder="What is this for?"
-                                className="w-full bg-transparent text-lg border-b border-transparent focus:border-border outline-none transition-colors pb-1 text-text-main placeholder-text-muted/50"
+                                className={`w-full bg-transparent text-lg border-b ${
+                                    itemNameError
+                                        ? "border-red-500"
+                                        : "border-transparent"
+                                } focus:border-border outline-none transition-colors pb-1 text-text-main placeholder-text-muted/50`}
                                 value={itemName}
-                                onChange={(e) => setItemName(e.target.value)}
+                                onChange={(e) => {
+                                    setItemName(e.target.value);
+                                    setItemNameError(null);
+                                }}
                             />
+                            {itemNameError && (
+                                <p className="text-red-500 text-sm mt-1">
+                                    {itemNameError}
+                                </p>
+                            )}
                         </InputGroup>
 
                         {/* Category Chips */}
-                        <InputGroup icon={Tag} label="Category">
-                            <div className="flex flex-wrap gap-2 mt-1">
-                                {CATEGORIES.map((cat) => (
+                        <InputGroup icon={Tag} label="Category *">
+                            <div
+                                className={`flex flex-wrap gap-2 mt-1 ${
+                                    categoryError
+                                        ? "border border-red-500 rounded p-1"
+                                        : ""
+                                }`}
+                            >
+                                {categories.map((cat) => (
                                     <button
                                         key={cat}
                                         type="button"
-                                        onClick={() => setCategory(cat)}
+                                        onClick={() => {
+                                            setCategory(cat);
+                                            setCategoryError(null);
+                                        }}
                                         className={`px-3 py-1.5 text-sm rounded-lg transition-all border ${
                                             category === cat
                                                 ? "bg-text-main text-surface border-transparent shadow-sm"
@@ -289,10 +364,15 @@ export const ExpenseForm: React.FC<Props> = ({
                                     </button>
                                 ))}
                             </div>
+                            {categoryError && (
+                                <p className="text-red-500 text-sm mt-1">
+                                    {categoryError}
+                                </p>
+                            )}
                         </InputGroup>
 
                         {/* Date */}
-                        <InputGroup icon={Calendar} label="Date">
+                        <InputGroup icon={Calendar} label="Date *">
                             <input
                                 type="date"
                                 required
@@ -303,14 +383,14 @@ export const ExpenseForm: React.FC<Props> = ({
                         </InputGroup>
 
                         {/* Payer */}
-                        <InputGroup icon={UserIcon} label="Paid By">
+                        <InputGroup icon={UserIcon} label="Paid By *">
                             <select
                                 required
                                 className="w-full bg-transparent text-base outline-none text-text-main p-1 border rounded-md"
                                 value={payer}
                                 onChange={(e) => setPayer(e.target.value)}
                             >
-                                {Object.entries(USERS).map(([email, name]) => (
+                                {Object.entries(users).map(([email, name]) => (
                                     <option key={email} value={email}>
                                         {name}
                                     </option>
@@ -382,7 +462,7 @@ export const ExpenseForm: React.FC<Props> = ({
                                     </p>
                                     {splitMode === "equally" && (
                                         <div className="flex flex-wrap gap-2">
-                                            {Object.entries(USERS).map(
+                                            {Object.entries(users).map(
                                                 ([email, name]) => (
                                                     <label
                                                         key={email}
@@ -431,14 +511,14 @@ export const ExpenseForm: React.FC<Props> = ({
 
                                     {splitMode === "specific" && (
                                         <div className="space-y-2">
-                                            {Object.entries(USERS).map(
+                                            {Object.entries(users).map(
                                                 ([email, name]) => (
                                                     <div
                                                         key={email}
                                                         className="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2"
                                                     >
                                                         <span className="text-sm text-text-main">
-                                                            {USERS[email] ||
+                                                            {users[email] ||
                                                                 email.split(
                                                                     "@"
                                                                 )[0]}
@@ -452,14 +532,16 @@ export const ExpenseForm: React.FC<Props> = ({
                                                                     email
                                                                 ] || ""
                                                             }
+                                                            min="0"
                                                             onChange={(e) => {
                                                                 setSpecificSplits(
                                                                     (prev) => ({
                                                                         ...prev,
                                                                         [email]:
-                                                                            e
-                                                                                .target
-                                                                                .value,
+                                                                            e.target.value.replace(
+                                                                                /^0+(?=\d)/,
+                                                                                ""
+                                                                            ),
                                                                     })
                                                                 );
                                                             }}
@@ -467,10 +549,18 @@ export const ExpenseForm: React.FC<Props> = ({
                                                     </div>
                                                 )
                                             )}
-                                            {splitError && (
-                                                <p className="text-red-500 text-sm mt-2">
-                                                    {splitError}
-                                                </p>
+                                            {splitSum && (
+                                                <>
+                                                    <span className="text-text-muted text-sm mt-2">
+                                                        {`總和：${splitSum}`}
+                                                    </span>
+                                                    {splitSum >
+                                                        Number(amount) && (
+                                                        <span className="text-red-500 text-sm mt-2 ml-2">
+                                                            {`（大於總金額）`}
+                                                        </span>
+                                                    )}
+                                                </>
                                             )}
                                         </div>
                                     )}
@@ -484,7 +574,12 @@ export const ExpenseForm: React.FC<Props> = ({
                     <button
                         type="submit"
                         className={`w-full py-3 rounded-xl font-semibold bg-primary text-white hover:bg-primary-600 transition-colors disabled:opacity-60 disabled:cursor-not-allowed`}
-                        disabled={!!splitError}
+                        disabled={
+                            splitSum > Number(amount) ||
+                            !!amountError ||
+                            !!itemNameError ||
+                            !!categoryError
+                        }
                     >
                         Save
                     </button>

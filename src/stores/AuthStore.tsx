@@ -77,7 +77,7 @@ export function useAuthState() {
     const { isSignedIn, user, profile, token, isInitialized } = useAuth();
     return {
         isSignedIn,
-        user: { ...user, email: "joseph@gmail.com" }, // TODO: use mock user for testing
+        user,
         profile,
         token,
         isInitialized,

@@ -16,7 +16,6 @@ interface Props {
     expenses: Expense[];
     onDelete: (id: string) => void;
     onOpenExpenseForm: (expense?: Expense) => void;
-    baseCurrency: string;
     onRefresh: () => void;
     isRefreshing: boolean;
 }
@@ -25,7 +24,6 @@ export const ExpenseList: React.FC<Props> = ({
     expenses,
     onDelete,
     onOpenExpenseForm,
-    baseCurrency,
     onRefresh,
     isRefreshing,
 }) => {
@@ -51,6 +49,9 @@ export const ExpenseList: React.FC<Props> = ({
 
     const dailyTotal = useMemo(() => {
         return dailyExpenses.reduce((acc, curr) => {
+            if (!user) {
+                return acc;
+            }
             const amount = curr.splitsJson[user.email] || 0;
             return acc + amount;
         }, 0);
@@ -99,7 +100,7 @@ export const ExpenseList: React.FC<Props> = ({
                 <div className="px-4 py-2 bg-background border-t border-border flex justify-between items-center text-sm">
                     <span className="text-text-muted">Daily Total</span>
                     <span className="font-bold text-red-500">
-                        {baseCurrency} {dailyTotal.toFixed(1)}
+                        {`TWD ${dailyTotal.toFixed(1)}`}
                     </span>
                 </div>
             </div>
@@ -153,9 +154,11 @@ export const ExpenseList: React.FC<Props> = ({
                             </div>
 
                             <div className="text-right pl-2">
-                                <p className="text-lg font-bold text-red-500">
-                                    {exp.splitsJson[user.email]}
-                                </p>
+                                {user && (
+                                    <p className="text-lg font-bold text-red-500">
+                                        {exp.splitsJson[user.email]}
+                                    </p>
+                                )}
                                 <p className="text-xs text-text-muted font-medium">
                                     {exp.currency}
                                 </p>

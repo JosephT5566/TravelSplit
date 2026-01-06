@@ -7,14 +7,13 @@ import { useConfig } from "../../src/stores/ConfigStore";
 import { useAuthActions } from "../../src/stores/AuthStore";
 import { AppConfig } from "../../src/types";
 
-
 const SettingsPageContent: React.FC = () => {
-    const { config, saveConfig } = useConfig();
+    const { sheetConfig, appConfig, saveAppConfig } = useConfig();
     const { signOut } = useAuthActions();
 
     const handleThemeChange = (theme: AppConfig["theme"]) => {
-        if (config) {
-            saveConfig({ ...config, theme });
+        if (sheetConfig) {
+            saveAppConfig({ theme });
         }
     };
 
@@ -42,16 +41,22 @@ const SettingsPageContent: React.FC = () => {
                             </label>
                             <select
                                 className="w-full p-2 border border-border rounded bg-background text-text-main"
-                                value={config?.theme || "classic"}
+                                value={appConfig.theme || "classic"}
                                 onChange={(e) =>
                                     handleThemeChange(
                                         e.target.value as AppConfig["theme"]
                                     )
                                 }
                             >
-                                <option value="classic">Classic (System)</option>
-                                <option value="forest">Forest (Dark Green)</option>
-                                <option value="ocean">Ocean (Light Teal)</option>
+                                <option value="classic">
+                                    Classic (System)
+                                </option>
+                                <option value="forest">
+                                    Forest (Dark Green)
+                                </option>
+                                <option value="ocean">
+                                    Ocean (Light Teal)
+                                </option>
                             </select>
                         </div>
 

@@ -49,7 +49,6 @@ export function ExpensesProvider({ children }: { children: React.ReactNode }) {
 
     const addExpense = useCallback(
         async (expense: AddExpenseRequest) => {
-            if (!user) return;
             try {
                 const result = await api.addExpense(expense);
                 console.log("Added expense:", result);
@@ -58,12 +57,11 @@ export function ExpensesProvider({ children }: { children: React.ReactNode }) {
                 console.error("Failed to add expense:", err);
             }
         },
-        [user, refreshExpenses]
+        [refreshExpenses]
     );
 
     const updateExpense = useCallback(
         async (expense: EditExpenseRequest) => {
-            if (!user) return;
             const newExpenses = (expenses || []).map((e) =>
                 e.timestamp === expense.timestamp
                     ? { ...expense, splitsJson: JSON.parse(expense.splitsJson) } // transfer to type Expense
@@ -77,14 +75,11 @@ export function ExpensesProvider({ children }: { children: React.ReactNode }) {
                 console.error("Failed to update expense:", err);
             }
         },
-        [expenses, user, saveExpenses, refreshExpenses]
+        [expenses, saveExpenses, refreshExpenses]
     );
 
     const deleteExpense = useCallback(
         async (timestamp: string) => {
-            if (!user) {
-                return;
-            }
             const expenseToDelete = (expenses || []).find(
                 (e) => e.timestamp === timestamp
             );
@@ -94,16 +89,16 @@ export function ExpensesProvider({ children }: { children: React.ReactNode }) {
                 (e) => e.timestamp !== timestamp
             );
             await saveExpenses(newExpenses);
-            try {
-                await api.syncTransaction(
-                    user.email,
-                    "delete",
-                    expenseToDelete
-                );
-                await refreshExpenses();
-            } catch (err) {
-                console.error("Failed to delete expense:", err);
-            }
+            // try {
+            //     await api.syncTransaction(
+            //         user.email,
+            //         "delete",
+            //         expenseToDelete
+            //     );
+            //     await refreshExpenses();
+            // } catch (err) {
+            //     console.error("Failed to delete expense:", err);
+            // }
         },
         [expenses, user, saveExpenses, refreshExpenses]
     );

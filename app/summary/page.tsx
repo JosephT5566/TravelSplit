@@ -10,13 +10,15 @@ import { useAuthState } from "../../src/stores/AuthStore";
 const ListPage: React.FC = () => {
     const { expenses, apiState, refreshExpenses } = useExpenses();
     const { user } = useAuthState();
-    const { config } = useConfig();
+    const { sheetConfig: config } = useConfig();
     const baseCurrency = "TWD";
 
-    const totalExpense = expenses.reduce(
-        (acc, curr) => acc + Number(curr.splitsJson?.[user.email]),
-        0
-    );
+    const totalExpense = expenses.reduce((acc, curr) => {
+        if (!user) {
+            return acc;
+        }
+        return acc + Number(curr.splitsJson?.[user.email]);
+    }, 0);
 
     return (
         <div className="space-y-6 animate-in fade-in duration-500">

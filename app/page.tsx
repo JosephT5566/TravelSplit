@@ -22,9 +22,9 @@ const MainPage: React.FC = () => {
         refreshExpenses,
         apiState,
     } = useExpenses();
-    const { config } = useConfig();
     const { user } = useAuth();
     const [expense, setExpense] = useState<Expense | null>(null);
+    const [isDialogOpen, setIsDialogOpen] = useState<boolean>(false);
 
     const dialogRef = useRef<HTMLDialogElement>(null);
 
@@ -36,10 +36,16 @@ const MainPage: React.FC = () => {
             }
         };
 
+        const handleDialogClosed = () => {
+            setIsDialogOpen(false);
+        };
+
         dialogRef.current?.addEventListener("click", clickOutside);
+        dialogRef.current?.addEventListener("close", handleDialogClosed);
 
         return () => {
             dialogRef.current?.removeEventListener("click", clickOutside);
+            dialogRef.current?.removeEventListener("close", handleDialogClosed);
         };
     }, []);
 
@@ -50,6 +56,7 @@ const MainPage: React.FC = () => {
         } else {
             setExpense(null);
         }
+        setIsDialogOpen(true);
         dialogRef.current?.showModal();
     };
 
@@ -78,7 +85,6 @@ const MainPage: React.FC = () => {
                 expenses={expenses}
                 onOpenExpenseForm={openExpenseForm}
                 onDelete={deleteExpense}
-                baseCurrency={config?.baseCurrency || "TWD"}
                 onRefresh={refreshExpenses}
                 isRefreshing={apiState.isLoading}
             />
@@ -92,6 +98,7 @@ const MainPage: React.FC = () => {
                         initialData={expense}
                         onSave={handleSaveExpense}
                         onCancel={closeExpenseForm}
+                        isDialogOpen={isDialogOpen}
                     />
                 </dialog>
             )}
