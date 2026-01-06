@@ -47,7 +47,7 @@ export type User = {
 };
 
 export type ApiState = {
-    isLoading: boolean;
+    isFetching: boolean;
     error: string | null;
     lastUpdated: number | null;
 };

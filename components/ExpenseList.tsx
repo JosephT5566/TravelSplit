@@ -5,16 +5,16 @@ import {
     ChevronLeft,
     ChevronRight,
     Calendar,
-    Edit2,
     Trash2,
     Plus,
     RefreshCw,
+    Loader2,
 } from "lucide-react";
 import { useAuthState } from "@/src/stores/AuthStore";
+import { useDeleteExpense } from "../services/dataFetcher";
 
 interface Props {
     expenses: Expense[];
-    onDelete: (id: string) => void;
     onOpenExpenseForm: (expense?: Expense) => void;
     onRefresh: () => void;
     isRefreshing: boolean;
@@ -22,7 +22,6 @@ interface Props {
 
 export const ExpenseList: React.FC<Props> = ({
     expenses,
-    onDelete,
     onOpenExpenseForm,
     onRefresh,
     isRefreshing,
@@ -30,6 +29,9 @@ export const ExpenseList: React.FC<Props> = ({
     const [currentDate, setCurrentDate] = useState(new Date());
     const dateStr = format(currentDate, "yyyy-MM-dd");
     const { user } = useAuthState();
+
+    const { mutateAsync: deleteExpenseMutation, isPending: isDeletingExpense } =
+        useDeleteExpense(user?.email);
 
     const dailyExpenses = useMemo(() => {
         const formattedCurrentDate = format(currentDate, "yyyy-MM-dd");
@@ -169,12 +171,28 @@ export const ExpenseList: React.FC<Props> = ({
                                     <button
                                         onClick={(e) => {
                                             e.stopPropagation();
-                                            if (exp.timestamp) {
-                                                onDelete(exp.timestamp);
+                                            if (!exp.timestamp) {
+                                                return;
+                                            }
+                                            if (confirm("真的要刪嗎？")) {
+                                                console.log(
+                                                    "Deleting expense with timestamp:",
+                                                    exp.timestamp
+                                                );
+                                                deleteExpenseMutation(
+                                                    exp.timestamp
+                                                );
                                             }
                                         }}
-                                        className="text-text-muted hover:text-red-500"
+                                        className="flex gap-1 text-text-muted hover:text-red-500"
+                                        disabled={isDeletingExpense}
                                     >
+                                        {isDeletingExpense && (
+                                            <Loader2
+                                                className="animate-spin"
+                                                size={16}
+                                            />
+                                        )}
                                         <Trash2 size={16} />
                                     </button>
                                 </div>

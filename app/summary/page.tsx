@@ -26,9 +26,9 @@ const ListPage: React.FC = () => {
                 <h2 className="text-2xl font-bold text-text-main">Overview</h2>
                 <button
                     onClick={() => refreshExpenses()}
-                    disabled={apiState.isLoading}
+                    disabled={apiState.isFetching}
                     className={`p-2 rounded-full bg-primary/10 text-primary hover:bg-primary/20 transition-colors ${
-                        apiState.isLoading ? "animate-spin" : ""
+                        apiState.isFetching ? "animate-spin" : ""
                     }`}
                     aria-label="Refresh Data"
                 >

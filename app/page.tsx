@@ -6,7 +6,6 @@ import { useExpenses } from "../src/stores/ExpensesStore";
 import { useAuth } from "../src/stores/AuthStore";
 import { ExpenseForm } from "../components/ExpenseForm";
 import {
-    AddExpenseRequest,
     Expense,
 } from "../src/types";
 import ExpenseDetail from "@/components/ExpenseDetail";
@@ -14,7 +13,6 @@ import ExpenseDetail from "@/components/ExpenseDetail";
 const MainPage: React.FC = () => {
     const {
         expenses,
-        deleteExpense,
         refreshExpenses,
         apiState,
     } = useExpenses();
@@ -69,9 +67,8 @@ const MainPage: React.FC = () => {
             <ExpenseList
                 expenses={expenses}
                 onOpenExpenseForm={openExpenseForm}
-                onDelete={deleteExpense}
                 onRefresh={refreshExpenses}
-                isRefreshing={apiState.isLoading}
+                isRefreshing={apiState.isFetching}
             />
 
             {user && (

@@ -153,34 +153,33 @@ export const api = {
         }
     },
 
-    async syncTransaction(
-        userEmail: string,
-        action: "add" | "edit" | "delete",
-        expense: Expense
-    ): Promise<void> {
+    async deleteExpenses(timestamp: string): Promise<number[] | string> {
+        console.log("🚀 deleteExpenses called for: ", timestamp);
+
         const gasUrl = process.env.NEXT_PUBLIC_APP_SCRIPT_URL;
         if (!gasUrl) {
             throw new Error("Missing NEXT_PUBLIC_APP_SCRIPT_URL env variable.");
         }
 
-        const signedAmount = -Math.abs(expense.amount);
-
-        const payload = {
-            action,
-            user: userEmail,
-            data: {
-                ...expense,
-                amount: signedAmount,
-            },
-        };
-
         const response = await fetch(gasUrl, {
             method: "POST",
-            mode: "no-cors",
-            headers: {
-                "Content-Type": "application/json",
-            },
-            body: JSON.stringify(payload),
+            body: JSON.stringify({
+                action: "deleteExpense",
+                payload: { timestamp },
+            }),
         });
+
+        if (!response.ok) {
+            throw new Error(`Failed to fetch: ${response.statusText}`);
+        }
+
+        const result: AppScriptResponse<number[] | string> = await response.json();
+        console.log("🚀 Fetched expenses:", result);
+
+        if (isSuccess(result)) {
+            return result.result;
+        } else {
+            throw new Error(result.error || "Unknown error from server");
+        }
     },
 };

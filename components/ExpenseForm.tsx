@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import classNames from "classnames";
-import { isEmpty, isFinite } from "lodash";
-import { AddExpenseRequest, Expense, User } from "../src/types";
+import { isEmpty } from "lodash";
+import { AddExpenseRequest } from "../src/types";
 import { format } from "date-fns";
 import {
     X,
@@ -10,6 +10,7 @@ import {
     FileText,
     User as UserIcon,
     Users as UsersIcon,
+    Loader2,
     type LucideIcon,
 } from "lucide-react";
 import { useAuth } from "../src/stores/AuthStore";
@@ -238,8 +239,8 @@ export const ExpenseForm: React.FC<Props> = ({
 
         console.log("Submitting expense data:", expenseData);
 
-        // await addExpenseMutation(expenseData);
-        // onCancel();
+        await addExpenseMutation(expenseData);
+        onCancel();
     };
 
     return (
@@ -596,10 +597,18 @@ export const ExpenseForm: React.FC<Props> = ({
                             !!splitError ||
                             !!amountError ||
                             !!itemNameError ||
-                            !!categoryError
+                            !!categoryError ||
+                            isAddingExpense
                         }
                     >
-                        {isAddingExpense ? "Saving..." : "Save"}
+                        {isAddingExpense ? (
+                            <div className="flex items-center justify-center">
+                                <Loader2 className="animate-spin mr-2" size={20} />
+                                Saving...
+                            </div>
+                        ) : (
+                            "Save"
+                        )}
                     </button>
                 </div>
             </form>

@@ -116,12 +116,36 @@ export const useAddExpense = (userEmail: string | undefined) => {
     });
 };
 
-export const useSaveExpenses = () => {
+export const useDeleteExpense = (userEmail: string | undefined) => {
     const queryClient = useQueryClient();
-    return useMutation<void, Error, Expense[]>({
-        mutationFn: () => Promise.resolve(),
-        onSuccess: (data, variables) => {
-            queryClient.setQueryData([EXPENSES_KEY], variables);
+    return useMutation<
+        { response: string | number[]; timestamp: string },
+        Error,
+        string
+    >({
+        mutationFn: async (timestamp) => {
+            if (!userEmail) {
+                return Promise.reject(new Error("User email is required"));
+            }
+            const response = await api.deleteExpenses(timestamp);
+            return { response, timestamp };
+        },
+        onSuccess: (resp) => {
+            if (typeof resp.response === "string") {
+                console.warn("Delete expense warning:", resp.response);
+                return;
+            }
+            queryClient.setQueryData<Expense[]>(
+                [EXPENSES_KEY, userEmail],
+                (old) => {
+                    if (!Array.isArray(old)) {
+                        return old;
+                    }
+                    return old.filter(
+                        (expense) => expense.timestamp !== resp.timestamp
+                    );
+                }
+            );
         },
     });
 };
