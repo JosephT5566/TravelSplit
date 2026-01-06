@@ -9,12 +9,12 @@ import {
     AddExpenseRequest,
     Expense,
 } from "../src/types";
+import ExpenseDetail from "@/components/ExpenseDetail";
 
 const MainPage: React.FC = () => {
     const {
         expenses,
         deleteExpense,
-        addExpense,
         refreshExpenses,
         apiState,
     } = useExpenses();
@@ -60,13 +60,6 @@ const MainPage: React.FC = () => {
         dialogRef.current?.close();
     };
 
-    const handleSaveExpense = async (
-        expense: AddExpenseRequest
-    ) => {
-        await addExpense(expense);
-        closeExpenseForm();
-    };
-
     const handleDialogClose = () => {
         setExpense(null);
     };
@@ -83,12 +76,14 @@ const MainPage: React.FC = () => {
 
             {user && (
                 <dialog ref={dialogRef} onClose={handleDialogClose}>
-                    <ExpenseForm
-                        initialData={expense}
-                        onSave={handleSaveExpense}
-                        onCancel={closeExpenseForm}
-                        isDialogOpen={isDialogOpen}
-                    />
+                    {expense == null ? (
+                        <ExpenseForm
+                            onCancel={closeExpenseForm}
+                            isDialogOpen={isDialogOpen}
+                        />
+                    ) : (
+                        <ExpenseDetail expense={expense} onCancel={closeExpenseForm} />
+                    )}
                 </dialog>
             )}
         </div>

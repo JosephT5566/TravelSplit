@@ -14,12 +14,10 @@ import {
 } from "lucide-react";
 import { useAuth } from "../src/stores/AuthStore";
 import { useConfig } from "../src/stores/ConfigStore";
-import ExpenseDetail from "./ExpenseDetail";
 import ExpenseContainer from "./ExpenseContainer";
+import { useAddExpense } from "../services/dataFetcher"
 
 interface Props {
-    initialData?: Expense | null;
-    onSave: (data: AddExpenseRequest) => void;
     onCancel: () => void;
     isDialogOpen: boolean;
 }
@@ -47,8 +45,6 @@ const InputGroup = ({
 );
 
 export const ExpenseForm: React.FC<Props> = ({
-    initialData,
-    onSave,
     onCancel,
     isDialogOpen,
 }) => {
@@ -63,10 +59,6 @@ export const ExpenseForm: React.FC<Props> = ({
         return null;
     }
     const { categories, currencies, users } = config;
-
-    if (initialData) {
-        return <ExpenseDetail expense={initialData} onCancel={onCancel} />;
-    }
 
     const [date, setDate] = useState(format(new Date(), "yyyy-MM-dd"));
     const [currency, setCurrency] = useState("TWD");
@@ -92,6 +84,10 @@ export const ExpenseForm: React.FC<Props> = ({
     const [amountError, setAmountError] = useState<string | null>(null);
     const [itemNameError, setItemNameError] = useState<string | null>(null);
     const [categoryError, setCategoryError] = useState<string | null>(null);
+    const [splitError, setSplitError] = useState<string | null>(null);
+
+    const { mutateAsync: addExpenseMutation, isPending: isAddingExpense } =
+        useAddExpense(user?.email);
 
     useEffect(() => {
         if (isDialogOpen) {
@@ -110,72 +106,24 @@ export const ExpenseForm: React.FC<Props> = ({
         setSelectedUsers([]);
         setSplitMode("equally");
         setSpecificSplits({});
-        setSplitSum(0);
-    }, [isDialogOpen]);
+    }, [isDialogOpen, currencies, currentUser.email]);
 
-    // Update specificSplits when splitting equally
     useEffect(() => {
-        if (payType !== "others" || splitMode !== "equally") {
-            return;
-        }
+        const total = Object.values(specificSplits).reduce(
+            (acc, curr) => acc + (Number(curr) || 0),
+            0
+        );
+        setSplitSum(total);
+    }, [specificSplits]);
 
-        const numAmount = Number(amount) || 0;
-        const participants = [...selectedUsers];
-
-        if (numAmount > 0 && participants.length > 0) {
-            const totalCents = numAmount;
-            const splitCents = totalCents / participants.length;
-
-            const splitsInCents: Record<string, number> = {};
-            participants.forEach((p) => {
-                console.log(
-                    "Setting split",
-                    splitCents * currencies[currency],
-                    currencies[currency]
-                );
-                splitsInCents[p] = splitCents * currencies[currency]; // convert to TWD
-            });
-
-            const finalSplits: Record<string, string> = {};
-            Object.keys(splitsInCents).forEach((email) => {
-                finalSplits[email] = String(splitsInCents[email]);
-            });
-            setSpecificSplits(finalSplits);
-        } else {
-            setSpecificSplits({});
-        }
-    }, [amount, payType, selectedUsers, currentUser.email, splitMode]);
-
-    // Update specificSplits for "myself"
-    useEffect(() => {
-        if (payType === "myself") {
-            if (Number(amount) > 0) {
-                setSpecificSplits({ [currentUser.email]: amount });
-            } else {
-                setSpecificSplits({});
-            }
-        }
-    }, [payType, amount, currentUser.email]);
-
-    // Validate specific splits
-    useEffect(() => {
-        setSplitSum(0);
-        if (payType === "others" && splitMode === "specific") {
-            const specifiedValues = Object.values(specificSplits).map(
-                (v) => Number(v) || 0
-            );
-            const sumOfSplits = specifiedValues.reduce((a, b) => a + b, 0);
-            setSplitSum(sumOfSplits);
-        }
-    }, [amount, payType, splitMode, specificSplits]);
-
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async(e: React.FormEvent) => {
         e.preventDefault();
 
         // Reset errors
         setAmountError(null);
         setItemNameError(null);
         setCategoryError(null);
+        setSplitError(null);
 
         let isValid = true;
 
@@ -203,12 +151,77 @@ export const ExpenseForm: React.FC<Props> = ({
             return;
         }
 
-        const cleanedSplits: Record<string, number> = {};
-        for (const user in specificSplits) {
-            const value = Number(specificSplits[user]);
-            if (!isNaN(value) && value > 0) {
-                cleanedSplits[user] = value;
+        const getCleanedSplits = (): Record<string, number> | null => {
+            const numAmount = Number(amount);
+            const totalAmountInBase = numAmount * exchangeRate;
+            let splits: Record<string, number> = {};
+
+            if (payType === "myself") {
+                splits = { [currentUser.email]: totalAmountInBase };
+            } else if (payType === "others") {
+                if (splitMode === "equally") {
+                    const participants = selectedUsers;
+                    if (participants.length === 0) {
+                        setSplitError(
+                            "Please select at least one participant for equal split."
+                        );
+                        return null;
+                    }
+                    const totalInCents = Math.round(totalAmountInBase * 100);
+                    const splitInCents = Math.floor(
+                        totalInCents / participants.length
+                    );
+                    const remainderCents =
+                        totalInCents - splitInCents * participants.length;
+
+                    participants.forEach((p, index) => {
+                        splits[p] =
+                            (splitInCents + (index < remainderCents ? 1 : 0)) /
+                            100;
+                    });
+                } else if (splitMode === "specific") {
+                    const specifiedValues = Object.values(specificSplits).map(
+                        (v) => Number(v) || 0
+                    );
+                    const sumOfSplits = specifiedValues.reduce(
+                        (a, b) => a + b,
+                        0
+                    );
+
+                    if (Math.abs(sumOfSplits - totalAmountInBase) > 0.01) {
+                        setSplitError(
+                            `Sum of splits (${sumOfSplits.toFixed(
+                                2
+                            )}) must equal total amount (${totalAmountInBase.toFixed(
+                                2
+                            )}).`
+                        );
+                        return null;
+                    }
+
+                    for (const user in specificSplits) {
+                        const value = Number(specificSplits[user]);
+                        if (!isNaN(value) && value > 0) {
+                            splits[user] = value;
+                        }
+                    }
+                }
             }
+
+            if (Object.keys(splits).length === 0 && numAmount > 0) {
+                if (payType === "others") {
+                    setSplitError("Please configure how to split the expense.");
+                    return null;
+                }
+            }
+
+            return splits;
+        };
+
+        const cleanedSplits = getCleanedSplits();
+
+        if (cleanedSplits === null) {
+            return;
         }
 
         const expenseData: AddExpenseRequest = {
@@ -225,7 +238,8 @@ export const ExpenseForm: React.FC<Props> = ({
 
         console.log("Submitting expense data:", expenseData);
 
-        onSave(expenseData);
+        // await addExpenseMutation(expenseData);
+        // onCancel();
     };
 
     return (
@@ -547,7 +561,7 @@ export const ExpenseForm: React.FC<Props> = ({
                                                     </div>
                                                 )
                                             )}
-                                            {splitSum && (
+                                            {splitSum > 0 && (
                                                 <>
                                                     <span className="text-text-muted text-sm mt-2">
                                                         {`總和：${splitSum}`}
@@ -559,6 +573,11 @@ export const ExpenseForm: React.FC<Props> = ({
                                                         </span>
                                                     )}
                                                 </>
+                                            )}
+                                            {splitError && (
+                                                <p className="text-red-500 text-sm mt-2">
+                                                    {splitError}
+                                                </p>
                                             )}
                                         </div>
                                     )}
@@ -574,12 +593,13 @@ export const ExpenseForm: React.FC<Props> = ({
                         className={`w-full py-3 rounded-xl font-semibold bg-primary text-white hover:bg-primary-600 transition-colors disabled:opacity-60 disabled:cursor-not-allowed`}
                         disabled={
                             splitSum > Number(amount) ||
+                            !!splitError ||
                             !!amountError ||
                             !!itemNameError ||
                             !!categoryError
                         }
                     >
-                        Save
+                        {isAddingExpense ? "Saving..." : "Save"}
                     </button>
                 </div>
             </form>

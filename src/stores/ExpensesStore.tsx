@@ -1,22 +1,22 @@
 "use client";
 
 import React, { createContext, useContext, useCallback, useMemo } from "react";
-import { useExpensesQuery, useSaveExpenses } from "../../services/dataFetcher";
-import { api } from "../../services/api";
+import {
+    useExpensesQuery,
+    useSaveExpenses,
+    useAddExpense,
+} from "../../services/dataFetcher";
 import {
     Expense,
     ApiState,
     AddExpenseRequest,
-    EditExpenseRequest,
 } from "../types";
-import { useAuth, useAuthState } from "./AuthStore";
+import { useAuthState } from "./AuthStore";
 
 interface ExpensesContextValue {
     expenses: Expense[];
     apiState: ApiState;
     refreshExpenses: (options?: { force?: boolean }) => Promise<void>;
-    addExpense: (expense: AddExpenseRequest) => Promise<void>;
-    updateExpense: (expense: EditExpenseRequest) => Promise<void>;
     deleteExpense: (id: string) => Promise<void>;
 }
 
@@ -33,6 +33,7 @@ export function ExpensesProvider({ children }: { children: React.ReactNode }) {
         refetch,
     } = useExpensesQuery(user?.email);
     const { mutateAsync: saveExpenses } = useSaveExpenses();
+    const { mutateAsync: addExpenseMutation, isPending: isAddingExpense } = useAddExpense(user?.email);
 
     const apiState: ApiState = useMemo(
         () => ({
@@ -46,37 +47,6 @@ export function ExpensesProvider({ children }: { children: React.ReactNode }) {
     const refreshExpenses = useCallback(async () => {
         await refetch();
     }, [refetch]);
-
-    const addExpense = useCallback(
-        async (expense: AddExpenseRequest) => {
-            try {
-                const result = await api.addExpense(expense);
-                console.log("Added expense:", result);
-                // await refreshExpenses();
-            } catch (err) {
-                console.error("Failed to add expense:", err);
-            }
-        },
-        [refreshExpenses]
-    );
-
-    const updateExpense = useCallback(
-        async (expense: EditExpenseRequest) => {
-            const newExpenses = (expenses || []).map((e) =>
-                e.timestamp === expense.timestamp
-                    ? { ...expense, splitsJson: JSON.parse(expense.splitsJson) } // transfer to type Expense
-                    : e
-            );
-            await saveExpenses(newExpenses);
-            try {
-                // await api.syncTransaction(user.email, "edit", expense);
-                await refreshExpenses();
-            } catch (err) {
-                console.error("Failed to update expense:", err);
-            }
-        },
-        [expenses, saveExpenses, refreshExpenses]
-    );
 
     const deleteExpense = useCallback(
         async (timestamp: string) => {
@@ -108,16 +78,12 @@ export function ExpensesProvider({ children }: { children: React.ReactNode }) {
             expenses: expenses || [],
             apiState,
             refreshExpenses,
-            addExpense,
-            updateExpense,
             deleteExpense,
         }),
         [
             expenses,
             apiState,
             refreshExpenses,
-            addExpense,
-            updateExpense,
             deleteExpense,
         ]
     );

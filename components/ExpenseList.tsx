@@ -100,7 +100,7 @@ export const ExpenseList: React.FC<Props> = ({
                 <div className="px-4 py-2 bg-background border-t border-border flex justify-between items-center text-sm">
                     <span className="text-text-muted">Daily Total</span>
                     <span className="font-bold text-accent">
-                        {`TWD ${dailyTotal.toFixed(1)}`}
+                        {`${dailyTotal.toFixed(1)} TWD`}
                     </span>
                 </div>
             </div>
@@ -155,13 +155,15 @@ export const ExpenseList: React.FC<Props> = ({
 
                             <div className="text-right pl-2">
                                 {user && (
-                                    <p className="text-lg font-bold text-accent">
-                                        {exp.splitsJson[user.email]}
-                                    </p>
+                                    <>
+                                        <span className="text-lg font-bold text-accent">
+                                            {exp.splitsJson[user.email]}
+                                        </span>
+                                        <span className="text-xs text-text-muted font-medium pl-1">
+                                            TWD
+                                        </span>
+                                    </>
                                 )}
-                                <p className="text-xs text-text-muted font-medium">
-                                    {exp.currency}
-                                </p>
 
                                 <div className="flex gap-3 justify-end mt-2 opacity-50 hover:opacity-100 transition-opacity">
                                     <button

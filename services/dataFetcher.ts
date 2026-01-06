@@ -1,5 +1,11 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Expense, User, SheetConfig, AppConfig } from "../src/types";
+import {
+    Expense,
+    User,
+    SheetConfig,
+    AppConfig,
+    AddExpenseRequest,
+} from "../src/types";
 import { storage } from "./idbStorage"; // We will create this file
 import { api } from "./api";
 
@@ -89,6 +95,24 @@ export const useExpensesQuery = (userEmail: string | undefined) => {
             return api.getExpenses(userEmail);
         },
         enabled: !!userEmail,
+    });
+};
+
+export const useAddExpense = (userEmail: string | undefined) => {
+    const queryClient = useQueryClient();
+    return useMutation<string, Error, AddExpenseRequest>({
+        mutationFn: async (newExpense) => {
+            if (!userEmail) {
+                return Promise.reject(new Error("User email is required"));
+            }
+            const response = await api.addExpense(newExpense);
+            return response;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({
+                queryKey: [EXPENSES_KEY, userEmail],
+            });
+        },
     });
 };
 
