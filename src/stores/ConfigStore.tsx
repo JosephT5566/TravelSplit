@@ -2,52 +2,67 @@
 
 import React, {
     createContext,
+    useState,
     useContext,
     useEffect,
     useCallback,
     useMemo,
 } from "react";
-import {
-    useGetConfig,
-    useSaveConfig,
-} from "../../services/dataFetcher";
-import { AppConfig, ApiState } from "../types";
+import { useGetSheetConfig } from "../../services/dataFetcher";
+import { AppConfig, ApiState, SheetConfig } from "../types";
+import { storage } from "../../services/idbStorage";
+import { set } from "lodash";
 
 interface ConfigContextValue {
-    config?: AppConfig;
+    config?: SheetConfig;
     isInitialized: boolean;
-    saveConfig: (newConfig: AppConfig) => Promise<void>;
+    saveAppConfig: (appConfig: AppConfig) => Promise<void>;
 }
 
 const ConfigContext = createContext<ConfigContextValue | undefined>(undefined);
 
 export function ConfigProvider({ children }: { children: React.ReactNode }) {
-    const { data: config, isSuccess: isInitialized } = useGetConfig();
-    const { mutateAsync: saveConfigMutation } = useSaveConfig();
+    const { data: sheetConfig, isSuccess: isInitialized } = useGetSheetConfig();
+    const [appConfig, setAppConfig] = useState<AppConfig>({
+        theme: "classic",
+    });
 
     useEffect(() => {
-        if (config?.theme) {
-            document.documentElement.setAttribute("data-theme", config.theme);
+        async function loadInitialConfig() {
+            const initialConfig = await storage.getAppConfig();
+            if (initialConfig) {
+                setAppConfig(initialConfig);
+            }
+        }
+        loadInitialConfig();
+    }, []);
+
+    useEffect(() => {
+        if (appConfig?.theme) {
+            document.documentElement.setAttribute(
+                "data-theme",
+                appConfig.theme
+            );
         } else {
             document.documentElement.removeAttribute("data-theme");
         }
-    }, [config?.theme]);
+    }, [appConfig?.theme]);
 
-    const saveConfig = useCallback(
-        async (newConfig: AppConfig) => {
-            await saveConfigMutation(newConfig);
-            alert("Configuration saved.");
+    const saveAppConfig = useCallback(
+        async (appConfig: AppConfig) => {
+            setAppConfig(appConfig);
+            await storage.saveAppConfig(appConfig);
         },
-        [saveConfigMutation]
+        [storage.saveAppConfig]
     );
 
     const value = useMemo(
         () => ({
-            config,
+            config: sheetConfig,
             isInitialized,
-            saveConfig,
+            saveAppConfig,
         }),
-        [config, isInitialized, saveConfig]
+        [sheetConfig, isInitialized, saveAppConfig]
     );
 
     return (

@@ -3,7 +3,7 @@
 import dynamic from "next/dynamic";
 
 const Providers = dynamic(
-    () => import("../components/Providers").then((mod) => mod.Providers),
+    () => import("../components/Providers").then((mod) => mod.ReactQueryProvider),
     { ssr: false }
 );
 

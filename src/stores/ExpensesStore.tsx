@@ -82,7 +82,9 @@ export function ExpensesProvider({ children }: { children: React.ReactNode }) {
 
     const deleteExpense = useCallback(
         async (timestamp: string) => {
-            if (!user) return;
+            if (!user) {
+                return;
+            }
             const expenseToDelete = (expenses || []).find(
                 (e) => e.timestamp === timestamp
             );

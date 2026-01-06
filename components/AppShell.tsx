@@ -6,7 +6,7 @@ import { LoginView } from "./LoginView";
 import { useAuth } from "../src/stores/AuthStore";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
-    const { user, isInitialized } = useAuth();
+    const { isInitialized, isSignedIn } = useAuth();
 
     if (!isInitialized) {
         return (
@@ -15,8 +15,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </div>
         );
     }
-    
-    if (!user) {
+
+    if (!isSignedIn) {
         return <LoginView />;
     }
 

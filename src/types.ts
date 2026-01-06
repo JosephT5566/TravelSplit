@@ -63,5 +63,3 @@ export type SheetConfig = {
     users: Record<string, string>;
     categories: string[];
 }
-
-export type Config = AppConfig & SheetConfig;

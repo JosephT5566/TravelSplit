@@ -31,9 +31,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const { mutateAsync: saveUser } = useSaveUser();
     const { mutateAsync: clearUser } = useClearUser();
 
-    const signedIn = getIsSignedIn() && !!user;
-    const profile = signedIn ? getProfile() : null;
-    const token = signedIn ? getTokenIfValid() : null;
+    const isSignedIn = getIsSignedIn() && !!user?.email;
+    const profile = isSignedIn ? getProfile() : null;
+    const token = isSignedIn ? getTokenIfValid() : null;
 
     const setSignIn = useCallback(
         async (newUser: User) => {
@@ -49,15 +49,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const value = useMemo(
         () => ({
-            isSignedIn: signedIn,
-            user: user || null,
+            isSignedIn,
+            user: !!user?.email ? user : null,
             profile,
             token,
             isInitialized,
             setSignIn,
             signOut,
         }),
-        [signedIn, user, profile, token, isInitialized, setSignIn, signOut]
+        [isSignedIn, user, profile, token, isInitialized, setSignIn, signOut]
     );
 
     return (
