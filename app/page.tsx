@@ -3,14 +3,11 @@
 import React, { useState, useRef, useEffect } from "react";
 import { ExpenseList } from "../components/ExpenseList";
 import { useExpenses } from "../src/stores/ExpensesStore";
-import { useConfig } from "../src/stores/ConfigStore";
 import { useAuth } from "../src/stores/AuthStore";
 import { ExpenseForm } from "../components/ExpenseForm";
 import {
     AddExpenseRequest,
-    EditExpenseRequest,
     Expense,
-    isAddExpenseRequest,
 } from "../src/types";
 
 const MainPage: React.FC = () => {
@@ -18,7 +15,6 @@ const MainPage: React.FC = () => {
         expenses,
         deleteExpense,
         addExpense,
-        updateExpense,
         refreshExpenses,
         apiState,
     } = useExpenses();
@@ -65,13 +61,9 @@ const MainPage: React.FC = () => {
     };
 
     const handleSaveExpense = async (
-        expense: AddExpenseRequest | EditExpenseRequest
+        expense: AddExpenseRequest
     ) => {
-        if (!isAddExpenseRequest(expense)) {
-            await updateExpense(expense);
-        } else {
-            await addExpense(expense);
-        }
+        await addExpense(expense);
         closeExpenseForm();
     };
 
@@ -90,10 +82,7 @@ const MainPage: React.FC = () => {
             />
 
             {user && (
-                <dialog
-                    ref={dialogRef}
-                    onClose={handleDialogClose}
-                >
+                <dialog ref={dialogRef} onClose={handleDialogClose}>
                     <ExpenseForm
                         initialData={expense}
                         onSave={handleSaveExpense}

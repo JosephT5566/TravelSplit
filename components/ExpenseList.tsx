@@ -99,7 +99,7 @@ export const ExpenseList: React.FC<Props> = ({
                 {/* Daily Summary Bar */}
                 <div className="px-4 py-2 bg-background border-t border-border flex justify-between items-center text-sm">
                     <span className="text-text-muted">Daily Total</span>
-                    <span className="font-bold text-red-500">
+                    <span className="font-bold text-accent">
                         {`TWD ${dailyTotal.toFixed(1)}`}
                     </span>
                 </div>
@@ -155,7 +155,7 @@ export const ExpenseList: React.FC<Props> = ({
 
                             <div className="text-right pl-2">
                                 {user && (
-                                    <p className="text-lg font-bold text-red-500">
+                                    <p className="text-lg font-bold text-accent">
                                         {exp.splitsJson[user.email]}
                                     </p>
                                 )}

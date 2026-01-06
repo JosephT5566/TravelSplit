@@ -93,8 +93,6 @@ export const ExpenseForm: React.FC<Props> = ({
     const [itemNameError, setItemNameError] = useState<string | null>(null);
     const [categoryError, setCategoryError] = useState<string | null>(null);
 
-    const themeColor = "red";
-
     useEffect(() => {
         if (isDialogOpen) {
             return;
@@ -227,7 +225,7 @@ export const ExpenseForm: React.FC<Props> = ({
 
         console.log("Submitting expense data:", expenseData);
 
-        // onSave(expenseData);
+        onSave(expenseData);
     };
 
     return (
@@ -238,7 +236,7 @@ export const ExpenseForm: React.FC<Props> = ({
             {/* Header */}
             <div className="px-4 py-3 border-b border-border flex align-center justify-between items-center bg-surface/95 backdrop-blur supports-[backdrop-filter]:bg-surface/80 sticky top-0 z-20">
                 <span className="font-semibold text-lg text-text-main">
-                    New Transaction
+                    新增支出
                 </span>
                 <button
                     type="button"
@@ -267,7 +265,7 @@ export const ExpenseForm: React.FC<Props> = ({
                                     pattern="[0-9]*"
                                     autoFocus
                                     required
-                                    className={`bg-transparent text-6xl font-bold text-center outline-none w-full max-w-[240px] placeholder-text-muted/30 caret-${themeColor}-500 text-text-main ${
+                                    className={`bg-transparent text-6xl font-bold text-center outline-none w-full max-w-[240px] placeholder-text-muted/30 text-text-main ${
                                         amountError ? "border-red-500" : ""
                                     }`}
                                     min="0"
@@ -301,7 +299,7 @@ export const ExpenseForm: React.FC<Props> = ({
                                         }}
                                         className={`px-3 py-1 text-xs rounded-full border transition-colors ${
                                             currency === curr
-                                                ? `border-${themeColor}-500 bg-${themeColor}-500/10 text-${themeColor}-600`
+                                                ? `border-accent text-accent`
                                                 : "border-border text-text-muted"
                                         }`}
                                     >

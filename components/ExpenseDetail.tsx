@@ -7,7 +7,8 @@ import {
     Calendar,
     Tag,
     FileText,
-    DollarSign,
+    CircleDollarSign,
+    HandCoins,
     User as UserIcon,
     Users as UsersIcon,
     type LucideIcon,
@@ -139,7 +140,7 @@ const ExpenseDetail: React.FC<Props> = ({ expense, onCancel }) => {
             {/* Header */}
             <div className="flex justify-between items-center px-4 py-3 border-b border-border sticky top-0 bg-surface/95 backdrop-blur z-10">
                 <span className="font-semibold text-lg text-text-main">
-                    {itemName}
+                    支出明細
                 </span>
                 <button
                     type="button"
@@ -153,18 +154,23 @@ const ExpenseDetail: React.FC<Props> = ({ expense, onCancel }) => {
             <div className="flex-1 overflow-y-auto p-4 sm:p-6">
                 <div className="px-6 pt-2 pb-6 sm:py-8 text-center">
                     <p className="text-sm text-text-muted">Your Cost</p>
-                    <p className={`text-4xl font-bold text-${themeColor}-500`}>
+                    <p className={`text-4xl font-bold text-accent`}>
                         {`NTD ${myCost.toFixed(2)}`}
                     </p>
                 </div>
 
                 <div className="space-y-1 px-4">
-                    <InfoGroup icon={FileText} label="Total Amount">
+                    <InfoGroup icon={FileText} label="Item Name">
+                        <span className="font-semibold">
+                            {itemName}
+                        </span>
+                    </InfoGroup>
+                    <InfoGroup icon={HandCoins} label="Total Amount">
                         <span className="font-semibold">
                             {amount.toFixed(2)}
                         </span>
                     </InfoGroup>
-                    <InfoGroup icon={DollarSign} label="Currency">
+                    <InfoGroup icon={CircleDollarSign} label="Currency">
                         <span className="font-semibold">{currency}</span>
                     </InfoGroup>
                     <InfoGroup icon={Tag} label="Category">

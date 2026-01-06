@@ -7,20 +7,29 @@
 
 :root {
     /* Classic (Default Light/System) - Fallback */
+    --theme-primary: #4B9DA9; /* 主要動作、導覽、核心品牌視覺。 */
+    --theme-primary-fg: #FFFFFF; /* 主色按鈕上的文字。 */
+    --theme-secondary: #91C6BC; /* 次要動作、輔助品牌視覺。 */
+    --theme-secondary-fg: #111827; /* 次要色上的文字（用深色以保持對比）。 */
+    --theme-accent: #E37434; /* 促銷按鈕、通知小點、重要提醒。 */
+    --theme-accent-fg: #FFFFFF;
     --theme-bg: rgb(249, 250, 251); /* gray-50 */
     --theme-surface: rgb(255, 255, 255); /* white */
-    --theme-primary: rgb(37, 99, 235); /* blue-600 */
-    --theme-primary-fg: rgb(255, 255, 255);
     --theme-text-main: rgb(17, 24, 39); /* gray-900 */
     --theme-text-muted: rgb(107, 114, 128); /* gray-500 */
     --theme-border: rgb(229, 231, 235); /* gray-200 */
 }
 
+/* For Tailwind palette */
 @theme {
+    --color-primary: #4B9DA9;
+    --color-primary-fg: #FFFFFF;
+    --color-secondary: #91C6BC;
+    --color-secondary-fg: #111827;
+    --color-accent: #E37434;
+    --color-accent-fg: #FFFFFF;
     --color-background: rgb(249, 250, 251);
     --color-surface: rgb(255, 255, 255);
-    --color-primary: rgb(37, 99, 235);
-    --color-primary-fg: rgb(255, 255, 255);
     --color-text-main: rgb(17, 24, 39);
     --color-text-muted: rgb(107, 114, 128);
     --color-border: rgb(229, 231, 235);
