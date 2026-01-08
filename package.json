@@ -13,6 +13,7 @@
     "@tanstack/react-query-persist-client": "^5.90.18",
     "daisyui": "^5.5.14",
     "date-fns": "^4.1.0",
+    "embla-carousel-react": "^8.6.0",
     "idb-keyval": "^6.2.1",
     "lucide-react": "^0.469.0",
     "next": "^16.1.1",
