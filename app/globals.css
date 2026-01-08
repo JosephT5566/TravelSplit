@@ -1,4 +1,16 @@
 @import "tailwindcss";
+@plugin "daisyui";
+/* Using DaisyUI theme system currently */
+@plugin "daisyui/theme" {
+    name: "classic";
+    default: true;
+    --color-primary: #4b9da9;
+    --color-primary-content: #ffffff;
+    --color-secondary: #91c6bc;
+    --color-secondary-content: #111827;
+    --color-accent: #e37434;
+    --color-accent-content: #ffffff;
+}
 
 /* Tailwind CSS Custom Variants */
 /* https://github.com/tailwindlabs/tailwindcss/discussions/18471#discussioncomment-13936727 */
@@ -7,12 +19,12 @@
 
 :root {
     /* Classic (Default Light/System) - Fallback */
-    --theme-primary: #4B9DA9; /* 主要動作、導覽、核心品牌視覺。 */
-    --theme-primary-fg: #FFFFFF; /* 主色按鈕上的文字。 */
-    --theme-secondary: #91C6BC; /* 次要動作、輔助品牌視覺。 */
+    --theme-primary: #4b9da9; /* 主要動作、導覽、核心品牌視覺。 */
+    --theme-primary-fg: #ffffff; /* 主色按鈕上的文字。 */
+    --theme-secondary: #91c6bc; /* 次要動作、輔助品牌視覺。 */
     --theme-secondary-fg: #111827; /* 次要色上的文字（用深色以保持對比）。 */
-    --theme-accent: #E37434; /* 促銷按鈕、通知小點、重要提醒。 */
-    --theme-accent-fg: #FFFFFF;
+    --theme-accent: #e37434; /* 促銷按鈕、通知小點、重要提醒。 */
+    --theme-accent-fg: #ffffff;
     --theme-bg: rgb(249, 250, 251); /* gray-50 */
     --theme-surface: rgb(255, 255, 255); /* white */
     --theme-text-main: rgb(17, 24, 39); /* gray-900 */
@@ -22,12 +34,12 @@
 
 /* For Tailwind palette */
 @theme {
-    --color-primary: #4B9DA9;
-    --color-primary-fg: #FFFFFF;
-    --color-secondary: #91C6BC;
+    --color-primary: #4b9da9;
+    --color-primary-fg: #ffffff;
+    --color-secondary: #91c6bc;
     --color-secondary-fg: #111827;
-    --color-accent: #E37434;
-    --color-accent-fg: #FFFFFF;
+    --color-accent: #e37434;
+    --color-accent-fg: #ffffff;
     --color-background: rgb(249, 250, 251);
     --color-surface: rgb(255, 255, 255);
     --color-text-main: rgb(17, 24, 39);

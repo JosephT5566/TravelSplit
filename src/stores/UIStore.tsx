@@ -10,7 +10,7 @@ interface UIContextValue {
 const UIContext = createContext<UIContextValue | undefined>(undefined);
 
 export function UIProvider({ children }: { children: React.ReactNode }) {
-    const [theme, setTheme] = useState("light");
+    const [theme, setTheme] = useState("classic");
 
     const value = useMemo(
         () => ({

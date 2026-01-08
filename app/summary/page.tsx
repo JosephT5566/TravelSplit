@@ -115,12 +115,12 @@ const ListPage: React.FC = () => {
             <div className="bg-surface p-4 rounded-xl shadow transition-colors border border-border">
                 <h3 className="font-semibold mb-4 text-text-main flex items-center gap-2">
                     Who Owes Who
-                    <span
-                        className="text-text-muted cursor-help"
-                        title="僅供參考，無計算 is settled，實際金額以表格為主"
+                    <div
+                        className="tooltip text-text-muted cursor-help"
+                        data-tip="僅供參考，無計算 is settled，實際金額以表格為主"
                     >
                         <Info size={16} />
-                    </span>
+                    </div>
                 </h3>
                 {settlements.length > 0 ? (
                     <div className="space-y-3">
