@@ -11,19 +11,16 @@ interface LayoutProps {
     children: React.ReactNode;
 }
 
-export const Layout: React.FC<LayoutProps> = ({
-    children,
-}) => {
+export const Layout: React.FC<LayoutProps> = ({ children }) => {
     const pathname = usePathname();
     const { user } = useAuth();
     const { apiState } = useExpenses();
-    
-    const isDemo = false;
+
     // Hide FAB on settings page
     const showFab = pathname !== "/settings";
 
     if (!user) {
-        return <>{children}</>
+        return <>{children}</>;
     }
 
     return (
@@ -31,25 +28,20 @@ export const Layout: React.FC<LayoutProps> = ({
             {/* Header */}
             <div className="p-4 bg-surface shadow sticky top-0 z-10 flex justify-between items-center transition-colors border-b border-border">
                 <h1 className="text-xl font-bold text-primary">TripSplit</h1>
-                <div className="text-xs text-text-muted flex flex-col items-end">
-                    <span className="font-medium text-text-main">
-                        {user.name}
-                    </span>
-                    <span>
-                        {isDemo
-                            ? "Demo Mode"
-                            : apiState.lastUpdated
-                            ? `Updated ${new Date(
-                                  apiState.lastUpdated
-                              ).toLocaleTimeString()}`
-                            : ""}
-                    </span>
+                <div className="text-xs">
+                    <img
+                        src={user.picture}
+                        alt={user.name}
+                        className="w-8 h-8 rounded-full border border-border"
+                        width={32}
+                        height={32}
+                    />
                 </div>
             </div>
 
             {/* Main Content Area */}
-            <div className="p-4 max-w-2xl mx-auto min-h-[calc(100vh-140px)]">
-                {apiState.error && !isDemo && (
+            <div className="layout p-4 max-w-2xl mx-auto min-h-[calc(100vh-140px)] max-h-[calc(100vh-140px)] overflow-auto">
+                {apiState.error && (
                     <div className="mb-4 p-3 bg-red-100 text-red-700 rounded text-sm border border-red-200">
                         {apiState.error}
                     </div>

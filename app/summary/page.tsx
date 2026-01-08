@@ -113,10 +113,10 @@ const ListPage: React.FC = () => {
             </div>
 
             <div className="bg-surface p-4 rounded-xl shadow transition-colors border border-border">
-                <h3 className="font-semibold mb-4 text-text-main flex items-center gap-2">
+                <h3 className="font-semibold mb-4 text-text-main flex items-center justify-between">
                     Who Owes Who
                     <div
-                        className="tooltip text-text-muted cursor-help"
+                        className="tooltip tooltip-left text-text-muted cursor-help"
                         data-tip="僅供參考，無計算 is settled，實際金額以表格為主"
                     >
                         <Info size={16} />

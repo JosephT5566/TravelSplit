@@ -16,7 +16,7 @@ import {
 import { useAuth } from "../src/stores/AuthStore";
 import { useConfig } from "../src/stores/ConfigStore";
 import ExpenseContainer from "./ExpenseContainer";
-import { useAddExpense } from "../services/dataFetcher"
+import { useAddExpense } from "../services/dataFetcher";
 
 interface Props {
     onCancel: () => void;
@@ -27,9 +27,11 @@ const InputGroup = ({
     icon: Icon,
     label,
     children,
+    required,
 }: {
     icon: LucideIcon;
     label: string;
+    required?: boolean;
     children: React.ReactNode;
 }) => (
     <div className="flex gap-4 items-start py-3 border-b border-border last:border-0">
@@ -39,16 +41,14 @@ const InputGroup = ({
         <div className="flex-1">
             <label className="block text-xs font-medium text-text-muted mb-1">
                 {label}
+                {required && <span className="text-error ml-1">*</span>}
             </label>
             {children}
         </div>
     </div>
 );
 
-export const ExpenseForm: React.FC<Props> = ({
-    onCancel,
-    isDialogOpen,
-}) => {
+export const ExpenseForm: React.FC<Props> = ({ onCancel, isDialogOpen }) => {
     const { user } = useAuth();
     const currentUser = user;
     if (!currentUser) {
@@ -117,7 +117,7 @@ export const ExpenseForm: React.FC<Props> = ({
         setSplitSum(total);
     }, [specificSplits]);
 
-    const handleSubmit = async(e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
         // Reset errors
@@ -233,7 +233,7 @@ export const ExpenseForm: React.FC<Props> = ({
             amount: Number(amount),
             currency,
             payer,
-            exchangeRate: Number(exchangeRate),
+            exchangeRate,
             splitsJson: cleanedSplits,
         };
 
@@ -323,11 +323,25 @@ export const ExpenseForm: React.FC<Props> = ({
                                 ))}
                             </div>
                         </div>
+                        {/* exchange rate */}
+                        <div className="flex items-center justify-between mt-2">
+                            <span className="text-xs text-text-muted">
+                                匯率
+                            </span>
+                            <input
+                                type="number"
+                                className="bg-transparent text-sm text-text-muted border-b border-transparent focus:border-border outline-none"
+                                value={exchangeRate}
+                                onChange={(e) =>
+                                    setExchangeRate(e.target.valueAsNumber)
+                                }
+                            />
+                        </div>
                     </div>
 
                     <div className="px-4 pb-6 space-y-3">
                         {/* Item Name */}
-                        <InputGroup icon={FileText} label="Item Description *">
+                        <InputGroup icon={FileText} required label="項目名稱">
                             <input
                                 type="text"
                                 required
@@ -351,7 +365,7 @@ export const ExpenseForm: React.FC<Props> = ({
                         </InputGroup>
 
                         {/* Category Chips */}
-                        <InputGroup icon={Tag} label="Category *">
+                        <InputGroup icon={Tag} required label="類別">
                             <div
                                 className={`flex flex-wrap gap-2 mt-1 ${
                                     categoryError
@@ -385,7 +399,7 @@ export const ExpenseForm: React.FC<Props> = ({
                         </InputGroup>
 
                         {/* Date */}
-                        <InputGroup icon={Calendar} label="Date *">
+                        <InputGroup icon={Calendar} required label="日期">
                             <input
                                 type="date"
                                 required
@@ -396,7 +410,7 @@ export const ExpenseForm: React.FC<Props> = ({
                         </InputGroup>
 
                         {/* Payer */}
-                        <InputGroup icon={UserIcon} label="Paid By *">
+                        <InputGroup icon={UserIcon} required label="付款人">
                             <select
                                 required
                                 className="w-full bg-transparent text-base outline-none text-text-main p-1 border rounded-md"
@@ -411,7 +425,7 @@ export const ExpenseForm: React.FC<Props> = ({
                             </select>
                         </InputGroup>
                         {/* Split Method */}
-                        <InputGroup icon={UsersIcon} label="Split Method">
+                        <InputGroup icon={UsersIcon} label="分攤方式">
                             <div className="flex gap-4">
                                 <label className="flex items-center gap-2">
                                     <input
@@ -603,7 +617,10 @@ export const ExpenseForm: React.FC<Props> = ({
                     >
                         {isAddingExpense ? (
                             <div className="flex items-center justify-center">
-                                <Loader2 className="animate-spin mr-2" size={20} />
+                                <Loader2
+                                    className="animate-spin mr-2"
+                                    size={20}
+                                />
                                 Saving...
                             </div>
                         ) : (

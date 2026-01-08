@@ -98,7 +98,7 @@ const ExpenseDetail: React.FC<Props> = ({ expense, onCancel }) => {
                                     {users[email] || "Unknown"}
                                 </span>
                                 <span className="text-sm text-text-muted">
-                                    pays you
+                                    給我
                                 </span>
                             </div>
                             <span
@@ -115,8 +115,8 @@ const ExpenseDetail: React.FC<Props> = ({ expense, onCancel }) => {
                 return (
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                            <span className="font-semibold">You</span>
-                            <span className="text-sm text-text-muted">pay</span>
+                            <span className="font-semibold">我</span>
+                            <span className="text-sm text-text-muted">給</span>
                             <span className="font-semibold">{payer}</span>
                         </div>
                         <span
@@ -153,36 +153,36 @@ const ExpenseDetail: React.FC<Props> = ({ expense, onCancel }) => {
 
             <div className="flex-1 overflow-y-auto p-4 sm:p-6">
                 <div className="px-6 pt-2 pb-6 sm:py-8 text-center">
-                    <p className="text-sm text-text-muted">Your Cost</p>
+                    <p className="text-sm text-text-muted">我的花費</p>
                     <p className={`text-4xl font-bold text-accent`}>
                         {`NTD ${myCost.toFixed(2)}`}
                     </p>
                 </div>
 
-                <div className="space-y-1 px-4">
-                    <InfoGroup icon={FileText} label="Item Name">
+                <div className="space-y-1">
+                    <InfoGroup icon={FileText} label="項目名稱">
                         <span className="font-semibold">
                             {itemName}
                         </span>
                     </InfoGroup>
-                    <InfoGroup icon={HandCoins} label="Total Amount">
+                    <InfoGroup icon={HandCoins} label="總金額">
                         <span className="font-semibold">
                             {amount.toFixed(2)}
                         </span>
                     </InfoGroup>
-                    <InfoGroup icon={CircleDollarSign} label="Currency">
+                    <InfoGroup icon={CircleDollarSign} label="幣別">
                         <span className="font-semibold">{currency}</span>
                     </InfoGroup>
-                    <InfoGroup icon={Tag} label="Category">
+                    <InfoGroup icon={Tag} label="類別">
                         {category}
                     </InfoGroup>
-                    <InfoGroup icon={Calendar} label="Date">
+                    <InfoGroup icon={Calendar} label="日期">
                         {format(new Date(date), "yyyy-MM-dd")}
                     </InfoGroup>
-                    <InfoGroup icon={UserIcon} label="Paid By">
+                    <InfoGroup icon={UserIcon} label="付款人">
                         {payer}
                     </InfoGroup>
-                    <InfoGroup icon={UsersIcon} label="Split Details">
+                    <InfoGroup icon={UsersIcon} label="分攤細節">
                         {renderSplits()}
                     </InfoGroup>
                 </div>

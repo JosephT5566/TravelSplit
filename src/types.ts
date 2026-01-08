@@ -57,6 +57,7 @@ export type AppConfig = {
 };
 
 export type SheetConfig = {
+    startDate: string;
     currencies: Record<string, number>;
     users: Record<string, string>;
     categories: string[];

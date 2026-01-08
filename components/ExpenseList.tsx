@@ -1,9 +1,9 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useRef, useEffect } from "react";
 import { Expense } from "../src/types";
-import { format, addDays } from "date-fns";
+import { format, addDays, formatDate } from "date-fns";
 import {
-    ChevronLeft,
-    ChevronRight,
+    ArrowLeft,
+    ArrowRight,
     Calendar,
     Trash2,
     Plus,
@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { useAuthState } from "@/src/stores/AuthStore";
 import { useDeleteExpense } from "../services/dataFetcher";
+import { useConfig } from "@/src/stores/ConfigStore";
 
 interface Props {
     expenses: Expense[];
@@ -29,6 +30,13 @@ export const ExpenseList: React.FC<Props> = ({
     const [currentDate, setCurrentDate] = useState(new Date());
     const dateStr = format(currentDate, "yyyy-MM-dd");
     const { user } = useAuthState();
+    const { sheetConfig } = useConfig();
+    const dateInputRef = useRef<HTMLInputElement>(null);
+    const minDateStr = sheetConfig?.startDate
+        ? format(new Date(sheetConfig?.startDate), "yyyy-MM-dd")
+        : undefined;
+    const isToday =
+        format(currentDate, "yyyy-MM-dd") === format(new Date(), "yyyy-MM-dd");
 
     const { mutateAsync: deleteExpenseMutation, isPending: isDeletingExpense } =
         useDeleteExpense(user?.email);
@@ -66,22 +74,32 @@ export const ExpenseList: React.FC<Props> = ({
                 <div className="flex items-center justify-between p-2">
                     <button
                         onClick={() => setCurrentDate(addDays(currentDate, -1))}
-                        className="p-2 rounded-full hover:bg-background text-text-muted transition-colors"
+                        className="p-2 rounded-full hover:bg-background text-primary transition-colors"
                     >
-                        <ChevronLeft size={24} />
+                        <ArrowLeft size={24} />
                     </button>
 
-                    <div className="flex flex-col items-center relative">
+                    <div
+                        className="flex flex-col items-center relative"
+                        onClick={() => dateInputRef.current?.showPicker()}
+                    >
                         <label className="text-lg font-bold flex items-center gap-2 cursor-pointer hover:text-primary transition-colors text-text-main">
-                            {format(currentDate, "EEE, MMM d")}
+                            {format(currentDate, "MMM dd, E")}
                             <input
                                 type="date"
+                                ref={dateInputRef}
                                 className="absolute inset-0 opacity-0 cursor-pointer"
-                                max={new Date().toISOString()}
+                                min={minDateStr}
+                                max={formatDate(new Date(), "yyyy-MM-dd")}
                                 value={dateStr}
                                 onChange={(e) => {
-                                    if (e.target.valueAsDate)
+                                    if (!e.target.value) {
+                                        // clear date
+                                        setCurrentDate(new Date());
+                                    }
+                                    if (e.target.valueAsDate) {
                                         setCurrentDate(e.target.valueAsDate);
+                                    }
                                 }}
                             />
                         </label>
@@ -92,9 +110,10 @@ export const ExpenseList: React.FC<Props> = ({
 
                     <button
                         onClick={() => setCurrentDate(addDays(currentDate, 1))}
-                        className="p-2 rounded-full hover:bg-background text-text-muted transition-colors"
+                        className="p-2 rounded-full hover:bg-background text-primary transition-colors disabled:opacity-50"
+                        disabled={isToday}
                     >
-                        <ChevronRight size={24} />
+                        <ArrowRight size={24} />
                     </button>
                 </div>
 
