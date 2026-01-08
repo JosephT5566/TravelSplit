@@ -78,7 +78,7 @@ const ListPage: React.FC = () => {
     }, [balances]);
 
     return (
-        <div className="space-y-6 animate-in fade-in duration-500">
+        <div className="space-y-6 p-4 animate-in fade-in duration-500">
             <div className="flex justify-between items-center">
                 <h2 className="text-2xl font-bold text-text-main">Overview</h2>
                 <button

@@ -87,7 +87,7 @@ export const ExpenseList: React.FC<Props> = ({
     }, [allDates, emblaApi, goToDate]);
 
     return (
-        <div className="pb-20 overflow-x-hidden">
+        <div className="overflow-x-hidden">
             <DateNavigator
                 currentDate={currentEmblaDate}
                 goToDate={goToDate}
@@ -101,7 +101,7 @@ export const ExpenseList: React.FC<Props> = ({
                 user={user}
             />
 
-            <div className="flex justify-end mb-2 px-2 gap-2">
+            <div className="flex justify-end m-4 mb-2 px-2 gap-2">
                 <button
                     onClick={onRefresh}
                     disabled={isRefreshing}

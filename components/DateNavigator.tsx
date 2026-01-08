@@ -40,7 +40,7 @@ export const DateNavigator: React.FC<DateNavigatorProps> = ({
     }, [expenses, currentDate, user]);
 
     return (
-        <div className="bg-surface shadow-sm mb-4 rounded-xl overflow-hidden border border-border">
+        <div className="m-4 bg-surface shadow-sm mb-4 rounded-xl overflow-hidden border border-border">
             <div className="flex items-center justify-between p-2">
                 <button
                     onClick={() => goToDate(addDays(currentDate, -1))}

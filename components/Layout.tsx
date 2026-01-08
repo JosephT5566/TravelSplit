@@ -40,7 +40,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
             </div>
 
             {/* Main Content Area */}
-            <div className="layout-container p-4 max-w-2xl mx-auto min-h-[calc(100vh-140px)] max-h-[calc(100vh-140px)] overflow-auto">
+            <div className="layout-container max-w-2xl mx-auto min-h-[calc(100vh-140px)] max-h-[calc(100vh-140px)] overflow-auto">
                 {apiState.error && (
                     <div className="mb-4 p-3 bg-red-100 text-red-700 rounded text-sm border border-red-200">
                         {apiState.error}
