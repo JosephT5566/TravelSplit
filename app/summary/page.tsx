@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useEffect } from "react";
-import { RefreshCw } from "lucide-react";
+import React, { useMemo } from "react";
+import { RefreshCw, ArrowRight, Info } from "lucide-react";
 import { ExpensePieChart } from "../../components/Charts";
 import { useExpenses } from "../../src/stores/ExpensesStore";
 import { useConfig } from "../../src/stores/ConfigStore";
@@ -10,7 +10,7 @@ import { useAuthState } from "../../src/stores/AuthStore";
 const ListPage: React.FC = () => {
     const { expenses, apiState, refreshExpenses } = useExpenses();
     const { user } = useAuthState();
-    const { sheetConfig: config } = useConfig();
+    const { sheetConfig } = useConfig();
     const baseCurrency = "TWD";
 
     const totalExpense = expenses.reduce((acc, curr) => {
@@ -19,6 +19,63 @@ const ListPage: React.FC = () => {
         }
         return acc + Number(curr.splitsJson?.[user.email]);
     }, 0);
+
+    const balances = useMemo(() => {
+        if (!user || !sheetConfig?.users) {
+            return {};
+        }
+
+        const emailToName = sheetConfig.users;
+        const nameToEmail: { [name: string]: string } = Object.fromEntries(
+            Object.entries(emailToName).map(([email, name]) => [name, email])
+        );
+        // console.log("expenses:", expenses);
+
+        const userBalances: {
+            [email: string]: { balance: number; formula: string[] };
+        } = {};
+
+        for (const otherUserEmail of Object.keys(emailToName)) {
+            // Create a new entry for the user
+            if (otherUserEmail !== user.email) {
+                userBalances[otherUserEmail] = { balance: 0, formula: [] };
+            }
+        }
+
+        expenses.forEach((expense) => {
+            const { payer, splitsJson } = expense;
+            if (!splitsJson) {
+                return;
+            }
+
+            const payerEmail = nameToEmail[payer];
+
+            if (!payerEmail) {
+                return;
+            }
+
+            Object.entries(splitsJson).forEach(([email, cost]) => {
+                if (email !== user.email) {
+                    const costNum = Number(cost);
+                    userBalances[email].balance += costNum;
+                    userBalances[email].formula.push(`${costNum}`);
+                }
+            });
+        });
+
+        return userBalances;
+    }, [expenses, user, sheetConfig]);
+
+    const settlements = useMemo(() => {
+        console.log("Balances:", balances);
+        return Object.entries(balances).map(
+            ([email, { balance, formula }]) => ({
+                email,
+                balance,
+                formula,
+            })
+        );
+    }, [balances]);
 
     return (
         <div className="space-y-6 animate-in fade-in duration-500">
@@ -37,10 +94,10 @@ const ListPage: React.FC = () => {
             </div>
 
             <div className="grid grid-cols-1 gap-4">
-                <div className="p-4 bg-surface rounded-xl shadow border-l-4 border-red-500 transition-colors">
+                <div className="p-4 bg-surface rounded-xl shadow border-l-4 border-accent transition-colors">
                     <p className="text-sm text-text-muted">Total Spent</p>
                     <p
-                        className="text-xl font-bold text-red-500 truncate"
+                        className="text-xl font-bold text-accent truncate"
                         title={`${baseCurrency} ${totalExpense.toFixed(2)}`}
                     >
                         {baseCurrency} {totalExpense.toFixed(2)}
@@ -53,6 +110,81 @@ const ListPage: React.FC = () => {
                     Category Breakdown
                 </h3>
                 <ExpensePieChart expenses={expenses} />
+            </div>
+
+            <div className="bg-surface p-4 rounded-xl shadow transition-colors border border-border">
+                <h3 className="font-semibold mb-4 text-text-main flex items-center gap-2">
+                    Who Owes Who
+                    <span
+                        className="text-text-muted cursor-help"
+                        title="僅供參考，無計算 is settled，實際金額以表格為主"
+                    >
+                        <Info size={16} />
+                    </span>
+                </h3>
+                {settlements.length > 0 ? (
+                    <div className="space-y-3">
+                        {settlements.map(({ email, balance }) => {
+                            const userName =
+                                sheetConfig?.users?.[email] || "Unknown User";
+
+                            if (balance < 0) {
+                                // I owe them
+                                return (
+                                    <div
+                                        key={email}
+                                        className="flex items-center justify-between p-3 rounded-lg bg-red-500/10"
+                                    >
+                                        <div className="flex items-center gap-2">
+                                            <span className="font-medium">
+                                                我
+                                            </span>
+                                            <ArrowRight
+                                                size={16}
+                                                className="text-text-muted"
+                                            />
+                                            <span className="font-medium">
+                                                {userName}
+                                            </span>
+                                        </div>
+                                        <span className="font-bold text-red-500">
+                                            {baseCurrency} {balance.toFixed(2)}
+                                        </span>
+                                    </div>
+                                );
+                            } else {
+                                // They owe me
+                                return (
+                                    <div
+                                        key={email}
+                                        className="flex items-center justify-between p-3 rounded-lg bg-green-500/10"
+                                    >
+                                        <div className="flex items-center gap-2">
+                                            <span className="font-medium">
+                                                {userName}
+                                            </span>
+                                            <ArrowRight
+                                                size={16}
+                                                className="text-text-muted"
+                                            />
+                                            <span className="font-medium">
+                                                我
+                                            </span>
+                                        </div>
+                                        <span className="font-bold text-green-500">
+                                            {baseCurrency}{" "}
+                                            {Math.abs(balance).toFixed(2)}
+                                        </span>
+                                    </div>
+                                );
+                            }
+                        })}
+                    </div>
+                ) : (
+                    <p className="text-text-muted text-center py-4">
+                        All settled up!
+                    </p>
+                )}
             </div>
         </div>
     );
