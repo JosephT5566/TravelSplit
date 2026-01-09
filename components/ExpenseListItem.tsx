@@ -16,7 +16,7 @@ export const ExpenseListItem: React.FC<ExpenseListItemProps> = ({
     const { user } = useAuthState();
 
     const { mutateAsync: deleteExpenseMutation, isPending: isDeletingExpense } =
-        useDeleteExpense(user?.email);
+        useDeleteExpense();
     return (
         <div
             className="bg-surface p-4 rounded-xl shadow flex justify-between items-center border border-border hover:border-primary transition-all cursor-pointer"

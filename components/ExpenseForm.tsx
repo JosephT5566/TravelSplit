@@ -88,7 +88,7 @@ export const ExpenseForm: React.FC<Props> = ({ onCancel, isDialogOpen }) => {
     const [splitError, setSplitError] = useState<string | null>(null);
 
     const { mutateAsync: addExpenseMutation, isPending: isAddingExpense } =
-        useAddExpense(user?.email);
+        useAddExpense();
 
     useEffect(() => {
         if (isDialogOpen) {

@@ -1,11 +1,6 @@
 "use client";
 
 import React from "react";
-import Link from "next/link";
-import { Settings as SettingsIcon } from "lucide-react";
-import { User } from "../src/types";
-import { useConfig } from "../src/stores/ConfigStore";
-import { useAuthActions } from "../src/stores/AuthStore";
 import { SignInManager } from "./SignInManager";
 
 export function LoginView() {

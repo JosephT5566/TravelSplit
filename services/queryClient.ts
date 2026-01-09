@@ -6,7 +6,7 @@ export const queryClient = new QueryClient({
             refetchOnWindowFocus: false,
             refetchOnMount: true, // only trigger data refetching when the staleTime is expired.
             refetchOnReconnect: true,
-            staleTime: 1000 * 60 * 60 * 12, // twelve hours
+            staleTime: 1000 * 60 * 60 * 24, // 1 day
         },
     },
 });

@@ -1,4 +1,3 @@
-import { useAuth } from "@/src/stores/AuthStore";
 import {
     AddExpenseRequest,
     AppScriptResponse,
@@ -65,9 +64,8 @@ export const getMockExpenses = (): Expense[] => {
 };
 
 export const api = {
-    async getSheetConfig(): Promise<SheetConfig> {
+    async getSheetConfig(idToken: string): Promise<SheetConfig> {
         const gasUrl = process.env.NEXT_PUBLIC_APP_SCRIPT_URL;
-
         if (!gasUrl) {
             throw new Error("Missing NEXT_PUBLIC_APP_SCRIPT_URL env variable.");
         }
@@ -76,6 +74,7 @@ export const api = {
             method: "POST",
             body: JSON.stringify({
                 action: "getConfig",
+                id_token: idToken,
             }),
         });
 
@@ -93,7 +92,7 @@ export const api = {
         }
     },
 
-    async addExpense(expense: AddExpenseRequest): Promise<string> {
+    async addExpense(expense: AddExpenseRequest, idToken: string): Promise<string> {
         console.log("🚀 addExpense called with: ", expense);
 
         const gasUrl = process.env.NEXT_PUBLIC_APP_SCRIPT_URL;
@@ -106,6 +105,7 @@ export const api = {
             body: JSON.stringify({
                 action: "addExpense",
                 payload: expense,
+                id_token: idToken,
             }),
         });
 
@@ -123,7 +123,7 @@ export const api = {
         }
     },
 
-    async getExpenses(userEmail: string): Promise<Expense[]> {
+    async getExpenses(userEmail: string, idToken: string): Promise<Expense[]> {
         console.log("🚀 getExpenses called for: ", userEmail);
 
         const gasUrl = process.env.NEXT_PUBLIC_APP_SCRIPT_URL;
@@ -136,6 +136,7 @@ export const api = {
             body: JSON.stringify({
                 action: "getExpenses",
                 payload: { userEmail },
+                id_token: idToken,
             }),
         });
 
@@ -153,7 +154,7 @@ export const api = {
         }
     },
 
-    async deleteExpenses(timestamp: string): Promise<number[] | string> {
+    async deleteExpenses(timestamp: string, idToken: string): Promise<number[] | string> {
         console.log("🚀 deleteExpenses called for: ", timestamp);
 
         const gasUrl = process.env.NEXT_PUBLIC_APP_SCRIPT_URL;
@@ -166,6 +167,7 @@ export const api = {
             body: JSON.stringify({
                 action: "deleteExpense",
                 payload: { timestamp },
+                id_token: idToken,
             }),
         });
 
@@ -173,7 +175,8 @@ export const api = {
             throw new Error(`Failed to fetch: ${response.statusText}`);
         }
 
-        const result: AppScriptResponse<number[] | string> = await response.json();
+        const result: AppScriptResponse<number[] | string> =
+            await response.json();
         console.log("🚀 Fetched expenses:", result);
 
         if (isSuccess(result)) {

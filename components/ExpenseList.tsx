@@ -37,7 +37,9 @@ export const ExpenseList: React.FC<Props> = ({
     const [selectedIndex, setSelectedIndex] = useState(0);
 
     const allDates = useMemo(() => {
-        if (!sheetConfig?.startDate) return [];
+        if (!sheetConfig?.startDate) {
+            return [];
+        }
         const start = startOfDay(new Date(sheetConfig.startDate));
         const end = startOfDay(new Date());
         const dates: Date[] = [];
@@ -69,10 +71,14 @@ export const ExpenseList: React.FC<Props> = ({
     );
 
     useEffect(() => {
-        if (!emblaApi) return;
+        if (!emblaApi) {
+            return;
+        }
+
         const onSelect = () => {
             setSelectedIndex(emblaApi.selectedScrollSnap());
         };
+
         emblaApi.on("select", onSelect);
         return () => {
             emblaApi.off("select", onSelect);

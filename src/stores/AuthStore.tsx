@@ -2,11 +2,7 @@
 
 import React, { createContext, useCallback, useContext, useMemo } from "react";
 import {
-    getIsSignedIn,
-    getProfile,
-    getTokenIfValid,
-    signOut as clearSession,
-    JwtPayload,
+    signOut as clearGsiSession,
 } from "../utils/auth";
 import { useUser, useSaveUser, useClearUser } from "../../services/dataFetcher";
 import { User } from "../types";
@@ -14,8 +10,6 @@ import { User } from "../types";
 type AuthState = {
     isSignedIn: boolean;
     user: User | null;
-    profile: JwtPayload | null;
-    token: string | null;
     isInitialized: boolean;
 };
 
@@ -31,9 +25,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const { mutateAsync: saveUser } = useSaveUser();
     const { mutateAsync: clearUser } = useClearUser();
 
-    const isSignedIn = getIsSignedIn() && !!user?.email;
-    const profile = isSignedIn ? getProfile() : null;
-    const token = isSignedIn ? getTokenIfValid() : null;
+    const isSignedIn = !!user?.email;
 
     const setSignIn = useCallback(
         async (newUser: User) => {
@@ -44,20 +36,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const signOut = useCallback(async () => {
         await clearUser();
-        clearSession();
+        clearGsiSession();
     }, [clearUser]);
 
     const value = useMemo(
         () => ({
             isSignedIn,
-            user: !!user?.email ? user : null,
-            profile,
-            token,
+            user: user ?? null,
             isInitialized,
             setSignIn,
             signOut,
         }),
-        [isSignedIn, user, profile, token, isInitialized, setSignIn, signOut]
+        [isSignedIn, user, isInitialized, setSignIn, signOut]
     );
 
     return (
@@ -74,12 +64,10 @@ export function useAuth() {
 }
 
 export function useAuthState() {
-    const { isSignedIn, user, profile, token, isInitialized } = useAuth();
+    const { isSignedIn, user, isInitialized } = useAuth();
     return {
         isSignedIn,
         user,
-        profile,
-        token,
         isInitialized,
     };
 }

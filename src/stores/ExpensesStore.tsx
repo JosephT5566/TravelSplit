@@ -22,7 +22,7 @@ export function ExpensesProvider({ children }: { children: React.ReactNode }) {
         isFetching,
         error,
         refetch,
-    } = useExpensesQuery(user?.email);
+    } = useExpensesQuery();
 
     const apiState: ApiState = useMemo(
         () => ({

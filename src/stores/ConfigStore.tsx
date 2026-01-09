@@ -69,6 +69,7 @@ export function ConfigProvider({ children }: { children: React.ReactNode }) {
                       },
                   }
                 : {
+                      startDate: "",
                       currencies: TWD_CURRENCY,
                       categories: [],
                       users: {},

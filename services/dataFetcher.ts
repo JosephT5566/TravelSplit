@@ -3,11 +3,10 @@ import {
     Expense,
     User,
     SheetConfig,
-    AppConfig,
     AddExpenseRequest,
 } from "../src/types";
-import { storage } from "./idbStorage"; // We will create this file
 import { api } from "./api";
+import { useAuthState } from "../src/stores/AuthStore";
 
 const SHEET_CONFIG_KEY = "tripsplit_sheet_config";
 const EXPENSES_KEY = "tripsplit_expenses";
@@ -15,40 +14,16 @@ const USER_KEY = "tripsplit_user";
 
 // AppConfig hooks
 export const useGetSheetConfig = () => {
+    const { user } = useAuthState();
     return useQuery<SheetConfig, Error>({
         queryKey: [SHEET_CONFIG_KEY],
         queryFn: async (): Promise<SheetConfig> => {
-            // Start with a base config object that is of type Config
-            let sheetConfig: SheetConfig = {
-                currencies: {},
-                users: {},
-                categories: [],
-            };
-
-            try {
-                sheetConfig = await api.getSheetConfig();
-            } catch (error) {
-                console.error("Failed to fetch sheet config:", error);
-                // sheetConfig properties will be missing, which is fine for Partial<SheetConfig>
+            if (!user?.idToken) {
+                throw new Error("User not authenticated");
             }
-
-            return sheetConfig;
+            return await api.getSheetConfig(user.idToken);
         },
-        initialData: undefined,
-    });
-};
-
-// expired
-export const useSaveConfig = () => {
-    const queryClient = useQueryClient();
-    return useMutation<void, Error, AppConfig>({
-        mutationFn: storage.saveAppConfig,
-        onSuccess: (data, newConfig) => {
-            queryClient.setQueryData([SHEET_CONFIG_KEY], newConfig);
-            // invalidateQueries: is used to invalidate and refetch single or multiple queries in the cache based on their query keys
-            // ref: https://mini-ghost.dev/posts/tanstack-query-source-code-3/
-            // queryClient.invalidateQueries({ queryKey: [CONFIG_KEY] });
-        },
+        enabled: !!user?.idToken,
     });
 };
 
@@ -57,18 +32,23 @@ export const useUser = () => {
     return useQuery<User, Error>({
         queryKey: [USER_KEY],
         queryFn: async (): Promise<User> => {
-            return { email: "", name: "" };
+            // Fetch user data from cache with key.
+            // If not found or expired, return default user.
+
+            // This query function is a placeholder and should not be called,
+            // as user data is set by useSaveUser mutation.
+            // The query is disabled if no user data is in cache.
+            return { email: "", name: "", idToken: "" };
         },
-        initialData: undefined,
+        gcTime: 1000 * 60 * 60 * 24, // 1 day
     });
 };
 
 export const useSaveUser = () => {
     const queryClient = useQueryClient();
     return useMutation<void, Error, User>({
-        mutationFn: () => Promise.resolve(),
-        onSuccess: (data, variables) => {
-            queryClient.setQueryData([USER_KEY], variables);
+        mutationFn: async (newUser) => {
+            queryClient.setQueryData([USER_KEY], newUser);
         },
     });
 };
@@ -76,58 +56,61 @@ export const useSaveUser = () => {
 export const useClearUser = () => {
     const queryClient = useQueryClient();
     return useMutation<void, Error, void>({
-        mutationFn: () => Promise.resolve(),
-        onSuccess: () => {
+        mutationFn: async () => {
             queryClient.setQueryData([USER_KEY], undefined);
         },
     });
 };
 
 // Expenses hooks
-export const useExpensesQuery = (userEmail: string | undefined) => {
+export const useExpensesQuery = () => {
+    const { user } = useAuthState();
     return useQuery<Expense[], Error>({
-        queryKey: [EXPENSES_KEY, userEmail],
+        queryKey: [EXPENSES_KEY, user?.email],
         queryFn: () => {
-            if (!userEmail) {
+            if (!user?.email || !user?.idToken) {
                 return Promise.resolve([]);
             }
-            console.log("🚀 Fetching expenses api for user:", userEmail);
-            return api.getExpenses(userEmail);
+            console.log("🚀 Fetching expenses api for user:", user.email);
+            return api.getExpenses(user.email, user.idToken);
         },
-        enabled: !!userEmail,
+        enabled: !!user?.email && !!user?.idToken,
     });
 };
 
-export const useAddExpense = (userEmail: string | undefined) => {
+export const useAddExpense = () => {
     const queryClient = useQueryClient();
+    const { user } = useAuthState();
+
     return useMutation<string, Error, AddExpenseRequest>({
         mutationFn: async (newExpense) => {
-            if (!userEmail) {
-                return Promise.reject(new Error("User email is required"));
+            if (!user?.idToken) {
+                throw new Error("User not authenticated");
             }
-            const response = await api.addExpense(newExpense);
-            return response;
+            return await api.addExpense(newExpense, user.idToken);
         },
         onSuccess: () => {
             queryClient.invalidateQueries({
-                queryKey: [EXPENSES_KEY, userEmail],
+                queryKey: [EXPENSES_KEY, user?.email],
             });
         },
     });
 };
 
-export const useDeleteExpense = (userEmail: string | undefined) => {
+export const useDeleteExpense = () => {
     const queryClient = useQueryClient();
+    const { user } = useAuthState();
+
     return useMutation<
         { response: string | number[]; timestamp: string },
         Error,
         string
     >({
         mutationFn: async (timestamp) => {
-            if (!userEmail) {
-                return Promise.reject(new Error("User email is required"));
+            if (!user?.idToken) {
+                throw new Error("User not authenticated");
             }
-            const response = await api.deleteExpenses(timestamp);
+            const response = await api.deleteExpenses(timestamp, user.idToken);
             return { response, timestamp };
         },
         onSuccess: (resp) => {
@@ -136,7 +119,7 @@ export const useDeleteExpense = (userEmail: string | undefined) => {
                 return;
             }
             queryClient.setQueryData<Expense[]>(
-                [EXPENSES_KEY, userEmail],
+                [EXPENSES_KEY, user?.email],
                 (old) => {
                     if (!Array.isArray(old)) {
                         return old;

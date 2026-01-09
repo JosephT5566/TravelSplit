@@ -1,8 +1,5 @@
 // ======== 設定 ========
-const STORAGE_TOKEN = "gid_id_token";
-const STORAGE_EXP = "gid_exp"; // 秒級 UNIX time
-const SAFETY_BUFFER_SEC = 60; // 快過期前 60 秒就視為無效
-const MAX_SKEW_SEC = 60; // 允許裝置時間偏差（保守）
+import { User } from "../types";
 
 let buttonRendered = false;
 let gsiInitialized = false;
@@ -10,7 +7,7 @@ let gsiInitialized = false;
 // ======== 公用工具 ========
 export type JwtPayload = {
     iss: string;
-    aud: string;
+    aud: string; // client ID
     exp: number; // seconds
     email?: string;
     email_verified?: boolean;
@@ -25,68 +22,10 @@ function decodeJwt(token: string): JwtPayload {
     return JSON.parse(json);
 }
 
-function nowSec() {
-    return Math.floor(Date.now() / 1000);
-}
-
-// ======== localStorage 存取 ========
-function saveToken(token: string, exp: number) {
-    localStorage.setItem(STORAGE_TOKEN, token);
-    localStorage.setItem(STORAGE_EXP, String(exp));
-}
-
-function loadToken(): { token: string | null; exp: number } {
-    const token = localStorage.getItem(STORAGE_TOKEN);
-    const exp = Number(localStorage.getItem(STORAGE_EXP) || 0);
-    return { token, exp };
-}
-
-function clearToken() {
-    localStorage.removeItem(STORAGE_TOKEN);
-    localStorage.removeItem(STORAGE_EXP);
-}
-
-// 是否有效（含緩衝與時間偏差）
-function isTokenStillValid(exp: number) {
-    const now = nowSec();
-    return now + SAFETY_BUFFER_SEC + MAX_SKEW_SEC < exp;
-}
-
-// ======== 狀態查詢 ========
-export function getIsSignedIn(): boolean {
-    const { token, exp } = loadToken();
-    if (!token || !exp) {
-        return false;
-    }
-    return isTokenStillValid(exp);
-}
-
-export function getProfile(): JwtPayload | null {
-    const { token, exp } = loadToken();
-    if (!token || !exp || !isTokenStillValid(exp)) {
-        return null;
-    }
-
-    try {
-        return decodeJwt(token);
-    } catch {
-        return null;
-    }
-}
-
-export function getTokenIfValid(): string | null {
-    const { token, exp } = loadToken();
-    if (!token || !exp || !isTokenStillValid(exp)) {
-        return null;
-    }
-
-    return token;
-}
-
 // ======== 登入流程（按鈕/自動） ========
 
 type InitOptions = {
-    onSignedIn?: () => void;
+    onSignedIn?: (user: User) => void;
     onError?: (e: Error) => void;
 };
 
@@ -107,6 +46,7 @@ export function initGsiOnce(options?: InitOptions) {
     if (gsiInitialized) {
         return;
     }
+
     gis.initialize({
         client_id: process.env.NEXT_PUBLIC_GOOGLE_AUTH_CLIENT_ID || "",
         cancel_on_tap_outside: false,
@@ -132,8 +72,16 @@ export function initGsiOnce(options?: InitOptions) {
                 if (!payload.exp) {
                     throw new Error("Google login failed: No exp in token");
                 }
-                saveToken(idToken, payload.exp);
-                options?.onSignedIn?.();
+
+                console.log("Google login successful:", payload);
+
+                const user: User = {
+                    email: payload.email,
+                    name: payload.name || payload.email,
+                    picture: payload.picture,
+                    idToken: idToken,
+                };
+                options?.onSignedIn?.(user);
             } catch (e) {
                 options?.onError?.(
                     e instanceof Error ? e : new Error("Google login failed")
@@ -165,7 +113,6 @@ export function renderGoogleButton(container: HTMLElement) {
 
 // ======== 登出 ========
 export function signOut() {
-    clearToken();
     buttonRendered = false;
     // 可選：通知 GIS 取消自動選擇
     try {

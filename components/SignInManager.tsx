@@ -3,7 +3,6 @@
 import React, { useEffect, useRef } from "react";
 import { useAuthActions } from "../src/stores/AuthStore";
 import {
-    getProfile,
     initGsiOnce,
     renderGoogleButton,
 } from "../src/utils/auth";
@@ -16,16 +15,8 @@ export function SignInManager() {
     useEffect(() => {
         try {
             initGsiOnce({
-                onSignedIn: async () => {
-                    const profile = getProfile();
-                    if (profile?.email) {
-                        const user: User = {
-                            email: profile.email,
-                            name: profile.name || profile.email,
-                            picture: profile.picture,
-                        };
-                        await setSignIn(user);
-                    }
+                onSignedIn: async (user: User) => {
+                    await setSignIn(user);
                 },
                 onError: (e) => console.error(e),
             });

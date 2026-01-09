@@ -18,9 +18,13 @@ export const DayView: React.FC<DayViewProps> = ({
     const dailyExpenses = useMemo(() => {
         const formattedCurrentDate = format(date, "yyyy-MM-dd");
         return expenses.filter((e) => {
-            if (!e || !e.date) return false;
+            if (!e || !e.date) {
+                return false;
+            }
             const d = new Date(e.date);
-            if (isNaN(d.getTime())) return false;
+            if (isNaN(d.getTime())) {
+                return false;
+            }
             return format(d, "yyyy-MM-dd") === formattedCurrentDate;
         });
     }, [expenses, date]);

@@ -67,7 +67,6 @@ const ListPage: React.FC = () => {
     }, [expenses, user, sheetConfig]);
 
     const settlements = useMemo(() => {
-        console.log("Balances:", balances);
         return Object.entries(balances).map(
             ([email, { balance, formula }]) => ({
                 email,

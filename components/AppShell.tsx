@@ -16,6 +16,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         );
     }
 
+    // Sign in Entry Point
     if (!isSignedIn) {
         return <LoginView />;
     }
