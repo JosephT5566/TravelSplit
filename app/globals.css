@@ -71,16 +71,3 @@
         }
     }
 }
-
-.embla {
-  overflow: hidden;
-}
-.embla__container {
-  display: flex;
-}
-.embla__slide {
-  flex: 0 0 80%; /* Smaller to show more of adjacent slides */
-  min-width: 0;
-  padding: 0 0.5rem; /* Add some horizontal padding */
-}
-

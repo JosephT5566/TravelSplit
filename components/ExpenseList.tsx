@@ -13,6 +13,7 @@ import { useConfig } from "@/src/stores/ConfigStore";
 import useEmblaCarousel from "embla-carousel-react";
 import { DayView } from "./DayView";
 import { DateNavigator } from "./DateNavigator";
+import classNames from "classnames";
 
 interface Props {
     expenses: Expense[];
@@ -121,10 +122,16 @@ export const ExpenseList: React.FC<Props> = ({
                 </button>
             </div>
 
-            <div className="embla" ref={emblaRef}>
-                <div className="embla__container">
+            <div className="embla overflow-hidden" ref={emblaRef}>
+                <div className="embla__container flex">
                     {allDates.map((date, index) => (
-                        <div className="embla__slide" key={index}>
+                        <div
+                            className={classNames(
+                                "embla__slide",
+                                "min-w-0 px-2 flex-[0_0_80%] first:ml-[10%] last:mr-[10%]"
+                            )}
+                            key={index}
+                        >
                             <DayView
                                 date={date}
                                 expenses={expenses}
