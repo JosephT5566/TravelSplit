@@ -38,10 +38,13 @@ jobs:
           BASE_PATH: "/${{ github.event.repository.name }}"
         run: npm run build
 
+      - name: List build files
+        run: ls -R out
+
       - name: Upload build artifacts
         uses: actions/upload-pages-artifact@v3
         with:
-          path: dist
+          path: out
 
   deploy:
     needs: build
