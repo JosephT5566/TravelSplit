@@ -18,7 +18,8 @@ We used to utilize Google sheet for the travel accounting, including splitting. 
 1. We need variables
     1. GOOGLE_APP_SCRIPT
 
-# Construction 
+# App structure 
+## Auth
 
 # Run Locally
 
