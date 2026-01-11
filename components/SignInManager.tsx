@@ -2,6 +2,7 @@
 
 import React from "react";
 import { useGoogleAuth } from "../src/stores/GoogleAuthStore";
+import { FcGoogle } from "react-icons/fc";
 
 export function SignInManager() {
     const { login, isGsiScriptReady } = useGoogleAuth();
@@ -13,8 +14,9 @@ export function SignInManager() {
     return (
         <button
             onClick={login}
-            className="btn btn-primary"
+            className="btn btn-primary flex items-center gap-2"
         >
+            <FcGoogle size={20} />
             Sign in with Google
         </button>
     );
