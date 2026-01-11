@@ -108,35 +108,6 @@ export const useGetSheetConfig = () => {
     });
 };
 
-// User hooks (for react-query persistence)
-export const useGetUser = () => {
-    return useQuery<User, Error>({
-        queryKey: [USER_KEY],
-        queryFn: async (): Promise<User> => {
-            return { email: "", name: "", accessToken: "" };
-        },
-        gcTime: 1000 * 60 * 60 * 24, // 1 day
-    });
-};
-
-export const useSaveUser = () => {
-    const queryClient = useQueryClient();
-    return useMutation<void, Error, User>({
-        mutationFn: async (newUser) => {
-            queryClient.setQueryData([USER_KEY], newUser);
-        },
-    });
-};
-
-export const useClearUser = () => {
-    const queryClient = useQueryClient();
-    return useMutation<void, Error, void>({
-        mutationFn: async () => {
-            queryClient.setQueryData([USER_KEY], undefined);
-        },
-    });
-};
-
 // Expenses hooks
 export const useExpensesQuery = () => {
     const { user: persistedUser } = useAuthState();
