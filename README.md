@@ -1,20 +1,30 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# What is this app?
+We used to utilize Google sheet for the travel accounting, including splitting. In the past, I used Google Form as the Entry point. Now I try to implement an App for the Frontend part to make it prettier. 
 
-# Run and deploy your AI Studio app
+# How do we start the app?
+## Google sheet
+1. Create a new sheet
+2. Create and link a Google App Scripts (GAS) as the backend part. 
+3. The 1st tab in the sheet is used for config. It need the rows:
+    1. users
+    2. categories
+    3. currencies 
+    4. startday
+4. The tabs started from 2nd need to be matched with the `users` in the config
+5. Set the columns for the each user tabs
+    1. timestamp
 
-This contains everything you need to run your app locally.
+## Repo config
+1. We need variables
+    1. GOOGLE_APP_SCRIPT
 
-View your app in AI Studio: https://ai.studio/apps/drive/1VniFbQeY7r4l140rRbzw7YYmBQFns9r_
+# Construction 
 
-## Run Locally
+# Run Locally
 
 **Prerequisites:**  Node.js
 
-
 1. Install dependencies:
    `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
 3. Run the app:
    `npm run dev`
