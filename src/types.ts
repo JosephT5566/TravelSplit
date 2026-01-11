@@ -44,7 +44,7 @@ export type User = {
     email: string;
     name: string;
     picture?: string;
-    idToken: string;
+    accessToken: string;
 };
 
 export type ApiState = {

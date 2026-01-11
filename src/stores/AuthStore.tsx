@@ -1,53 +1,75 @@
 "use client";
 
-import React, { createContext, useCallback, useContext, useMemo } from "react";
+import React, {
+    createContext,
+    useCallback,
+    useContext,
+    useEffect,
+    useMemo,
+} from "react";
 import {
-    signOut as clearGsiSession,
-} from "../utils/auth";
-import { useUser, useSaveUser, useClearUser } from "../../services/dataFetcher";
+    useGetUser,
+    useSaveUser,
+    useClearUser,
+} from "../../services/dataFetcher";
 import { User } from "../types";
+import { useGoogleAuth } from "./GoogleAuthStore";
 
 type AuthState = {
     isSignedIn: boolean;
+    // The user from the persistent cache
     user: User | null;
-    isInitialized: boolean;
+    // Whether the user has been loaded from the cache
+    isAuthInitialized: boolean;
 };
 
-type AuthContextValue = AuthState & {
-    setSignIn: (user: User) => Promise<void>;
-    signOut: () => Promise<void>;
+type AuthActions = {
+    signOut: () => void;
+    saveUser: (user: User) => Promise<void>;
 };
+
+type AuthContextValue = AuthState & AuthActions;
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-    const { data: user, isSuccess: isInitialized } = useUser();
+    // Live user session from Google
+    const { user: googleUser, logout: googleLogout } = useGoogleAuth();
+    
+    // Persisted user state from react-query
+    const { data: persistedUser, isSuccess: isAuthInitialized } = useGetUser();
     const { mutateAsync: saveUser } = useSaveUser();
     const { mutateAsync: clearUser } = useClearUser();
 
-    const isSignedIn = !!user?.email;
+    // Sync live session to persisted state
+    useEffect(() => {
+        if (googleUser) {
+            // User signed in via Google, persist the user data
+            if (googleUser.email !== persistedUser?.email) {
+                saveUser(googleUser);
+            }
+        } else {
+            // User signed out from Google, clear persisted data
+            if (persistedUser) {
+                clearUser();
+            }
+        }
+    }, [googleUser, persistedUser, saveUser, clearUser]);
 
-    const setSignIn = useCallback(
-        async (newUser: User) => {
-            await saveUser(newUser);
-        },
-        [saveUser]
-    );
-
-    const signOut = useCallback(async () => {
-        await clearUser();
-        clearGsiSession();
-    }, [clearUser]);
+    const signOut = useCallback(() => {
+        // This will trigger the useEffect above to clear the persisted user
+        googleLogout();
+    }, [googleLogout]);
 
     const value = useMemo(
         () => ({
-            isSignedIn,
-            user: user ?? null,
-            isInitialized,
-            setSignIn,
+            isSignedIn: !!persistedUser?.email,
+            user: persistedUser ?? null,
+            isAuthInitialized,
             signOut,
+            saveUser,
         }),
-        [isSignedIn, user, isInitialized, setSignIn, signOut]
+        [persistedUser, isAuthInitialized, signOut, saveUser]
     );
 
     return (
@@ -64,15 +86,15 @@ export function useAuth() {
 }
 
 export function useAuthState() {
-    const { isSignedIn, user, isInitialized } = useAuth();
+    const { isSignedIn, user, isAuthInitialized } = useAuth();
     return {
         isSignedIn,
         user,
-        isInitialized,
+        isAuthInitialized,
     };
 }
 
 export function useAuthActions() {
-    const { setSignIn, signOut } = useAuth();
-    return { setSignIn, signOut };
+    const { signOut, saveUser } = useAuth();
+    return { signOut, saveUser };
 }

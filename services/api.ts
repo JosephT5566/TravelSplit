@@ -7,6 +7,14 @@ import {
     SheetConfig,
 } from "../src/types";
 
+let refreshPromise = null;
+let _refreshHandler = null;
+
+// call by Context, to load the logic in the hook
+export const setRefreshHandler = (handler) => {
+  _refreshHandler = handler;
+};
+
 export const getMockExpenses = (): Expense[] => {
     const today = new Date();
     const fmt = (d: Date) => d.toISOString().split("T")[0];
@@ -63,8 +71,30 @@ export const getMockExpenses = (): Expense[] => {
     ];
 };
 
+async function processResponse<T>(response: Response): Promise<T> {
+    console.log("🚀 Processing response:", response);
+    if (!response.ok) {
+        const err = new Error(`Failed to fetch: ${response.statusText}`);
+        console.log("🚀 Processing response error", err.message);
+        throw err;
+    }
+
+    const result: AppScriptResponse<T> & { errorCode?: string } = await response.json();
+    console.log("🚀 Fetched result:", result);
+
+    if (isSuccess(result)) {
+        return result.result;
+    } else {
+        if (result.errorCode === 'TOKEN_EXPIRED') {
+            throw new Error('TOKEN_EXPIRED');
+        }
+        throw new Error(result.error || "Unknown error from server");
+    }
+}
+
+
 export const api = {
-    async getSheetConfig(idToken: string): Promise<SheetConfig> {
+    async getSheetConfig(accessToken: string): Promise<SheetConfig> {
         const gasUrl = process.env.NEXT_PUBLIC_APP_SCRIPT_URL;
         if (!gasUrl) {
             throw new Error("Missing NEXT_PUBLIC_APP_SCRIPT_URL env variable.");
@@ -74,25 +104,13 @@ export const api = {
             method: "POST",
             body: JSON.stringify({
                 action: "getConfig",
-                id_token: idToken,
+                access_token: accessToken,
             }),
         });
-
-        if (!response.ok) {
-            throw new Error(`Failed to fetch: ${response.statusText}`);
-        }
-
-        const result: AppScriptResponse<SheetConfig> = await response.json();
-        console.log("🚀 Fetched sheet config result:", result);
-
-        if (isSuccess(result)) {
-            return result.result;
-        } else {
-            throw new Error(result.error || "Unknown error from server");
-        }
+        return processResponse<SheetConfig>(response);
     },
 
-    async addExpense(expense: AddExpenseRequest, idToken: string): Promise<string> {
+    async addExpense(expense: AddExpenseRequest, accessToken: string): Promise<string> {
         console.log("🚀 addExpense called with: ", expense);
 
         const gasUrl = process.env.NEXT_PUBLIC_APP_SCRIPT_URL;
@@ -105,25 +123,13 @@ export const api = {
             body: JSON.stringify({
                 action: "addExpense",
                 payload: expense,
-                id_token: idToken,
+                access_token: accessToken,
             }),
         });
-
-        if (!response.ok) {
-            throw new Error(`Failed to fetch: ${response.statusText}`);
-        }
-
-        const result: AppScriptResponse<string> = await response.json();
-        console.log("🚀 Added expense result:", result);
-
-        if (isSuccess(result)) {
-            return result.result;
-        } else {
-            throw new Error(result.error || "Unknown error from server");
-        }
+        return processResponse<string>(response);
     },
 
-    async getExpenses(userEmail: string, idToken: string): Promise<Expense[]> {
+    async getExpenses(userEmail: string, accessToken: string): Promise<Expense[]> {
         console.log("🚀 getExpenses called for: ", userEmail);
 
         const gasUrl = process.env.NEXT_PUBLIC_APP_SCRIPT_URL;
@@ -136,25 +142,14 @@ export const api = {
             body: JSON.stringify({
                 action: "getExpenses",
                 payload: { userEmail },
-                id_token: idToken,
+                access_token: accessToken,
             }),
         });
-
-        if (!response.ok) {
-            throw new Error(`Failed to fetch: ${response.statusText}`);
-        }
-
-        const result: ExpensesResponse = await response.json();
-        console.log("🚀 Fetched expenses:", result);
-
-        if (isSuccess(result)) {
-            return result.result;
-        } else {
-            throw new Error(result.error || "Unknown error from server");
-        }
+        console.log("🚀 Fetched expenses response:", response);
+        return processResponse<Expense[]>(response);
     },
 
-    async deleteExpenses(timestamp: string, idToken: string): Promise<number[] | string> {
+    async deleteExpenses(timestamp: string, accessToken: string): Promise<number[] | string> {
         console.log("🚀 deleteExpenses called for: ", timestamp);
 
         const gasUrl = process.env.NEXT_PUBLIC_APP_SCRIPT_URL;
@@ -167,22 +162,9 @@ export const api = {
             body: JSON.stringify({
                 action: "deleteExpense",
                 payload: { timestamp },
-                id_token: idToken,
+                access_token: accessToken,
             }),
         });
-
-        if (!response.ok) {
-            throw new Error(`Failed to fetch: ${response.statusText}`);
-        }
-
-        const result: AppScriptResponse<number[] | string> =
-            await response.json();
-        console.log("🚀 Fetched expenses:", result);
-
-        if (isSuccess(result)) {
-            return result.result;
-        } else {
-            throw new Error(result.error || "Unknown error from server");
-        }
+        return processResponse<number[] | string>(response);
     },
 };

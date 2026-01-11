@@ -1,33 +1,21 @@
 "use client";
 
-import React, { useEffect, useRef } from "react";
-import { useAuthActions } from "../src/stores/AuthStore";
-import {
-    initGsiOnce,
-    renderGoogleButton,
-} from "../src/utils/auth";
-import { User } from "../src/types";
+import React from "react";
+import { useGoogleAuth } from "../src/stores/GoogleAuthStore";
 
 export function SignInManager() {
-    const { setSignIn } = useAuthActions();
-    const googleButtonRef = useRef<HTMLDivElement>(null);
+    const { login, isGsiScriptReady } = useGoogleAuth();
 
-    useEffect(() => {
-        try {
-            initGsiOnce({
-                onSignedIn: async (user: User) => {
-                    await setSignIn(user);
-                },
-                onError: (e) => console.error(e),
-            });
+    if (!isGsiScriptReady) {
+        return <div>Loading...</div>; // Or a spinner
+    }
 
-            if (googleButtonRef.current) {
-                renderGoogleButton(googleButtonRef.current);
-            }
-        } catch (err) {
-            console.error("Failed to initialize Google sign-in", err);
-        }
-    }, [setSignIn]);
-
-    return <div ref={googleButtonRef} />;
+    return (
+        <button
+            onClick={login}
+            className="btn btn-primary"
+        >
+            Sign in with Google
+        </button>
+    );
 }
