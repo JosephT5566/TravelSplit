@@ -147,7 +147,7 @@ export const GoogleAuthProvider: React.FC<{ children: React.ReactNode }> = ({
             if (clientRef.current) {
                 refreshTokenPromiseResolver.current = resolve;
                 refreshTokenPromiseRejecter.current = reject;
-                clientRef.current.requestAccessToken({ prompt: "" });
+                clientRef.current.requestAccessToken({ prompt: "none" });
             } else {
                 reject(new Error("Google Auth client not initialized."));
             }

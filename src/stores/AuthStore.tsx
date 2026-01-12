@@ -28,24 +28,18 @@ const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
     const { user: googleUser, logout: googleLogout } = useGoogleAuth();
-    const { 
-        user: persistedUser, 
-        saveUser, 
+    const {
+        user: persistedUser,
+        saveUser,
         clearUser,
-        isInitialized: isAuthInitialized 
+        isInitialized: isAuthInitialized,
     } = useLocalStorageUser();
 
     useEffect(() => {
-        if (googleUser) {
-            if (googleUser.email !== persistedUser?.email) {
-                saveUser(googleUser);
-            }
-        } else {
-            if (persistedUser) {
-                clearUser();
-            }
+        if (googleUser && googleUser.email !== persistedUser?.email) {
+            saveUser(googleUser);
         }
-    }, [googleUser, persistedUser, saveUser, clearUser]);
+    }, [googleUser, persistedUser, saveUser]);
 
     const signOut = useCallback(() => {
         googleLogout();
