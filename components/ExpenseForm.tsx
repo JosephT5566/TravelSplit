@@ -21,6 +21,7 @@ import { useAddExpense } from "../services/dataFetcher";
 interface Props {
     onCancel: () => void;
     isDialogOpen: boolean;
+    selectedDate: Date;
 }
 
 const InputGroup = ({
@@ -48,7 +49,7 @@ const InputGroup = ({
     </div>
 );
 
-export const ExpenseForm: React.FC<Props> = ({ onCancel, isDialogOpen }) => {
+export const ExpenseForm: React.FC<Props> = ({ onCancel, isDialogOpen, selectedDate }) => {
     const { user } = useAuth();
     const currentUser = user;
     if (!currentUser) {
@@ -61,7 +62,7 @@ export const ExpenseForm: React.FC<Props> = ({ onCancel, isDialogOpen }) => {
     }
     const { categories, currencies, users } = config;
 
-    const [date, setDate] = useState(format(new Date(), "yyyy-MM-dd"));
+    const [date, setDate] = useState(format(selectedDate, "yyyy-MM-dd"));
     const [currency, setCurrency] = useState("TWD");
     const [exchangeRate, setExchangeRate] = useState<number>(
         currencies[currency]
@@ -92,22 +93,23 @@ export const ExpenseForm: React.FC<Props> = ({ onCancel, isDialogOpen }) => {
 
     useEffect(() => {
         if (isDialogOpen) {
-            return;
+            // When dialog opens, set the date to the selected date from the list
+            setDate(format(selectedDate, "yyyy-MM-dd"));
+        } else {
+            // Reset all state values to their initial values when dialog closes
+            setDate(format(new Date(), "yyyy-MM-dd"));
+            setCurrency("TWD");
+            setExchangeRate(currencies["TWD"]);
+            setCategory("");
+            setPayer(currentUser.email);
+            setItemName("");
+            setAmount("");
+            setPayType("myself");
+            setSelectedUsers([]);
+            setSplitMode("equally");
+            setSpecificSplits({});
         }
-
-        // Reset all state values to their initial values
-        setDate(format(new Date(), "yyyy-MM-dd"));
-        setCurrency("TWD");
-        setExchangeRate(currencies["TWD"]);
-        setCategory("");
-        setPayer(currentUser.email);
-        setItemName("");
-        setAmount("");
-        setPayType("myself");
-        setSelectedUsers([]);
-        setSplitMode("equally");
-        setSpecificSplits({});
-    }, [isDialogOpen, currencies, currentUser.email]);
+    }, [isDialogOpen, selectedDate, currencies, currentUser.email]);
 
     useEffect(() => {
         const total = Object.values(specificSplits).reduce(

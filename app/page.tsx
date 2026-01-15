@@ -19,6 +19,7 @@ const MainPage: React.FC = () => {
     const { user } = useAuth();
     const [expense, setExpense] = useState<Expense | null>(null);
     const [isDialogOpen, setIsDialogOpen] = useState<boolean>(false);
+    const [currentDate, setCurrentDate] = useState(new Date());
 
     const dialogRef = useRef<HTMLDialogElement>(null);
 
@@ -69,6 +70,7 @@ const MainPage: React.FC = () => {
                 onOpenExpenseForm={openExpenseForm}
                 onRefresh={refreshExpenses}
                 isRefreshing={apiState.isFetching}
+                onCurrentDateChange={setCurrentDate}
             />
 
             {user && (
@@ -77,6 +79,7 @@ const MainPage: React.FC = () => {
                         <ExpenseForm
                             onCancel={closeExpenseForm}
                             isDialogOpen={isDialogOpen}
+                            selectedDate={currentDate}
                         />
                     ) : (
                         <ExpenseDetail expense={expense} onCancel={closeExpenseForm} />
