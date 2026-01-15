@@ -1,11 +1,14 @@
 import React, { useMemo } from "react";
 import {
-    PieChart,
-    Pie,
-    Cell,
+    BarChart,
+    Bar,
+    XAxis,
+    YAxis,
+    CartesianGrid,
     ResponsiveContainer,
     Tooltip,
     Legend,
+    Cell, // Import Cell for individual bar coloring
 } from "recharts";
 import { Expense } from "../src/types";
 import { useAuthState } from "../src/stores/AuthStore";
@@ -23,7 +26,7 @@ const COLORS = [
     "#FF4560",
 ];
 
-export const ExpensePieChart: React.FC<Props> = ({ expenses }) => {
+export const ExpenseBarChart: React.FC<Props> = ({ expenses }) => {
     const { user } = useAuthState();
     const data = useMemo(() => {
         const categoryMap: Record<string, number> = {};
@@ -56,32 +59,70 @@ export const ExpensePieChart: React.FC<Props> = ({ expenses }) => {
         );
     }
 
-    return (
-        <div className="h-80 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                    <Pie
-                        data={data}
-                        cx="50%"
-                        cy="50%"
-                        labelLine={false}
-                        outerRadius={80}
-                        fill="#8884d8"
-                        dataKey="value"
-                        label={({ name, percent }) =>
-                            `${name} ${(percent * 100).toFixed(0)}%`
-                        }
+    const renderLegend = () => {
+        return (
+            <div className="flex flex-wrap justify-start gap-x-4 gap-y-2 text-xs">
+                {data.map((entry, index) => (
+                    <div
+                        key={`item-${index}`}
+                        className="flex items-center gap-1.5"
                     >
+                        <div
+                            className="w-3 h-3"
+                            style={{
+                                backgroundColor: COLORS[index % COLORS.length],
+                            }}
+                        />
+                        <span>{entry.name}</span>
+                    </div>
+                ))}
+            </div>
+        );
+    };
+
+    const renderTooltip = (props: any) => {
+        const { active, payload } = props;
+        const isVisible = active && payload && payload.length;
+        if (isVisible) {
+            const { name, value } = payload[0].payload;
+            return (
+                <div className="bg-white border border-gray-300 p-2 rounded shadow">
+                    <p className="text-sm font-semibold">{name}</p>
+                    <p className="text-xs text-gray-500">{value.toFixed(2)}</p>
+                </div>
+            );
+        }
+        return null;
+    };
+
+    return (
+        <div className={`w-full`} style={{ height: `${data.length * 50}px` }}>
+            <ResponsiveContainer width="100%" height="100%">
+                <BarChart
+                    layout="vertical"
+                    data={data}
+                    margin={{
+                        top: 5,
+                        bottom: 5,
+                    }}
+                >
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis type="number" />
+                    <YAxis hide dataKey="name" type="category" />
+                    <Tooltip
+                        formatter={(value: number) => value.toFixed(2)}
+                        content={renderTooltip}
+                    />
+                    <Legend content={renderLegend} />
+                    <Bar dataKey="value" barSize={15} radius={[0, 4, 4, 0]}>
                         {data.map((entry, index) => (
                             <Cell
                                 key={`cell-${index}`}
                                 fill={COLORS[index % COLORS.length]}
                             />
                         ))}
-                    </Pie>
-                    <Tooltip formatter={(value: number) => value.toFixed(2)} />
-                    <Legend />
-                </PieChart>
+                    </Bar>
+                </BarChart>
             </ResponsiveContainer>
         </div>
     );
