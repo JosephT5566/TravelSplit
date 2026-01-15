@@ -5,7 +5,7 @@ import { SignInManager } from "./SignInManager";
 
 export function LoginView() {
     return (
-        <div className="min-h-screen flex items-center justify-center bg-background px-4 transition-colors">
+        <div className="min-h-dvh flex items-center justify-center bg-background px-4 transition-colors">
             <div className="max-w-md w-full bg-surface rounded-xl shadow-lg p-8 animate-in fade-in zoom-in duration-300 border border-border">
                 <h1 className="text-3xl font-bold text-center text-primary mb-2">
                     TripSplit

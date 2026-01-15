@@ -7,7 +7,7 @@ import { useExpenses } from "../../src/stores/ExpensesStore";
 import { useConfig } from "../../src/stores/ConfigStore";
 import { useAuthState } from "../../src/stores/AuthStore";
 
-const ListPage: React.FC = () => {
+const SummaryPage: React.FC = () => {
     const { expenses, apiState, refreshExpenses } = useExpenses();
     const { user } = useAuthState();
     const { sheetConfig } = useConfig();
@@ -189,4 +189,4 @@ const ListPage: React.FC = () => {
     );
 };
 
-export default ListPage;
+export default SummaryPage;
