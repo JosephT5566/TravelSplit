@@ -20,6 +20,7 @@ interface Props {
     onOpenExpenseForm: (expense?: Expense) => void;
     onRefresh: () => void;
     isRefreshing: boolean;
+    onCurrentDateChange: (date: Date) => void;
 }
 
 export const ExpenseList: React.FC<Props> = ({
@@ -27,6 +28,7 @@ export const ExpenseList: React.FC<Props> = ({
     onOpenExpenseForm,
     onRefresh,
     isRefreshing,
+    onCurrentDateChange,
 }) => {
     const { user } = useAuthState();
     const { sheetConfig } = useConfig();
@@ -55,6 +57,10 @@ export const ExpenseList: React.FC<Props> = ({
     const currentEmblaDate = useMemo(() => {
         return allDates[selectedIndex] || new Date();
     }, [allDates, selectedIndex]);
+
+    useEffect(() => {
+        onCurrentDateChange(currentEmblaDate);
+    }, [currentEmblaDate, onCurrentDateChange]);
 
     const goToDate = useCallback(
         (date: Date) => {
