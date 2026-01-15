@@ -2,7 +2,7 @@
 
 import React, { useMemo } from "react";
 import { RefreshCw, ArrowRight, Info } from "lucide-react";
-import { ExpensePieChart } from "../../components/Charts";
+import { ExpenseBarChart } from "../../components/Charts";
 import { useExpenses } from "../../src/stores/ExpensesStore";
 import { useConfig } from "../../src/stores/ConfigStore";
 import { useAuthState } from "../../src/stores/AuthStore";
@@ -108,7 +108,7 @@ const ListPage: React.FC = () => {
                 <h3 className="font-semibold mb-4 text-text-main">
                     Category Breakdown
                 </h3>
-                <ExpensePieChart expenses={expenses} />
+                <ExpenseBarChart expenses={expenses} />
             </div>
 
             <div className="bg-surface p-4 rounded-xl shadow transition-colors border border-border">
