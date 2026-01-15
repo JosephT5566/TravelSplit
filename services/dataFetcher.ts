@@ -128,6 +128,7 @@ export const useExpensesQuery = () => {
             !!persistedUser?.email &&
             !!persistedUser?.accessToken &&
             isGsiScriptReady,
+        retry: 3,
     });
 };
 
