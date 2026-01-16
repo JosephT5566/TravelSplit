@@ -1,26 +1,36 @@
 "use client";
 
-import React, { createContext, useContext, useState, useMemo } from "react";
+import React, { createContext, useContext, useState, ReactNode } from "react";
 
-interface UIContextValue {
+interface UIContextType {
+    isDrawerOpen: boolean;
+    openDrawer: () => void;
+    closeDrawer: () => void;
     theme: string;
     setTheme: (theme: string) => void;
 }
 
-const UIContext = createContext<UIContextValue | undefined>(undefined);
+const UIContext = createContext<UIContextType | null>(null);
 
-export function UIProvider({ children }: { children: React.ReactNode }) {
-    const [theme, setTheme] = useState("classic");
+export function UIProvider({ children }: { children: ReactNode }) {
+    const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+    const [theme, setThemeState] = useState("classic");
 
-    const value = useMemo(
-        () => ({
-            theme,
-            setTheme,
-        }),
-        [theme]
+    const openDrawer = () => setIsDrawerOpen(true);
+    const closeDrawer = () => setIsDrawerOpen(false);
+
+    const setTheme = (newTheme: string) => {
+        setThemeState(newTheme);
+        document.documentElement.setAttribute("data-theme", newTheme);
+    };
+
+    return (
+        <UIContext.Provider
+            value={{ isDrawerOpen, openDrawer, closeDrawer, theme, setTheme }}
+        >
+            {children}
+        </UIContext.Provider>
     );
-
-    return <UIContext.Provider value={value}>{children}</UIContext.Provider>;
 }
 
 export function useUI() {
