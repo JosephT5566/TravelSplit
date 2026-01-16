@@ -62,4 +62,9 @@ export type SheetConfig = {
     currencies: Record<string, number>;
     users: Record<string, string>;
     categories: string[];
+    resources: {
+        title?: string;
+        url?: string;
+        type?: 'google_docs' | 'google_sheets';
+    }[];
 }

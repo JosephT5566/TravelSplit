@@ -73,6 +73,7 @@ export function ConfigProvider({ children }: { children: React.ReactNode }) {
                       currencies: TWD_CURRENCY,
                       categories: [],
                       users: {},
+                      resources: [],
                   },
         [sheetConfig]
     );

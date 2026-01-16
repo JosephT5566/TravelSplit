@@ -3,7 +3,7 @@
 import React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { PieChart, List, Settings } from "lucide-react";
+import { PieChart, List, NotebookPen } from "lucide-react";
 import { useAuth } from "../src/stores/AuthStore";
 import { useExpenses } from "../src/stores/ExpensesStore";
 import { useUI } from "../src/stores/UIStore";
@@ -77,15 +77,15 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
                     <span className="text-xs mt-1">Summary</span>
                 </Link>
                 <Link
-                    href="/settings"
+                    href="/plan"
                     className={`flex flex-col items-center transition-colors ${
-                        pathname === "/settings"
+                        pathname === "/plan"
                             ? "text-primary"
                             : "text-text-muted hover:text-text-main"
                     }`}
                 >
-                    <Settings size={24} />
-                    <span className="text-xs mt-1">Settings</span>
+                    <NotebookPen size={24} />
+                    <span className="text-xs mt-1">Plan</span>
                 </Link>
             </nav>
         </>

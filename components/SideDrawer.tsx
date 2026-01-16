@@ -2,7 +2,7 @@
 
 import React from "react";
 import { FocusTrap } from "focus-trap-react";
-import { LogOut, FileCog } from "lucide-react";
+import { LogOut, FileCog, X } from "lucide-react";
 import { useAuth, useAuthActions } from "../src/stores/AuthStore";
 import { AppConfig } from "../src/types";
 import { useUI } from "../src/stores/UIStore";
@@ -65,7 +65,7 @@ export const SideDrawer: React.FC = () => {
                                 onClick={closeDrawer}
                                 className="btn btn-sm btn-circle btn-ghost"
                             >
-                                ✕
+                                <X size={24} />
                             </button>
                         </div>
 
