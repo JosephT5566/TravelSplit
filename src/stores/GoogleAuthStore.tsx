@@ -91,19 +91,26 @@ export const GoogleAuthProvider: React.FC<{ children: React.ReactNode }> = ({
                         const userInfo = await getUserInfo(accessToken);
 
                         if (!userInfo.email) {
-                            throw new Error(
-                                "Google login failed: Email not found"
+                            reject(
+                                new Error(
+                                    "Google login failed: Email not found"
+                                )
                             );
                         }
-                        
+
                         // whitelist check
                         const email = String(userInfo.email).toLowerCase();
                         if (
                             EMAIL_WHITE_LIST.length > 1 &&
                             !EMAIL_WHITE_LIST.includes(email)
                         ) {
-                            throw new Error(
+                            console.log(
                                 "Google login failed: Email not in whitelist"
+                            );
+                            reject(
+                                new Error(
+                                    "Google login failed: Email not in whitelist"
+                                )
                             );
                         }
 
@@ -126,7 +133,11 @@ export const GoogleAuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
     const login = useCallback(() => {
         if (clientRef.current) {
-            clientRef.current.requestAccessToken({ prompt: "consent" });
+            try {
+                clientRef.current.requestAccessToken({ prompt: "consent" });
+            } catch (error) {
+                console.error("Error requesting access token:", error);
+            }
         } else {
             console.error("Google Auth client not initialized.");
         }
