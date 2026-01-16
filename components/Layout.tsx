@@ -3,9 +3,11 @@
 import React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { PieChart, List, Settings as SettingsIcon } from "lucide-react";
+import { PieChart, List, Settings } from "lucide-react";
 import { useAuth } from "../src/stores/AuthStore";
 import { useExpenses } from "../src/stores/ExpensesStore";
+import { useUI } from "../src/stores/UIStore";
+import { SideDrawer } from "./SideDrawer";
 
 interface LayoutProps {
     children: React.ReactNode;
@@ -15,9 +17,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
     const pathname = usePathname();
     const { user } = useAuth();
     const { apiState } = useExpenses();
-
-    // Hide FAB on settings page
-    const showFab = pathname !== "/settings";
+    const { openDrawer } = useUI();
 
     if (!user) {
         return <>{children}</>;
@@ -25,17 +25,20 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
 
     return (
         <>
+            <SideDrawer />
             {/* Header */}
             <div className="p-4 bg-surface shadow sticky top-0 z-10 flex justify-between items-center transition-colors border-b border-border">
                 <h1 className="text-xl font-bold text-primary">TripSplit</h1>
                 <div className="text-xs">
-                    <img
-                        src={user.picture}
-                        alt={user.name}
-                        className="w-8 h-8 rounded-full border border-border"
-                        width={32}
-                        height={32}
-                    />
+                    <button onClick={openDrawer} className="focus:outline-none">
+                        <img
+                            src={user.picture}
+                            alt={user.name}
+                            className="w-8 h-8 rounded-full border border-border"
+                            width={32}
+                            height={32}
+                        />
+                    </button>
                 </div>
             </div>
 
@@ -81,7 +84,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
                             : "text-text-muted hover:text-text-main"
                     }`}
                 >
-                    <SettingsIcon size={24} />
+                    <Settings size={24} />
                     <span className="text-xs mt-1">Settings</span>
                 </Link>
             </nav>
