@@ -23,7 +23,7 @@ const PlanPage = () => {
     const { resources } = sheetConfig;
 
     return (
-        <div className="flex flex-col gap-5 p-4 mx-auto min-h-screen pb-20">
+        <div className="flex flex-col gap-5 p-4 mx-auto pb-20">
             {/* External Resources Section */}
             {!_isEmpty(resources) && (
                 <section>
