@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React from "react";
 import { FileText, Table, ExternalLink, Sparkle } from "lucide-react"; // 使用 lucide-react 作為圖示庫
 import { useConfig } from "../../src/stores/ConfigStore";
 import _isEmpty from "lodash/isEmpty";
@@ -21,19 +21,6 @@ const RESOURCE_STYLES = {
 const PlanPage = () => {
     const { sheetConfig } = useConfig();
     const { resources } = sheetConfig;
-    const [todos, setTodos] = useState([
-        { id: 1, text: "辦理日幣換匯", completed: false },
-        { id: 2, text: "確認護照效期 (需 6 個月以上)", completed: true },
-        { id: 3, text: "下載離線地圖", completed: false },
-    ]);
-
-    const toggleTodo = (id) => {
-        setTodos(
-            todos.map((t) =>
-                t.id === id ? { ...t, completed: !t.completed } : t
-            )
-        );
-    };
 
     return (
         <div className="flex flex-col gap-5 p-4 mx-auto min-h-screen pb-20">
@@ -91,42 +78,6 @@ const PlanPage = () => {
                     </div>
                 </section>
             )}
-
-            {/* Todo List Section */}
-            <section className="mb-8">
-                <div className="flex justify-between items-center mb-4">
-                    <h2 className="text-xl font-bold flex items-center gap-2">
-                        待辦事項
-                    </h2>
-                </div>
-
-                <div className="flex flex-col gap-2">
-                    {todos.map((todo) => (
-                        <div
-                            key={todo.id}
-                            className="card bg-base-200 shadow-sm transition-all active:scale-95"
-                        >
-                            <div className="card-body p-2 flex-row items-center gap-2">
-                                <input
-                                    type="checkbox"
-                                    className="checkbox checkbox-primary"
-                                    checked={todo.completed}
-                                    onChange={() => toggleTodo(todo.id)}
-                                />
-                                <span
-                                    className={`flex-1 ${
-                                        todo.completed
-                                            ? "line-through opacity-50"
-                                            : ""
-                                    }`}
-                                >
-                                    {todo.text}
-                                </span>
-                            </div>
-                        </div>
-                    ))}
-                </div>
-            </section>
         </div>
     );
 };
