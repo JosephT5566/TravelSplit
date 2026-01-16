@@ -12,7 +12,9 @@ import React, {
 import { User } from "../types";
 
 // Helper to get user info from Google
-async function getUserInfo(accessToken: string): Promise<Omit<User, 'accessToken'>> {
+async function getUserInfo(
+    accessToken: string
+): Promise<Omit<User, "accessToken">> {
     const res = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
         headers: {
             Authorization: `Bearer ${accessToken}`,
@@ -53,8 +55,14 @@ export const GoogleAuthProvider: React.FC<{ children: React.ReactNode }> = ({
     const [user, setUser] = useState<User | null>(null);
     const [isGsiScriptReady, setGsiScriptReady] = useState(false);
     const clientRef = useRef<google.accounts.oauth2.TokenClient | null>(null);
-    const refreshTokenPromiseResolver = useRef<((user: User) => void) | null>(null);
-    const refreshTokenPromiseRejecter = useRef<((error: Error) => void) | null>(null);
+    // 儲存正在進行中的 Promise
+    const refreshingPromiseRef = useRef<Promise<User> | null>(null);
+
+    // 用於在 callback 中結束 Promise 的臨時變數
+    const promiseHooks = useRef<{
+        resolve: (user: User) => void;
+        reject: (err: Error) => void;
+    } | null>(null);
 
     const handleGsiReady = useCallback(() => {
         const EMAIL_WHITE_LIST: string[] = (
@@ -70,56 +78,48 @@ export const GoogleAuthProvider: React.FC<{ children: React.ReactNode }> = ({
             client_id: process.env.NEXT_PUBLIC_GOOGLE_AUTH_CLIENT_ID || "",
             scope: "https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/userinfo.email",
             callback: async (tokenResponse) => {
-                if (tokenResponse.error) {
-                    const error = new Error(tokenResponse.error_description);
-                    console.error("Google login failed:", error);
-                    if (refreshTokenPromiseRejecter.current) {
-                        refreshTokenPromiseRejecter.current(error);
-                    }
+                if (!promiseHooks.current) {
                     return;
                 }
 
-                try {
-                    const accessToken = tokenResponse.access_token;
-                    const userInfo = await getUserInfo(accessToken);
+                const { resolve, reject } = promiseHooks.current;
+                if (tokenResponse.error) {
+                    reject(new Error(tokenResponse.error_description));
+                } else {
+                    try {
+                        const accessToken = tokenResponse.access_token;
+                        const userInfo = await getUserInfo(accessToken);
 
-                    if (!userInfo.email) {
-                        throw new Error("Google login failed: Email not found");
-                    }
+                        if (!userInfo.email) {
+                            throw new Error(
+                                "Google login failed: Email not found"
+                            );
+                        }
+                        
+                        // whitelist check
+                        const email = String(userInfo.email).toLowerCase();
+                        if (
+                            EMAIL_WHITE_LIST.length > 1 &&
+                            !EMAIL_WHITE_LIST.includes(email)
+                        ) {
+                            throw new Error(
+                                "Google login failed: Email not in whitelist"
+                            );
+                        }
 
-                    const email = String(userInfo.email).toLowerCase();
-                    if (
-                        EMAIL_WHITE_LIST.length > 1 &&
-                        !EMAIL_WHITE_LIST.includes(email)
-                    ) {
-                        throw new Error("Google login failed: Email not in whitelist");
+                        const newUser = { ...userInfo, accessToken };
+                        setUser(newUser);
+                        resolve(newUser); // 讓所有等待這個 Promise 的 Query 同時恢復
+                    } catch (e) {
+                        reject(
+                            e instanceof Error ? e : new Error("Login failed")
+                        );
                     }
-                    
-                    const newUser: User = { ...userInfo, accessToken };
-                    setUser(newUser);
-
-                    if (refreshTokenPromiseResolver.current) {
-                        refreshTokenPromiseResolver.current(newUser);
-                    }
-
-                } catch (e) {
-                    const error = e instanceof Error ? e : new Error("Google login failed");
-                    console.error(error);
-                    if (refreshTokenPromiseRejecter.current) {
-                        refreshTokenPromiseRejecter.current(error);
-                    }
-                } finally {
-                    refreshTokenPromiseResolver.current = null;
-                    refreshTokenPromiseRejecter.current = null;
                 }
+                // 結束後清空
+                refreshingPromiseRef.current = null;
+                promiseHooks.current = null;
             },
-            error_callback: (error) => {
-                 if (refreshTokenPromiseRejecter.current) {
-                    refreshTokenPromiseRejecter.current(new Error(error.message));
-                    refreshTokenPromiseResolver.current = null;
-                    refreshTokenPromiseRejecter.current = null;
-                 }
-            }
         });
         setGsiScriptReady(true);
     }, []);
@@ -143,15 +143,27 @@ export const GoogleAuthProvider: React.FC<{ children: React.ReactNode }> = ({
     }, [user]);
 
     const refreshToken = useCallback((): Promise<User> => {
-        return new Promise((resolve, reject) => {
-            if (clientRef.current) {
-                refreshTokenPromiseResolver.current = resolve;
-                refreshTokenPromiseRejecter.current = reject;
-                clientRef.current.requestAccessToken({ prompt: "consent" });
-            } else {
-                reject(new Error("Google Auth client not initialized."));
+        // 有在進行中的 Promise，直接回傳
+        if (refreshingPromiseRef.current) {
+            console.log("Returning existing refresh promise...");
+            return refreshingPromiseRef.current;
+        }
+
+        // 建立一個新的 Promise
+        const newPromise = new Promise<User>((resolve, reject) => {
+            if (!clientRef.current) {
+                return reject(new Error("Google Auth client not initialized."));
             }
+
+            // 將控制權交給外部的 Ref，讓 callback 能存取
+            promiseHooks.current = { resolve, reject };
+
+            console.log("Requesting new access token...");
+            clientRef.current.requestAccessToken({ prompt: "" });
         });
+
+        refreshingPromiseRef.current = newPromise;
+        return newPromise;
     }, []);
 
     const value = useMemo(
@@ -183,7 +195,9 @@ export const GoogleAuthProvider: React.FC<{ children: React.ReactNode }> = ({
 export const useGoogleAuth = () => {
     const context = useContext(GoogleAuthContext);
     if (!context) {
-        throw new Error("useGoogleAuth must be used within a GoogleAuthProvider");
+        throw new Error(
+            "useGoogleAuth must be used within a GoogleAuthProvider"
+        );
     }
     return context;
 };
