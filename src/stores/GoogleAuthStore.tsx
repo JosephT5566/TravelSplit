@@ -91,10 +91,8 @@ export const GoogleAuthProvider: React.FC<{ children: React.ReactNode }> = ({
                         const userInfo = await getUserInfo(accessToken);
 
                         if (!userInfo.email) {
-                            reject(
-                                new Error(
-                                    "Google login failed: Email not found"
-                                )
+                            throw new Error(
+                                "Google login failed: Email not found"
                             );
                         }
 
@@ -104,13 +102,8 @@ export const GoogleAuthProvider: React.FC<{ children: React.ReactNode }> = ({
                             EMAIL_WHITE_LIST.length > 1 &&
                             !EMAIL_WHITE_LIST.includes(email)
                         ) {
-                            console.log(
+                            throw new Error(
                                 "Google login failed: Email not in whitelist"
-                            );
-                            reject(
-                                new Error(
-                                    "Google login failed: Email not in whitelist"
-                                )
                             );
                         }
 
@@ -131,26 +124,59 @@ export const GoogleAuthProvider: React.FC<{ children: React.ReactNode }> = ({
         setGsiScriptReady(true);
     }, []);
 
-    const login = useCallback(() => {
-        if (clientRef.current) {
-            try {
-                clientRef.current.requestAccessToken({ prompt: "consent" });
-            } catch (error) {
-                console.error("Error requesting access token:", error);
-            }
-        } else {
-            console.error("Google Auth client not initialized.");
+    const login = useCallback((): Promise<User> => {
+        // 預防萬一：如果已經有正在進行的請求（例如靜默刷新中），可以直接沿用或報錯
+        if (refreshingPromiseRef.current) {
+            return refreshingPromiseRef.current;
         }
+
+        const newPromise = new Promise<User>((resolve, reject) => {
+            if (!clientRef.current) {
+                return reject(new Error("Google Auth client not initialized."));
+            }
+
+            // 核心：同樣把 resolve/reject 寄存給 promiseHooks
+            // 這樣 Google SDK 的 callback 執行時就會觸發這裡的 resolve
+            promiseHooks.current = { resolve, reject };
+
+            console.log("Initiating manual login with consent...");
+            // 這裡強制要求 consent 畫面
+            clientRef.current.requestAccessToken({ prompt: "consent" });
+        });
+
+        refreshingPromiseRef.current = newPromise;
+        return newPromise;
     }, []);
 
-    const logout = useCallback(() => {
-        console.log("Google Logging out user:", user);
-        if (user?.accessToken) {
-            google.accounts.oauth2.revoke(user.accessToken, () => {
-                console.log("Access token revoked");
-            });
+    const logout = useCallback(async () => {
+        console.log("Initiating logout for user:", user?.email);
+
+        try {
+            // 1. 如果有 accessToken，先向 Google 撤銷它
+            if (user?.accessToken) {
+                await new Promise<void>((resolve) => {
+                    google.accounts.oauth2.revoke(user.accessToken, () => {
+                        console.log("Google access token revoked.");
+                        resolve();
+                    });
+                    // 註：revoke 通常不論成功失敗都會繼續，
+                    // 萬一 Google 端失敗（例如 Token 已過期），我們還是要清空本地資料
+                    setTimeout(resolve, 1000); // 安全起見，設置一個逾時強制繼續
+                });
+            }
+        } catch (error) {
+            console.error("Error during token revocation:", error);
+        } finally {
+            // 2. 無論撤銷是否成功，都必須清空本地狀態
+            setUser(null);
+
+            // 3. 關鍵：清空任何正在進行中的刷新 Promise
+            // 避免使用者登出後，先前的殘留請求又把過期的 User 存回去
+            refreshingPromiseRef.current = null;
+            promiseHooks.current = null;
+
+            console.log("User logged out locally.");
         }
-        setUser(null); // this also trigger the clearUser mutation in the AuthStore
     }, [user]);
 
     const refreshToken = useCallback((): Promise<User> => {
