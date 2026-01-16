@@ -2,14 +2,17 @@
 
 import React from "react";
 import { FocusTrap } from "focus-trap-react";
-import { LogOut } from "lucide-react";
+import { LogOut, FileCog } from "lucide-react";
 import { useAuth, useAuthActions } from "../src/stores/AuthStore";
 import { AppConfig } from "../src/types";
 import { useUI } from "../src/stores/UIStore";
+import { useConfig } from "../src/stores/ConfigStore";
+import { format } from "date-fns";
 
 export const SideDrawer: React.FC = () => {
     const { signOut } = useAuthActions();
     const { user } = useAuth();
+    const { sheetConfig } = useConfig();
     // isDrawerOpen and closeDrawer will now control the checkbox state
     const { isDrawerOpen, closeDrawer, theme, setTheme } = useUI();
 
@@ -78,6 +81,91 @@ export const SideDrawer: React.FC = () => {
                                 <p className="text-xs opacity-60">
                                     {user.email}
                                 </p>
+                            </div>
+                        </div>
+
+                        <div className="collapse collapse-arrow bg-base-200/50 border border-base-300 rounded-xl">
+                            <input type="checkbox" name="my-accordion-2" />
+                            <div className="collapse-title flex items-center gap-3 text-sm font-bold">
+                                {/* Adding a subtle icon makes it feel more professional */}
+                                <FileCog size={16} className="text-primary" />
+                                Sheet 設定
+                            </div>
+                            <div className="collapse-content ">
+                                {sheetConfig ? (
+                                    <div className="space-y-4 pt-2">
+                                        {/* Date Section */}
+                                        {sheetConfig.startDate && (
+                                            <div className="flex justify-between items-center text-xs">
+                                                <span className="text-base-content/60 font-medium">
+                                                    起始日期
+                                                </span>
+                                                <span className="badge badge-ghost font-mono">
+                                                    {format(
+                                                        new Date(
+                                                            sheetConfig.startDate
+                                                        ),
+                                                        "yyyy-MM-dd"
+                                                    )}
+                                                </span>
+                                            </div>
+                                        )}
+
+                                        <div className="divider my-0 opacity-50"></div>
+
+                                        {/* Currencies as Badges */}
+                                        <div>
+                                            <span className="text-xs font-bold text-base-content/60 block mb-2 uppercase tracking-wider">
+                                                匯率資訊
+                                            </span>
+                                            <div className="flex flex-wrap gap-2">
+                                                {Object.entries(
+                                                    sheetConfig.currencies
+                                                ).map(([currency, rate]) => (
+                                                    <div
+                                                        key={currency}
+                                                        className="badge badge-outline gap-2 py-3"
+                                                    >
+                                                        <span className="font-bold text-accent">
+                                                            {currency}
+                                                        </span>
+                                                        <span>{rate}</span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+
+                                        {/* Users as a Clean List */}
+                                        <div>
+                                            <span className="text-xs font-bold text-base-content/60 block mb-2 uppercase tracking-wider">
+                                                參與用戶
+                                            </span>
+                                            <div className="space-y-2">
+                                                {Object.entries(
+                                                    sheetConfig.users
+                                                ).map(
+                                                    ([userEmail, userName]) => (
+                                                        <div
+                                                            key={userEmail}
+                                                            className="flex flex-col p-2 rounded-lg border border-base-300 shadow-md"
+                                                        >
+                                                            <span className="text-sm font-semibold mb-1">
+                                                                {userName}
+                                                            </span>
+                                                            <span className="text-xs opacity-70">
+                                                                {userEmail}
+                                                            </span>
+                                                        </div>
+                                                    )
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="text-center py-4 opacity-40 text-xs italic">
+                                        No sheet configuration found.
+                                    </div>
+                                )}
                             </div>
                         </div>
 
