@@ -2,7 +2,7 @@
 
 import React from "react";
 import { FocusTrap } from "focus-trap-react";
-import { LogOut, FileCog, X } from "lucide-react";
+import { LogOut, FileCog, X, RefreshCw } from "lucide-react";
 import { useAuth, useAuthActions } from "../src/stores/AuthStore";
 import { AppConfig } from "../src/types";
 import { useUI } from "../src/stores/UIStore";
@@ -12,7 +12,7 @@ import { format } from "date-fns";
 export const SideDrawer: React.FC = () => {
     const { signOut } = useAuthActions();
     const { user } = useAuth();
-    const { sheetConfig } = useConfig();
+    const { sheetConfig, refetchSheetConfig, isFetchingConfig } = useConfig();
     // isDrawerOpen and closeDrawer will now control the checkbox state
     const { isDrawerOpen, closeDrawer, theme, setTheme } = useUI();
 
@@ -92,6 +92,23 @@ export const SideDrawer: React.FC = () => {
                                 Sheet 設定
                             </div>
                             <div className="collapse-content ">
+                                <button
+                                    className="p-1 text-primary bg-surface border border-border rounded-full"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        refetchSheetConfig();
+                                    }}
+                                    disabled={isFetchingConfig}
+                                >
+                                    <RefreshCw
+                                        size={12}
+                                        className={
+                                            isFetchingConfig
+                                                ? "animate-spin"
+                                                : ""
+                                        }
+                                    />
+                                </button>
                                 {sheetConfig ? (
                                     <div className="space-y-4 pt-2">
                                         {/* Date Section */}

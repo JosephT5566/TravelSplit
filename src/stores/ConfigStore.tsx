@@ -19,12 +19,19 @@ interface ConfigContextValue {
     appConfig: AppConfig;
     isInitialized: boolean;
     saveAppConfig: (appConfig: AppConfig) => Promise<void>;
+    refetchSheetConfig: () => void;
+    isFetchingConfig: boolean;
 }
 
 const ConfigContext = createContext<ConfigContextValue | undefined>(undefined);
 
 export function ConfigProvider({ children }: { children: React.ReactNode }) {
-    const { data: sheetConfig, isSuccess: isInitialized } = useGetSheetConfig();
+    const {
+        data: sheetConfig,
+        isSuccess: isInitialized,
+        refetch,
+        isFetching,
+    } = useGetSheetConfig();
     const [appConfig, setAppConfig] = useState<AppConfig>({
         theme: "classic",
     });
@@ -84,8 +91,17 @@ export function ConfigProvider({ children }: { children: React.ReactNode }) {
             appConfig,
             isInitialized,
             saveAppConfig,
+            refetchSheetConfig: refetch,
+            isFetchingConfig: isFetching,
         }),
-        [sheetConfig, appConfig, isInitialized, saveAppConfig]
+        [
+            sheetConfig,
+            appConfig,
+            isInitialized,
+            saveAppConfig,
+            refetch,
+            isFetching,
+        ]
     );
 
     return (
