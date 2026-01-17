@@ -2,8 +2,7 @@
 
 import { useState, useCallback, useEffect } from 'react';
 import { User } from '../types';
-
-const USER_STORAGE_KEY = 'tripsplit_user';
+import { USER_STORAGE_KEY } from '../../services/cacheKeys';
 
 type UseLocalStorageUser = {
     user: User | null;

@@ -10,6 +10,7 @@ import React, {
 import { useLocalStorageUser } from "../hooks/useLocalStorageUser";
 import { User } from "../types";
 import { useGoogleAuth } from "./GoogleAuthStore";
+import { clearExpensesCache } from "./ExpensesStore";
 
 type AuthState = {
     isSignedIn: boolean;
@@ -44,6 +45,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const signOut = useCallback(() => {
         googleLogout();
         clearUser();
+        clearExpensesCache();
     }, [googleLogout, clearUser]);
 
     const value = useMemo(
