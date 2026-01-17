@@ -4,10 +4,7 @@ import { Expense, User, SheetConfig, AddExpenseRequest } from "../src/types";
 import { api } from "./api";
 import { useAuthState, useAuthActions } from "../src/stores/AuthStore";
 import { useGoogleAuth } from "../src/stores/GoogleAuthStore";
-
-const SHEET_CONFIG_KEY = "tripsplit_sheet_config";
-const EXPENSES_KEY = "tripsplit_expenses";
-const USER_KEY = "tripsplit_user";
+import { EXPENSES_KEY, SHEET_CONFIG_KEY } from "./cacheKeys";
 
 // Reusable hook to create an auto-refreshing query function
 function useAuthedQueryFn<T>(queryFn: (accessToken: string) => Promise<T>) {
