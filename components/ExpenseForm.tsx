@@ -207,9 +207,9 @@ export const ExpenseForm: React.FC<Props> = ({
                     }
 
                     for (const user in specificSplits) {
-                        const value = Number(specificSplits[user]) * exchangeRate;
-                        if (!isNaN(value) && value > 0) {
-                            splits[user] = value;
+                        const valueInBase = Number(specificSplits[user]) * exchangeRate;
+                        if (!isNaN(valueInBase) && valueInBase > 0) {
+                            splits[user] = valueInBase;
                         }
                     }
                 }
