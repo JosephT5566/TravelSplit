@@ -1,7 +1,6 @@
 import React, { useMemo, useState, useEffect, useCallback } from "react";
 import { Expense } from "../src/types";
 import {
-    isToday as isTodayDateFns,
     differenceInDays,
     startOfDay,
     addDays,
@@ -44,7 +43,9 @@ export const ExpenseList: React.FC<Props> = ({
             return [];
         }
         const start = startOfDay(new Date(sheetConfig.startDate));
-        const end = startOfDay(new Date());
+        const end = startOfDay(
+            sheetConfig.endDate ? new Date(sheetConfig.endDate) : new Date()
+        );
         const dates: Date[] = [];
         let currentDate = start;
         while (currentDate <= end) {
@@ -109,7 +110,11 @@ export const ExpenseList: React.FC<Props> = ({
                         ? format(new Date(sheetConfig.startDate), "yyyy-MM-dd")
                         : undefined
                 }
-                isToday={isTodayDateFns(currentEmblaDate)}
+                maxDateStr={
+                    sheetConfig?.endDate
+                        ? format(new Date(sheetConfig.endDate), "yyyy-MM-dd")
+                        : format(new Date(), "yyyy-MM-dd")
+                }
                 expenses={expenses}
                 user={user}
             />

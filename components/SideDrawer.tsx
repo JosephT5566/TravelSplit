@@ -128,6 +128,22 @@ export const SideDrawer: React.FC = () => {
                                             </div>
                                         )}
 
+                                        {sheetConfig.endDate && (
+                                            <div className="flex justify-between items-center text-xs">
+                                                <span className="text-base-content/60 font-medium">
+                                                    結束日期
+                                                </span>
+                                                <span className="badge badge-ghost font-mono">
+                                                    {format(
+                                                        new Date(
+                                                            sheetConfig.endDate
+                                                        ),
+                                                        "yyyy-MM-dd"
+                                                    )}
+                                                </span>
+                                            </div>
+                                        )}
+
                                         <div className="divider my-0 opacity-50"></div>
 
                                         {/* Currencies as Badges */}
