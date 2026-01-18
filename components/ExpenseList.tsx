@@ -44,7 +44,9 @@ export const ExpenseList: React.FC<Props> = ({
             return [];
         }
         const start = startOfDay(new Date(sheetConfig.startDate));
-        const end = startOfDay(new Date());
+        const end = startOfDay(
+            sheetConfig.endDate ? new Date(sheetConfig.endDate) : new Date()
+        );
         const dates: Date[] = [];
         let currentDate = start;
         while (currentDate <= end) {
@@ -108,6 +110,11 @@ export const ExpenseList: React.FC<Props> = ({
                     sheetConfig?.startDate
                         ? format(new Date(sheetConfig.startDate), "yyyy-MM-dd")
                         : undefined
+                }
+                maxDateStr={
+                    sheetConfig?.endDate
+                        ? format(new Date(sheetConfig.endDate), "yyyy-MM-dd")
+                        : format(new Date(), "yyyy-MM-dd")
                 }
                 isToday={isTodayDateFns(currentEmblaDate)}
                 expenses={expenses}

@@ -6,7 +6,8 @@ import { Expense } from "../src/types";
 interface DateNavigatorProps {
     currentDate: Date;
     goToDate: (date: Date) => void;
-    minDateStr: string | undefined;
+    minDateStr?: string;
+    maxDateStr?: string;
     isToday: boolean;
     expenses: Expense[];
     user: any;
@@ -16,6 +17,7 @@ export const DateNavigator: React.FC<DateNavigatorProps> = ({
     currentDate,
     goToDate,
     minDateStr,
+    maxDateStr,
     isToday,
     expenses,
     user
@@ -60,7 +62,7 @@ export const DateNavigator: React.FC<DateNavigatorProps> = ({
                             ref={dateInputRef}
                             className="absolute inset-0 opacity-0 cursor-pointer"
                             min={minDateStr}
-                            max={formatDate(new Date(), "yyyy-MM-dd")}
+                            max={maxDateStr}
                             value={formattedCurrentDate}
                             onChange={(e) => {
                                 if (e.target.valueAsDate) {
