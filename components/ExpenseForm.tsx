@@ -49,7 +49,11 @@ const InputGroup = ({
     </div>
 );
 
-export const ExpenseForm: React.FC<Props> = ({ onCancel, isDialogOpen, selectedDate }) => {
+export const ExpenseForm: React.FC<Props> = ({
+    onCancel,
+    isDialogOpen,
+    selectedDate,
+}) => {
     const { user } = useAuth();
     const currentUser = user;
     if (!currentUser) {
@@ -191,11 +195,11 @@ export const ExpenseForm: React.FC<Props> = ({ onCancel, isDialogOpen, selectedD
                         0
                     );
 
-                    if (Math.abs(sumOfSplits - totalAmountInBase) > 0.01) {
+                    if (Math.abs(sumOfSplits - numAmount) > 0.01) {
                         setSplitError(
                             `Sum of splits (${sumOfSplits.toFixed(
                                 2
-                            )}) must equal total amount (${totalAmountInBase.toFixed(
+                            )}) must equal total amount (${numAmount.toFixed(
                                 2
                             )}).`
                         );
@@ -203,9 +207,9 @@ export const ExpenseForm: React.FC<Props> = ({ onCancel, isDialogOpen, selectedD
                     }
 
                     for (const user in specificSplits) {
-                        const value = Number(specificSplits[user]);
-                        if (!isNaN(value) && value > 0) {
-                            splits[user] = value;
+                        const valueInBase = Number(specificSplits[user]) * exchangeRate;
+                        if (!isNaN(valueInBase) && valueInBase > 0) {
+                            splits[user] = valueInBase;
                         }
                     }
                 }
@@ -552,29 +556,38 @@ export const ExpenseForm: React.FC<Props> = ({ onCancel, isDialogOpen, selectedD
                                                                     "@"
                                                                 )[0]}
                                                         </span>
-                                                        <input
-                                                            type="number"
-                                                            className="w-24 p-1 border rounded bg-background text-right"
-                                                            placeholder="0"
-                                                            value={
-                                                                specificSplits[
-                                                                    email
-                                                                ] || ""
-                                                            }
-                                                            min="0"
-                                                            onChange={(e) => {
-                                                                setSpecificSplits(
-                                                                    (prev) => ({
-                                                                        ...prev,
-                                                                        [email]:
-                                                                            e.target.value.replace(
-                                                                                /^0+(?=\d)/,
-                                                                                ""
-                                                                            ),
-                                                                    })
-                                                                );
-                                                            }}
-                                                        />
+                                                        <div className="flex items-center gap-2">
+                                                            <input
+                                                                type="number"
+                                                                className="w-24 p-1 border rounded bg-background text-right"
+                                                                placeholder="0"
+                                                                value={
+                                                                    specificSplits[
+                                                                        email
+                                                                    ] || ""
+                                                                }
+                                                                min="0"
+                                                                onChange={(
+                                                                    e
+                                                                ) => {
+                                                                    setSpecificSplits(
+                                                                        (
+                                                                            prev
+                                                                        ) => ({
+                                                                            ...prev,
+                                                                            [email]:
+                                                                                e.target.value.replace(
+                                                                                    /^0+(?=\d)/,
+                                                                                    ""
+                                                                                ),
+                                                                        })
+                                                                    );
+                                                                }}
+                                                            />
+                                                            <span className="text-sm text-accent">
+                                                                {currency}
+                                                            </span>
+                                                        </div>
                                                     </div>
                                                 )
                                             )}
