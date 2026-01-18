@@ -1,14 +1,14 @@
 import React, { useRef, useMemo } from "react";
-import { format, addDays, formatDate } from "date-fns";
+import { format, addDays, isToday, isSameDay } from "date-fns";
 import { ArrowLeft, ArrowRight } from "lucide-react";
 import { Expense } from "../src/types";
+import { useConfig } from "../src/stores/ConfigStore";
 
 interface DateNavigatorProps {
     currentDate: Date;
     goToDate: (date: Date) => void;
     minDateStr?: string;
     maxDateStr?: string;
-    isToday: boolean;
     expenses: Expense[];
     user: any;
 }
@@ -18,10 +18,10 @@ export const DateNavigator: React.FC<DateNavigatorProps> = ({
     goToDate,
     minDateStr,
     maxDateStr,
-    isToday,
     expenses,
     user
 }) => {
+    const { sheetConfig } = useConfig();
     const dateInputRef = useRef<HTMLInputElement>(null);
     const formattedCurrentDate = format(currentDate, "yyyy-MM-dd");
 
@@ -41,12 +41,29 @@ export const DateNavigator: React.FC<DateNavigatorProps> = ({
         }, 0);
     }, [expenses, currentDate, user]);
 
+    const isNextDisabled = useMemo(() => {
+        if (!sheetConfig.endDate) {
+            return isToday(currentDate);
+        }
+        console.log("is same day:", isSameDay(currentDate, new Date(sheetConfig.endDate)));
+        return isSameDay(currentDate, new Date(sheetConfig.endDate));
+    }, [currentDate, sheetConfig.endDate]);
+
+    const isPrevDisabled = useMemo(() => {
+        if (!sheetConfig.startDate) {
+            return false; // Or some other logic if startDate is not guaranteed
+        }
+        return isSameDay(currentDate, new Date(sheetConfig.startDate));
+    }, [currentDate, sheetConfig.startDate]);
+
+
     return (
         <div className="m-4 bg-surface shadow-sm mb-4 rounded-xl overflow-hidden border border-border">
             <div className="flex items-center justify-between p-2">
                 <button
                     onClick={() => goToDate(addDays(currentDate, -1))}
-                    className="p-2 rounded-full hover:bg-background text-primary transition-colors"
+                    className="p-2 rounded-full hover:bg-background text-primary transition-colors disabled:opacity-50"
+                    disabled={isPrevDisabled}
                 >
                     <ArrowLeft size={24} />
                 </button>
@@ -79,7 +96,7 @@ export const DateNavigator: React.FC<DateNavigatorProps> = ({
                 <button
                     onClick={() => goToDate(addDays(currentDate, 1))}
                     className="p-2 rounded-full hover:bg-background text-primary transition-colors disabled:opacity-50"
-                    disabled={isToday}
+                    disabled={isNextDisabled}
                 >
                     <ArrowRight size={24} />
                 </button>
