@@ -7,10 +7,11 @@ import React, {
     useEffect,
     useMemo,
 } from "react";
+import Cookies from "js-cookie";
 import { useLocalStorageUser } from "../hooks/useLocalStorageUser";
 import { User } from "../types";
-import { useGoogleAuth } from "./GoogleAuthStore";
 import { clearExpensesCache } from "./ExpensesStore";
+import { api } from "../../services/api";
 
 type AuthState = {
     isSignedIn: boolean;
@@ -28,7 +29,6 @@ type AuthContextValue = AuthState & AuthActions;
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-    const { user: googleUser, logout: googleLogout } = useGoogleAuth();
     const {
         user: persistedUser,
         saveUser,
@@ -37,16 +37,62 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } = useLocalStorageUser();
 
     useEffect(() => {
-        if (googleUser && googleUser.email !== persistedUser?.email) {
-            saveUser(googleUser);
+        const checkCookie = async () => {
+            const isLoggedIn = Cookies.get("is_logged_in");
+            console.log("is_logged_in cookie", isLoggedIn);
+
+            // Case 1: No login cookie
+            if (!isLoggedIn) {
+                // If we have a persisted user but no login cookie, it means session expired or was cleared.
+                // We should clean up local state.
+                if (persistedUser) {
+                    console.log("No login cookie found, clearing local user.");
+                    clearUser();
+                    clearExpensesCache();
+                }
+                return;
+            }
+
+            // Case 2: Login cookie exists, but no local user data
+            if (isLoggedIn && !persistedUser) {
+                try {
+                    console.log(
+                        "Login cookie found but no local user, fetching /me...",
+                    );
+                    const user = await api.getCurrentUser();
+                    if (user) {
+                        saveUser(user);
+                    }
+                } catch (error) {
+                    console.error(
+                        "Failed to restore session from cookie",
+                        error,
+                    );
+                    // If fetching /me fails (e.g. 401 even with cookie), clear everything
+                    clearUser();
+                    clearExpensesCache();
+                }
+            }
+
+            // Case 3: Login cookie exists AND local user exists
+            // We assume they are in sync. We could optionally re-verify here if needed.
+        };
+
+        if (isAuthInitialized) {
+            console.log("isAuthInitialized", isAuthInitialized);
+            checkCookie();
         }
-    }, [googleUser, persistedUser, saveUser]);
+    }, [saveUser, clearUser, isAuthInitialized, persistedUser]);
 
     const signOut = useCallback(() => {
-        googleLogout();
+        const url = process.env.NEXT_PUBLIC_AUTH_PROXY;
+        if (url) {
+            const currentUrl = window.location.origin;
+            window.location.href = `${url}/auth/travel-split/logout?redirect_to=${encodeURIComponent(currentUrl)}`;
+        }
         clearUser();
         clearExpensesCache();
-    }, [googleLogout, clearUser]);
+    }, [clearUser]);
 
     const value = useMemo(
         () => ({
@@ -56,7 +102,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             signOut,
             saveUser,
         }),
-        [persistedUser, isAuthInitialized, signOut, saveUser]
+        [persistedUser, isAuthInitialized, signOut, saveUser],
     );
 
     return (
