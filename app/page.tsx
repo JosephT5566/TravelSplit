@@ -3,20 +3,14 @@
 import React, { useState, useRef, useEffect } from "react";
 import { ExpenseList } from "../components/ExpenseList";
 import { useExpenses } from "../src/stores/ExpensesStore";
-import { useAuth } from "../src/stores/AuthStore";
+import { useAuthState } from "../src/stores/AuthStore";
 import { ExpenseForm } from "../components/ExpenseForm";
-import {
-    Expense,
-} from "../src/types";
+import { Expense } from "../src/types";
 import ExpenseDetail from "@/components/ExpenseDetail";
 
 const MainPage: React.FC = () => {
-    const {
-        expenses,
-        refreshExpenses,
-        apiState,
-    } = useExpenses();
-    const { user } = useAuth();
+    const { expenses, refreshExpenses, apiState } = useExpenses();
+    const { user } = useAuthState();
     const [expense, setExpense] = useState<Expense | null>(null);
     const [isDialogOpen, setIsDialogOpen] = useState<boolean>(false);
     const [currentDate, setCurrentDate] = useState(new Date());
@@ -82,7 +76,10 @@ const MainPage: React.FC = () => {
                             selectedDate={currentDate}
                         />
                     ) : (
-                        <ExpenseDetail expense={expense} onCancel={closeExpenseForm} />
+                        <ExpenseDetail
+                            expense={expense}
+                            onCancel={closeExpenseForm}
+                        />
                     )}
                 </dialog>
             )}

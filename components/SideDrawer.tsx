@@ -3,7 +3,7 @@
 import React from "react";
 import { FocusTrap } from "focus-trap-react";
 import { LogOut, FileCog, X, RefreshCw } from "lucide-react";
-import { useAuth, useAuthActions } from "../src/stores/AuthStore";
+import { useAuthActions, useAuthState } from "../src/stores/AuthStore";
 import { AppConfig } from "../src/types";
 import { useUI } from "../src/stores/UIStore";
 import { useConfig } from "../src/stores/ConfigStore";
@@ -11,7 +11,7 @@ import { format } from "date-fns";
 
 export const SideDrawer: React.FC = () => {
     const { signOut } = useAuthActions();
-    const { user } = useAuth();
+    const { user } = useAuthState();
     const { sheetConfig, refetchSheetConfig, isFetchingConfig } = useConfig();
     // isDrawerOpen and closeDrawer will now control the checkbox state
     const { isDrawerOpen, closeDrawer, theme, setTheme } = useUI();
