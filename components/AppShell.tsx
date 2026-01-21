@@ -3,10 +3,10 @@
 import React from "react";
 import { Layout } from "./Layout";
 import { LoginView } from "./LoginView";
-import { useAuth } from "../src/stores/AuthStore";
+import { useAuthState } from "../src/stores/AuthStore";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
-    const { isAuthInitialized, isSignedIn } = useAuth();
+    const { isAuthInitialized, isSignedIn } = useAuthState();
 
     if (!isAuthInitialized) {
         return (

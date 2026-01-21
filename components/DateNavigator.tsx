@@ -45,7 +45,6 @@ export const DateNavigator: React.FC<DateNavigatorProps> = ({
         if (!sheetConfig.endDate) {
             return isToday(currentDate);
         }
-        console.log("is same day:", isSameDay(currentDate, new Date(sheetConfig.endDate)));
         return isSameDay(currentDate, new Date(sheetConfig.endDate));
     }, [currentDate, sheetConfig.endDate]);
 

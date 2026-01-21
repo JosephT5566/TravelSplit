@@ -4,7 +4,7 @@ import React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { PieChart, List, NotebookPen } from "lucide-react";
-import { useAuth } from "../src/stores/AuthStore";
+import { useAuthState } from "../src/stores/AuthStore";
 import { useExpenses } from "../src/stores/ExpensesStore";
 import { useUI } from "../src/stores/UIStore";
 import { SideDrawer } from "./SideDrawer";
@@ -15,7 +15,7 @@ interface LayoutProps {
 
 export const Layout: React.FC<LayoutProps> = ({ children }) => {
     const pathname = usePathname();
-    const { user } = useAuth();
+    const { user } = useAuthState();
     const { apiState } = useExpenses();
     const { openDrawer } = useUI();
 

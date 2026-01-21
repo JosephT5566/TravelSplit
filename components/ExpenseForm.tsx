@@ -13,7 +13,7 @@ import {
     Loader2,
     type LucideIcon,
 } from "lucide-react";
-import { useAuth } from "../src/stores/AuthStore";
+import { useAuthState } from "../src/stores/AuthStore";
 import { useConfig } from "../src/stores/ConfigStore";
 import ExpenseContainer from "./ExpenseContainer";
 import { useAddExpense } from "../services/dataFetcher";
@@ -54,7 +54,7 @@ export const ExpenseForm: React.FC<Props> = ({
     isDialogOpen,
     selectedDate,
 }) => {
-    const { user } = useAuth();
+    const { user } = useAuthState();
     const currentUser = user;
     if (!currentUser) {
         return null;

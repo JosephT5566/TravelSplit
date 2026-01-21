@@ -32,8 +32,7 @@ jobs:
 
       - name: Build
         env:
-          NEXT_PUBLIC_APP_SCRIPT_URL: ${{ vars.NEXT_PUBLIC_APP_SCRIPT_URL }}
-          NEXT_PUBLIC_GOOGLE_AUTH_CLIENT_ID: ${{ vars.NEXT_PUBLIC_GOOGLE_AUTH_CLIENT_ID }}
+          NEXT_PUBLIC_AUTH_PROXY: ${{ vars.NEXT_PUBLIC_AUTH_PROXY }}
           NEXT_PUBLIC_EMAIL_WHITE_LIST: ${{ vars.NEXT_PUBLIC_EMAIL_WHITE_LIST }}
           BASE_PATH: "/${{ github.event.repository.name }}"
         run: npm run build

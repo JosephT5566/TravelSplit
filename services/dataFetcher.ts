@@ -1,147 +1,46 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useCallback } from "react";
-import { Expense, User, SheetConfig, AddExpenseRequest } from "../src/types";
+import { Expense, SheetConfig, AddExpenseRequest } from "../src/types";
 import { api } from "./api";
-import { useAuthState, useAuthActions } from "../src/stores/AuthStore";
-import { useGoogleAuth } from "../src/stores/GoogleAuthStore";
+import { useAuthState } from "../src/stores/AuthStore";
 import { EXPENSES_KEY, SHEET_CONFIG_KEY } from "./cacheKeys";
-
-// Reusable hook to create an auto-refreshing query function
-function useAuthedQueryFn<T>(queryFn: (accessToken: string) => Promise<T>) {
-    const { saveUser } = useAuthActions();
-    const { user: persistedUser } = useAuthState();
-    const { refreshToken, logout } = useGoogleAuth();
-
-    return useCallback(async () => {
-        try {
-            if (!persistedUser?.accessToken) {
-                throw new Error("User not authenticated");
-            }
-            return await queryFn(persistedUser.accessToken);
-        } catch (error: any) {
-            if (error.message.includes("TOKEN_EXPIRED")) {
-                console.log(
-                    "Token expired on query, refreshing and retrying..."
-                );
-                try {
-                    const newUser = await refreshToken();
-                    console.log("🚀 Token refreshed successfully:", newUser);
-                    saveUser(newUser);
-                    return await queryFn(newUser.accessToken);
-                } catch (refreshError) {
-                    console.error(
-                        "Failed to refresh token, signing out.",
-                        refreshError
-                    );
-                    logout();
-                    throw refreshError;
-                }
-            }
-            throw error;
-        }
-    }, [persistedUser, queryFn, refreshToken, logout]);
-}
-
-// Reusable hook to create an auto-refreshing mutation function
-function useAuthedMutationFn<TRespData, TVariables>(
-    mutationFn: (
-        variables: TVariables,
-        accessToken: string
-    ) => Promise<TRespData>
-) {
-    const { saveUser } = useAuthActions();
-    const { user: persistedUser } = useAuthState();
-    const { refreshToken, logout } = useGoogleAuth();
-
-    return useCallback(
-        async (variables: TVariables) => {
-            try {
-                if (!persistedUser?.accessToken) {
-                    throw new Error("User not authenticated");
-                }
-                return await mutationFn(variables, persistedUser.accessToken);
-            } catch (error: any) {
-                if (error.message.includes("TOKEN_EXPIRED")) {
-                    console.log(
-                        "Token expired on mutation, refreshing and retrying..."
-                    );
-                    try {
-                        const newUser = await refreshToken();
-                        console.log(
-                            "🚀 Token refreshed successfully:",
-                            newUser
-                        );
-                        saveUser(newUser);
-                        return await mutationFn(variables, newUser.accessToken);
-                    } catch (refreshError) {
-                        console.error(
-                            "Failed to refresh token, signing out.",
-                            refreshError
-                        );
-                        logout();
-                        throw refreshError;
-                    }
-                }
-                throw error;
-            }
-        },
-        [persistedUser, mutationFn, refreshToken, logout]
-    );
-}
 
 // AppConfig hooks
 export const useGetSheetConfig = () => {
-    const { user: persistedUser } = useAuthState();
-    const { isGsiScriptReady } = useGoogleAuth();
-
-    const authedQueryFn = useAuthedQueryFn((accessToken) =>
-        api.getSheetConfig(accessToken)
-    );
+    const { isSignedIn } = useAuthState();
 
     return useQuery<SheetConfig, Error>({
         queryKey: [SHEET_CONFIG_KEY],
-        queryFn: authedQueryFn,
-        enabled: !!persistedUser?.accessToken && isGsiScriptReady,
+        queryFn: () => api.getSheetConfig(),
+        enabled: isSignedIn,
     });
 };
 
 // Expenses hooks
 export const useExpensesQuery = () => {
-    const { user: persistedUser } = useAuthState();
-    const { isGsiScriptReady } = useGoogleAuth();
-
-    const authedQueryFn = useAuthedQueryFn((accessToken) => {
-        if (!persistedUser?.email) {
-            // This should not happen if query is enabled, but as a safeguard
-            return Promise.resolve([]);
-        }
-        return api.getExpenses(persistedUser.email, accessToken);
-    });
+    const { user, isSignedIn } = useAuthState();
 
     return useQuery<Expense[], Error>({
-        queryKey: [EXPENSES_KEY, persistedUser?.email],
-        queryFn: authedQueryFn,
-        enabled:
-            !!persistedUser?.email &&
-            !!persistedUser?.accessToken &&
-            isGsiScriptReady,
+        queryKey: [EXPENSES_KEY, user?.email],
+        queryFn: () => {
+            if (!user?.email) {
+                return Promise.resolve([]);
+            }
+            return api.getExpenses(user.email);
+        },
+        enabled: isSignedIn && !!user?.email,
         retry: 3,
     });
 };
 
 export const useAddExpense = () => {
     const queryClient = useQueryClient();
-    const { user: persistedUser } = useAuthState();
-
-    const authedMutationFn = useAuthedMutationFn<string, AddExpenseRequest>(
-        (newExpense, accessToken) => api.addExpense(newExpense, accessToken)
-    );
+    const { user } = useAuthState();
 
     return useMutation<string, Error, AddExpenseRequest>({
-        mutationFn: authedMutationFn,
+        mutationFn: (newExpense) => api.addExpense(newExpense),
         onSuccess: () => {
             queryClient.invalidateQueries({
-                queryKey: [EXPENSES_KEY, persistedUser?.email],
+                queryKey: [EXPENSES_KEY, user?.email],
             });
         },
     });
@@ -149,11 +48,7 @@ export const useAddExpense = () => {
 
 export const useDeleteExpense = () => {
     const queryClient = useQueryClient();
-    const { user: persistedUser } = useAuthState();
-
-    const authedMutationFn = useAuthedMutationFn<string | number[], string>(
-        (timestamp, accessToken) => api.deleteExpenses(timestamp, accessToken)
-    );
+    const { user } = useAuthState();
 
     return useMutation<
         { response: string | number[]; timestamp: string },
@@ -161,16 +56,17 @@ export const useDeleteExpense = () => {
         string
     >({
         mutationFn: async (timestamp) => {
-            const response = await authedMutationFn(timestamp);
+            const response = await api.deleteExpenses(timestamp);
             return { response, timestamp };
         },
         onSuccess: (resp) => {
+            console.log("Deleted expense with timestamp:", resp.timestamp);
             if (typeof resp.response === "string") {
                 console.warn("Delete expense warning:", resp.response);
                 return;
             }
             queryClient.setQueryData<Expense[]>(
-                [EXPENSES_KEY, persistedUser?.email],
+                [EXPENSES_KEY, user?.email],
                 (old) => {
                     if (!Array.isArray(old)) {
                         return old;
