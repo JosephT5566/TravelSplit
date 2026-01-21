@@ -10,7 +10,8 @@ export function SignInManager() {
             console.error("Missing NEXT_PUBLIC_AUTH_PROXY");
             return;
         }
-        window.location.href = `${url}/auth/travel-split/login`;
+        const currentUrl = window.location.origin + window.location.pathname;
+        window.location.href = `${url}/auth/travel-split/login?redirect_to=${encodeURIComponent(currentUrl)}`;
     };
 
     return (

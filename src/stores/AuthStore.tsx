@@ -87,7 +87,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const signOut = useCallback(() => {
         const url = process.env.NEXT_PUBLIC_AUTH_PROXY;
         if (url) {
-            const currentUrl = window.location.origin;
+            const currentUrl = window.location.origin + window.location.pathname;
             window.location.href = `${url}/auth/travel-split/logout?redirect_to=${encodeURIComponent(currentUrl)}`;
         }
         clearUser();
