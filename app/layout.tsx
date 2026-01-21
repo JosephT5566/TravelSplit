@@ -1,6 +1,5 @@
 import "./globals.css";
 import Script from "next/script";
-import { GoogleAuthProvider } from "../src/stores/GoogleAuthStore";
 import { AuthProvider } from "../src/stores/AuthStore";
 import { ConfigProvider } from "../src/stores/ConfigStore";
 import { ExpensesProvider } from "../src/stores/ExpensesStore";
@@ -24,17 +23,15 @@ export default function RootLayout({
             </head>
             <body className="bg-background text-text-main transition-colors duration-200">
                 <ClientProviders>
-                    <GoogleAuthProvider>
-                        <AuthProvider>
-                            <ConfigProvider>
-                                <ExpensesProvider>
-                                    <UIProvider>
-                                        <AppShell>{children}</AppShell>
-                                    </UIProvider>
-                                </ExpensesProvider>
-                            </ConfigProvider>
-                        </AuthProvider>
-                    </GoogleAuthProvider>
+                    <AuthProvider>
+                        <ConfigProvider>
+                            <ExpensesProvider>
+                                <UIProvider>
+                                    <AppShell>{children}</AppShell>
+                                </UIProvider>
+                            </ExpensesProvider>
+                        </ConfigProvider>
+                    </AuthProvider>
                 </ClientProviders>
             </body>
         </html>
