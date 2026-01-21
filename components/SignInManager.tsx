@@ -1,19 +1,21 @@
 "use client";
 
 import React from "react";
-import { useGoogleAuth } from "../src/stores/GoogleAuthStore";
 import { FcGoogle } from "react-icons/fc";
 
 export function SignInManager() {
-    const { login, isGsiScriptReady } = useGoogleAuth();
-
-    if (!isGsiScriptReady) {
-        return <div>Loading...</div>; // Or a spinner
-    }
+    const handleLogin = () => {
+        const url = process.env.NEXT_PUBLIC_AUTH_PROXY;
+        if (!url) {
+            console.error("Missing NEXT_PUBLIC_AUTH_PROXY");
+            return;
+        }
+        window.location.href = `${url}/auth/travel-split/login`;
+    };
 
     return (
         <button
-            onClick={login}
+            onClick={handleLogin}
             className="btn btn-primary flex items-center gap-2"
         >
             <FcGoogle size={20} />
