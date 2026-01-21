@@ -104,7 +104,6 @@ export const api = {
                 payload: { userEmail },
             }),
         });
-        console.log("🚀 Fetched expenses response:", response);
         return processApiResponse<Expense[]>(response);
     },
 
