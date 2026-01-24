@@ -6,6 +6,7 @@ import {
     SheetConfig,
     User,
 } from "../src/types";
+import logger from "@/src/utils/logger";
 
 // Handle case where result might be the object directly (if proxy transformed it or it's a direct API)
 async function processApiResponse<T>(response: Response): Promise<T> {
@@ -14,13 +15,13 @@ async function processApiResponse<T>(response: Response): Promise<T> {
             throw new Error("TOKEN_EXPIRED");
         }
         const err = new Error(`Failed to fetch: ${response.statusText}`);
-        console.log("🚀 Fail to fetch api", err.message);
+        logger.log("🚀 Fail to fetch api", err.message);
         throw err;
     }
 
     const result: AppScriptResponse<T> & { errorCode?: string } =
         await response.json();
-    console.log("🚀 Fetched result:", result);
+    logger.log("🚀 Fetched result:", result);
 
     if (isSuccess(result)) {
         return result.result;
@@ -78,7 +79,7 @@ export const api = {
     },
 
     async addExpense(expense: AddExpenseRequest): Promise<string> {
-        console.log("🚀 addExpense called with: ", expense);
+        logger.log("🚀 addExpense called with: ", expense);
         const url = getProxyUrl();
 
         const response = await fetch(url, {
@@ -93,7 +94,7 @@ export const api = {
     },
 
     async getExpenses(userEmail: string): Promise<Expense[]> {
-        console.log("🚀 getExpenses called for: ", userEmail);
+        logger.log("🚀 getExpenses called for: ", userEmail);
         const url = getProxyUrl();
 
         const response = await fetch(url, {
@@ -108,7 +109,7 @@ export const api = {
     },
 
     async deleteExpenses(timestamp: string): Promise<number[] | string> {
-        console.log("🚀 deleteExpenses called for: ", timestamp);
+        logger.log("🚀 deleteExpenses called for: ", timestamp);
         const url = getProxyUrl();
 
         const response = await fetch(url, {

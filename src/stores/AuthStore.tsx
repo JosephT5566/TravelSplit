@@ -12,6 +12,7 @@ import { useLocalStorageUser } from "../hooks/useLocalStorageUser";
 import { User } from "../types";
 import { clearExpensesCache } from "./ExpensesStore";
 import { api } from "../../services/api";
+import logger from "@/src/utils/logger";
 
 type AuthState = {
     isSignedIn: boolean;
@@ -39,14 +40,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     useEffect(() => {
         const checkCookie = async () => {
             const isLoggedIn = Cookies.get("is_logged_in");
-            console.log("is_logged_in cookie", isLoggedIn);
+            logger.log("is_logged_in cookie", isLoggedIn);
 
             // Case 1: No login cookie
             if (!isLoggedIn) {
                 // If we have a persisted user but no login cookie, it means session expired or was cleared.
                 // We should clean up local state.
                 if (persistedUser) {
-                    console.log("No login cookie found, clearing local user.");
+                    logger.log("No login cookie found, clearing local user.");
                     clearUser();
                     clearExpensesCache();
                 }
@@ -56,7 +57,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             // Case 2: Login cookie exists, but no local user data
             if (isLoggedIn && !persistedUser) {
                 try {
-                    console.log(
+                    logger.log(
                         "Login cookie found but no local user, fetching /me...",
                     );
                     const user = await api.getCurrentUser();
@@ -64,7 +65,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                         saveUser(user);
                     }
                 } catch (error) {
-                    console.error(
+                    logger.error(
                         "Failed to restore session from cookie",
                         error,
                     );
@@ -79,7 +80,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         };
 
         if (isAuthInitialized) {
-            console.log("isAuthInitialized", isAuthInitialized);
+            logger.log("isAuthInitialized", isAuthInitialized);
             checkCookie();
         }
     }, [saveUser, clearUser, isAuthInitialized, persistedUser]);

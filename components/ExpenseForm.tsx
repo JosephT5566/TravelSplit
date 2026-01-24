@@ -17,6 +17,7 @@ import { useAuthState } from "../src/stores/AuthStore";
 import { useConfig } from "../src/stores/ConfigStore";
 import ExpenseContainer from "./ExpenseContainer";
 import { useAddExpense } from "../services/dataFetcher";
+import logger from "@/src/utils/logger";
 
 interface Props {
     onCancel: () => void;
@@ -135,7 +136,7 @@ export const ExpenseForm: React.FC<Props> = ({
         let isValid = true;
 
         if (isEmpty(amount) || Number(amount) <= 0) {
-            console.log("Invalid amount:", amount);
+            logger.log("Invalid amount:", amount);
             setAmountError("Amount must be a positive number.");
             isValid = false;
         }
@@ -243,7 +244,7 @@ export const ExpenseForm: React.FC<Props> = ({
             splitsJson: cleanedSplits,
         };
 
-        console.log("Submitting expense data:", expenseData);
+        logger.log("Submitting expense data:", expenseData);
 
         await addExpenseMutation(expenseData);
         onCancel();

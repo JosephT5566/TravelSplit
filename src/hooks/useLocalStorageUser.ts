@@ -3,6 +3,7 @@
 import { useState, useCallback, useEffect } from 'react';
 import { User } from '../types';
 import { USER_STORAGE_KEY } from '../../services/cacheKeys';
+import logger from '@/src/utils/logger';
 
 type UseLocalStorageUser = {
     user: User | null;
@@ -21,7 +22,7 @@ export function useLocalStorageUser(): UseLocalStorageUser {
             const item = window.localStorage.getItem(USER_STORAGE_KEY);
             setUser(item ? JSON.parse(item) : null);
         } catch (error) {
-            console.error("Failed to parse user from localStorage", error);
+            logger.error("Failed to parse user from localStorage", error);
             setUser(null);
         }
         setIsInitialized(true);
@@ -32,7 +33,7 @@ export function useLocalStorageUser(): UseLocalStorageUser {
             window.localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(newUser));
             setUser(newUser);
         } catch (error) {
-            console.error("Failed to save user to localStorage", error);
+            logger.error("Failed to save user to localStorage", error);
         }
     }, []);
 
@@ -41,7 +42,7 @@ export function useLocalStorageUser(): UseLocalStorageUser {
             window.localStorage.removeItem(USER_STORAGE_KEY);
             setUser(null);
         } catch (error) {
-            console.error("Failed to clear user from localStorage", error);
+            logger.error("Failed to clear user from localStorage", error);
         }
     }, []);
 
