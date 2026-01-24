@@ -17,6 +17,7 @@ import {
 import { useAuthState } from "../src/stores/AuthStore";
 import { useConfig } from "../src/stores/ConfigStore";
 import ExpenseContainer from "./ExpenseContainer";
+import logger from "@/src/utils/logger";
 
 interface InfoGroupProps {
     icon: LucideIcon;
@@ -65,7 +66,7 @@ const ExpenseDetail: React.FC<Props> = ({ expense, onCancel }) => {
         expense;
 
     const myCost = splitsJson[currentUser.email] || 0;
-    console.log("ExpenseDetail splitsJson:", splitsJson, currentUser.email);
+    logger.log("ExpenseDetail splitsJson:", splitsJson, currentUser.email);
     const payerEmail =
         Object.keys(users).find((email) => users[email] === payer) || "Unknown";
     const themeColor = "red";

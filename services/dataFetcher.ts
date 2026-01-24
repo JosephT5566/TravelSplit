@@ -3,6 +3,7 @@ import { Expense, SheetConfig, AddExpenseRequest } from "../src/types";
 import { api } from "./api";
 import { useAuthState } from "../src/stores/AuthStore";
 import { EXPENSES_KEY, SHEET_CONFIG_KEY } from "./cacheKeys";
+import logger from "@/src/utils/logger";
 
 // AppConfig hooks
 export const useGetSheetConfig = () => {
@@ -60,9 +61,9 @@ export const useDeleteExpense = () => {
             return { response, timestamp };
         },
         onSuccess: (resp) => {
-            console.log("Deleted expense with timestamp:", resp.timestamp);
+            logger.log("Deleted expense with timestamp:", resp.timestamp);
             if (typeof resp.response === "string") {
-                console.warn("Delete expense warning:", resp.response);
+                logger.warn("Delete expense warning:", resp.response);
                 return;
             }
             queryClient.setQueryData<Expense[]>(

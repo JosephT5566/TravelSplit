@@ -7,6 +7,7 @@ import { useAuthState } from "../src/stores/AuthStore";
 import { ExpenseForm } from "../components/ExpenseForm";
 import { Expense } from "../src/types";
 import ExpenseDetail from "@/components/ExpenseDetail";
+import logger from "@/src/utils/logger";
 
 const MainPage: React.FC = () => {
     const { expenses, refreshExpenses, apiState } = useExpenses();
@@ -40,7 +41,7 @@ const MainPage: React.FC = () => {
 
     const openExpenseForm = (expense?: Expense) => {
         if (expense) {
-            console.log("Editing expense:", expense);
+            logger.log("Editing expense:", expense);
             setExpense(expense);
         } else {
             setExpense(null);

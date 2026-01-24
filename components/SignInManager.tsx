@@ -2,12 +2,13 @@
 
 import React from "react";
 import { FcGoogle } from "react-icons/fc";
+import logger from "@/src/utils/logger";
 
 export function SignInManager() {
     const handleLogin = () => {
         const url = process.env.NEXT_PUBLIC_AUTH_PROXY;
         if (!url) {
-            console.error("Missing NEXT_PUBLIC_AUTH_PROXY");
+            logger.error("Missing NEXT_PUBLIC_AUTH_PROXY");
             return;
         }
         const currentUrl = window.location.origin + window.location.pathname;
