@@ -124,9 +124,17 @@ export const ExpenseForm: React.FC<Props> = ({
         setSplitSum(total);
     }, [specificSplits]);
 
+    const effectiveExchangeRate = useMemo(() => {
+        if (exchangeRate !== null && exchangeRate !== undefined) {
+            return Number(exchangeRate);
+        }
+
+        return currencies[currency]; // 你原本跟 currency 綁定的那個
+    }, [exchangeRate, currencies, currency]);
+
     const getCleanedSplits = (): Record<string, number> | null => {
         const numAmount = Number(amount);
-        const totalAmountInBase = numAmount * exchangeRate;
+        const totalAmountInBase = numAmount * effectiveExchangeRate;
         let splits: Record<string, number> = {};
 
         if (payType === "myself") {
@@ -173,7 +181,7 @@ export const ExpenseForm: React.FC<Props> = ({
                 }
 
                 for (const user in specificSplits) {
-                    const valueInBase = Number(specificSplits[user]) * exchangeRate;
+                    const valueInBase = Number(specificSplits[user]) * effectiveExchangeRate;
                     if (!isNaN(valueInBase) && valueInBase > 0) {
                         splits[user] = valueInBase;
                     }
