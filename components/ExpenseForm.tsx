@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect } from "react";
 import classNames from "classnames";
 import { isEmpty } from "lodash";
 import { AddExpenseRequest } from "../src/types";
@@ -124,17 +124,9 @@ export const ExpenseForm: React.FC<Props> = ({
         setSplitSum(total);
     }, [specificSplits]);
 
-    const effectiveExchangeRate = useMemo(() => {
-        if (exchangeRate !== null && exchangeRate !== undefined) {
-            return Number(exchangeRate);
-        }
-
-        return currencies[currency]; // 你原本跟 currency 綁定的那個
-    }, [exchangeRate, currencies, currency]);
-
     const getCleanedSplits = (): Record<string, number> | null => {
         const numAmount = Number(amount);
-        const totalAmountInBase = numAmount * effectiveExchangeRate;
+        const totalAmountInBase = numAmount * exchangeRate;
         let splits: Record<string, number> = {};
 
         if (payType === "myself") {
@@ -143,7 +135,7 @@ export const ExpenseForm: React.FC<Props> = ({
             if (splitMode === "equally") {
                 const participants = selectedUsers;
                 if (participants.length === 0) {
-                    setSplitError(
+                    throw new Error(
                         "Please select at least one participant for equal split."
                     );
                     return null;
@@ -170,7 +162,7 @@ export const ExpenseForm: React.FC<Props> = ({
                 );
 
                 if (Math.abs(sumOfSplits - numAmount) > 0.01) {
-                    setSplitError(
+                    throw new Error(
                         `Sum of splits (${sumOfSplits.toFixed(
                             2
                         )}) must equal total amount (${numAmount.toFixed(
@@ -181,7 +173,7 @@ export const ExpenseForm: React.FC<Props> = ({
                 }
 
                 for (const user in specificSplits) {
-                    const valueInBase = Number(specificSplits[user]) * effectiveExchangeRate;
+                    const valueInBase = Number(specificSplits[user]) * exchangeRate;
                     if (!isNaN(valueInBase) && valueInBase > 0) {
                         splits[user] = valueInBase;
                     }
@@ -191,7 +183,7 @@ export const ExpenseForm: React.FC<Props> = ({
 
         if (Object.keys(splits).length === 0 && numAmount > 0) {
             if (payType === "others") {
-                setSplitError("Please configure how to split the expense.");
+                throw new Error("Please configure how to split the expense.");
                 return null;
             }
         }
@@ -234,7 +226,15 @@ export const ExpenseForm: React.FC<Props> = ({
             return;
         }
 
-        const cleanedSplits = getCleanedSplits();
+        try {
+            const cleanedSplits = getCleanedSplits();
+        } catch (err) {
+            if (err instanceof Error) {
+                setSplitError(err.message);
+            } else {
+                setSplitError("Something went wrong.");
+            }
+        }
 
         if (cleanedSplits === null) {
             return;
