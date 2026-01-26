@@ -124,6 +124,73 @@ export const ExpenseForm: React.FC<Props> = ({
         setSplitSum(total);
     }, [specificSplits]);
 
+    const getCleanedSplits = (): Record<string, number> | null => {
+        const numAmount = Number(amount);
+        const totalAmountInBase = numAmount * exchangeRate;
+        let splits: Record<string, number> = {};
+
+        if (payType === "myself") {
+            splits = { [currentUser.email]: totalAmountInBase };
+        } else if (payType === "others") {
+            if (splitMode === "equally") {
+                const participants = selectedUsers;
+                if (participants.length === 0) {
+                    setSplitError(
+                        "Please select at least one participant for equal split."
+                    );
+                    return null;
+                }
+                const totalInCents = Math.round(totalAmountInBase * 100);
+                const splitInCents = Math.floor(
+                    totalInCents / participants.length
+                );
+                const remainderCents =
+                    totalInCents - splitInCents * participants.length;
+
+                participants.forEach((p, index) => {
+                    splits[p] =
+                        (splitInCents + (index < remainderCents ? 1 : 0)) /
+                        100;
+                });
+            } else if (splitMode === "specific") {
+                const specifiedValues = Object.values(specificSplits).map(
+                    (v) => Number(v) || 0
+                );
+                const sumOfSplits = specifiedValues.reduce(
+                    (a, b) => a + b,
+                    0
+                );
+
+                if (Math.abs(sumOfSplits - numAmount) > 0.01) {
+                    setSplitError(
+                        `Sum of splits (${sumOfSplits.toFixed(
+                            2
+                        )}) must equal total amount (${numAmount.toFixed(
+                            2
+                        )}).`
+                    );
+                    return null;
+                }
+
+                for (const user in specificSplits) {
+                    const valueInBase = Number(specificSplits[user]) * exchangeRate;
+                    if (!isNaN(valueInBase) && valueInBase > 0) {
+                        splits[user] = valueInBase;
+                    }
+                }
+            }
+        }
+
+        if (Object.keys(splits).length === 0 && numAmount > 0) {
+            if (payType === "others") {
+                setSplitError("Please configure how to split the expense.");
+                return null;
+            }
+        }
+
+        return splits;
+    };
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
@@ -158,73 +225,6 @@ export const ExpenseForm: React.FC<Props> = ({
         if (!isValid) {
             return;
         }
-
-        const getCleanedSplits = (): Record<string, number> | null => {
-            const numAmount = Number(amount);
-            const totalAmountInBase = numAmount * exchangeRate;
-            let splits: Record<string, number> = {};
-
-            if (payType === "myself") {
-                splits = { [currentUser.email]: totalAmountInBase };
-            } else if (payType === "others") {
-                if (splitMode === "equally") {
-                    const participants = selectedUsers;
-                    if (participants.length === 0) {
-                        setSplitError(
-                            "Please select at least one participant for equal split."
-                        );
-                        return null;
-                    }
-                    const totalInCents = Math.round(totalAmountInBase * 100);
-                    const splitInCents = Math.floor(
-                        totalInCents / participants.length
-                    );
-                    const remainderCents =
-                        totalInCents - splitInCents * participants.length;
-
-                    participants.forEach((p, index) => {
-                        splits[p] =
-                            (splitInCents + (index < remainderCents ? 1 : 0)) /
-                            100;
-                    });
-                } else if (splitMode === "specific") {
-                    const specifiedValues = Object.values(specificSplits).map(
-                        (v) => Number(v) || 0
-                    );
-                    const sumOfSplits = specifiedValues.reduce(
-                        (a, b) => a + b,
-                        0
-                    );
-
-                    if (Math.abs(sumOfSplits - numAmount) > 0.01) {
-                        setSplitError(
-                            `Sum of splits (${sumOfSplits.toFixed(
-                                2
-                            )}) must equal total amount (${numAmount.toFixed(
-                                2
-                            )}).`
-                        );
-                        return null;
-                    }
-
-                    for (const user in specificSplits) {
-                        const valueInBase = Number(specificSplits[user]) * exchangeRate;
-                        if (!isNaN(valueInBase) && valueInBase > 0) {
-                            splits[user] = valueInBase;
-                        }
-                    }
-                }
-            }
-
-            if (Object.keys(splits).length === 0 && numAmount > 0) {
-                if (payType === "others") {
-                    setSplitError("Please configure how to split the expense.");
-                    return null;
-                }
-            }
-
-            return splits;
-        };
 
         const cleanedSplits = getCleanedSplits();
 
