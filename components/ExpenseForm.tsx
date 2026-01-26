@@ -226,7 +226,7 @@ export const ExpenseForm: React.FC<Props> = ({
             return;
         }
 
-        let cleanedSplits = null;
+        let cleanedSplits = {};
         try {
             cleanedSplits = getCleanedSplits();
         } catch (err) {
@@ -237,7 +237,7 @@ export const ExpenseForm: React.FC<Props> = ({
             }
         }
 
-        if (cleanedSplits === null) {
+        if (isEmpty(cleanedSplits)) {
             return;
         }
 
