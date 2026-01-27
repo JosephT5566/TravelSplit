@@ -226,16 +226,8 @@ export const ExpenseForm: React.FC<Props> = ({
             return;
         }
 
-        let cleanedSplits = {};
-        try {
-            cleanedSplits = getCleanedSplits();
-        } catch (err) {
-            if (err instanceof Error) {
-                setSplitError(err.message);
-            } else {
-                setSplitError("Something went wrong.");
-            }
-        }
+        // todo: we need to handle the throw error
+        const cleanedSplits = getCleanedSplits();
 
         if (isEmpty(cleanedSplits)) {
             return;
