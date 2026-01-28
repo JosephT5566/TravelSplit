@@ -25,7 +25,6 @@ interface Props {
     selectedDate: Date;
 }
 
-// 放在檔案最上方（組件定義之外）
 const calculateCleanedSplits = ({
     amount,
     exchangeRate,
@@ -44,7 +43,7 @@ const calculateCleanedSplits = ({
     specificSplits: Record<string, string>;
 }) => {
     const numAmount = Number(amount);
-    const totalAmountInBase = Math.round(numAmount * exchangeRate * 100) / 100;
+    const totalAmountInBase = numAmount * exchangeRate;
     let splits: Record<string, number> = {};
 
     if (payType === "myself") {
