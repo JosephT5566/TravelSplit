@@ -41,31 +41,36 @@ const calculateCleanedSplits = ({
     selectedUsers: string[];
     splitMode: string;
     specificSplits: Record<string, string>;
-}) => {
+}): Record<string, number> => {
     const numAmount = Number(amount);
     const totalAmountInBase = numAmount * exchangeRate;
     let splits: Record<string, number> = {};
 
     if (payType === "myself") {
+        // If paying for myself, the total amount goes to the current user
         splits = { [currentUserEmail]: totalAmountInBase };
     } else if (payType === "others") {
         if (splitMode === "equally") {
-            if (selectedUsers.length === 0) {
+            const participants = selectedUsers;
+            if (participants.length === 0) {
                 throw new Error("Please select at least one participant for equal split.");
             }
             const totalInCents = Math.round(totalAmountInBase * 100);
-            const splitInCents = Math.floor(totalInCents / selectedUsers.length);
-            const remainderCents = totalInCents - splitInCents * selectedUsers.length;
+            const splitInCents = Math.floor(totalInCents / participants.length);
+            const remainderCents = totalInCents - splitInCents * participants.length;
 
-            selectedUsers.forEach((p, index) => {
-                splits[p] = (splitInCents + (index < remainderCents ? 1 : 0)) / 100;
+            participants.forEach((participant, index) => {
+                splits[participant] =
+                    (splitInCents + (index < remainderCents ? 1 : 0)) / 100;
             });
         } else if (splitMode === "specific") {
             const specifiedValues = Object.values(specificSplits).map(v => Number(v) || 0);
             const sumOfSplits = specifiedValues.reduce((a, b) => a + b, 0);
 
             if (Math.abs(sumOfSplits - numAmount) > 0.01) {
-                throw new Error(`Sum of splits (${sumOfSplits.toFixed(2)}) must equal total amount (${numAmount.toFixed(2)}).`);
+                throw new Error(
+                    `Sum of splits (${sumOfSplits.toFixed(2)}) must equal total amount (${numAmount.toFixed(2)}).`
+                );
             }
 
             for (const user in specificSplits) {
