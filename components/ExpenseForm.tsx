@@ -189,73 +189,99 @@ export const ExpenseForm: React.FC<Props> = ({
         setSplitSum(total);
     }, [specificSplits]);
 
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-
-        // Reset errors
-        setAmountError(null);
-        setItemNameError(null);
-        setCategoryError(null);
-        setSplitError(null);
-
-        let isValid = true;
-
-        if (isEmpty(amount) || Number(amount) <= 0) {
-            logger.log("Invalid amount:", amount);
-            setAmountError("Amount must be a positive number.");
-            isValid = false;
-        }
-
-        if (isEmpty(itemName.trim())) {
-            setItemNameError("Item description cannot be empty.");
-            isValid = false;
-        }
-
-        if (isEmpty(category)) {
-            setCategoryError("Please select a category.");
-            isValid = false;
-        }
-
-        if (splitSum > 0 && splitSum > Number(amount)) {
-            isValid = false; // Prevent submission if split error exists
-        }
-
-        if (!isValid) {
-            return;
-        }
-
-        // todo: we need to handle the throw error
-        const cleanedSplits = calculateCleanedSplits({
+    // 將 handleSubmit 改用 useCallback 包裹
+    const handleSubmit = useCallback(
+        async (e: React.FormEvent) => {
+            e.preventDefault();
+    
+            // Reset errors
+            setAmountError(null);
+            setItemNameError(null);
+            setCategoryError(null);
+            setSplitError(null);
+    
+            let isValid = true;
+    
+            if (isEmpty(amount) || Number(amount) <= 0) {
+                logger.log("Invalid amount:", amount);
+                setAmountError("Amount must be a positive number.");
+                isValid = false;
+            }
+    
+            if (isEmpty(itemName.trim())) {
+                setItemNameError("Item description cannot be empty.");
+                isValid = false;
+            }
+    
+            if (isEmpty(category)) {
+                setCategoryError("Please select a category.");
+                isValid = false;
+            }
+    
+            if (splitSum > 0 && splitSum > Number(amount)) {
+                isValid = false; 
+            }
+    
+            if (!isValid) {
+                return;
+            }
+    
+            try {
+                const cleanedSplits = calculateCleanedSplits({
+                    amount,
+                    exchangeRate,
+                    payType,
+                    currentUserEmail: currentUser.email,
+                    selectedUsers,
+                    splitMode,
+                    specificSplits,
+                });
+    
+                if (isEmpty(cleanedSplits)) {
+                    return;
+                }
+    
+                const expenseData: AddExpenseRequest = {
+                    date,
+                    category,
+                    itemName,
+                    amount: Number(amount),
+                    currency,
+                    payer,
+                    exchangeRate,
+                    splitsJson: cleanedSplits,
+                };
+    
+                logger.log("Submitting expense data:", expenseData);
+    
+                // 呼叫非同步 mutation
+                await addExpenseMutation(expenseData);
+                onCancel();
+            } catch (error) {
+                // 建議增加錯誤處理邏輯
+                logger.error("Failed to add expense:", error);
+                setSplitError(error instanceof Error ? error.message : "發生未知錯誤");
+            }
+        },
+        [
             amount,
+            itemName,
+            category,
+            splitSum,
             exchangeRate,
             payType,
-            currentUserEmail: currentUser.email,
+            currentUser.email,
             selectedUsers,
             splitMode,
             specificSplits,
-        });
-        
-        if (isEmpty(cleanedSplits)) {
-            return;
-        }
-
-        const expenseData: AddExpenseRequest = {
-            // Explicitly type to AddExpenseRequest
             date,
-            category,
-            itemName,
-            amount: Number(amount),
             currency,
             payer,
-            exchangeRate,
-            splitsJson: cleanedSplits,
-        };
+            addExpenseMutation,
+            onCancel
+        ]
+    );
 
-        logger.log("Submitting expense data:", expenseData);
-
-        await addExpenseMutation(expenseData);
-        onCancel();
-    };
 
     return (
         <ExpenseContainer>
