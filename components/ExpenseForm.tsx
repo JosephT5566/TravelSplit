@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import classNames from "classnames";
 import { isEmpty } from "lodash";
 import { AddExpenseRequest } from "../src/types";
@@ -189,7 +189,7 @@ export const ExpenseForm: React.FC<Props> = ({
         setSplitSum(total);
     }, [specificSplits]);
 
-    const handleSubmit = async (e: React.FormEvent) => {
+    const handleSubmit = useCallback( async (e: React.FormEvent) => {
         e.preventDefault();
 
         // Reset errors
@@ -255,7 +255,23 @@ export const ExpenseForm: React.FC<Props> = ({
 
         await addExpenseMutation(expenseData);
         onCancel();
-    };
+    }, [
+        amount,
+        itemName,
+        category,
+        splitSum,
+        exchangeRate,
+        payType,
+        currentUser.email,
+        selectedUsers,
+        splitMode,
+        specificSplits,
+        date,
+        currency,
+        payer,
+        addExpenseMutation,
+        onCancel
+    ]);
 
     return (
         <ExpenseContainer>
