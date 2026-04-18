@@ -1,16 +1,15 @@
 import {
     AddExpenseRequest,
-    AppScriptResponse,
     Expense,
-    isSuccess,
     SheetConfig,
     User,
 } from "../src/types";
 import logger from "@/src/utils/logger";
+import { apiFetch } from "./fetcher";
 
-// Handle case where result might be the object directly (if proxy transformed it or it's a direct API)
-async function processApiResponse<T>(response: Response): Promise<T> {
+async function processGcfResponse<T>(response: Response): Promise<T> {
     if (!response.ok) {
+        // The fetcher will handle token expiry, but we leave this as a fallback.
         if (response.status === 401 || response.status === 403) {
             throw new Error("TOKEN_EXPIRED");
         }
@@ -19,21 +18,20 @@ async function processApiResponse<T>(response: Response): Promise<T> {
         throw err;
     }
 
-    const result: AppScriptResponse<T> & { errorCode?: string } =
-        await response.json();
+    const result = await response.json();
     logger.log("🚀 Fetched result:", result);
 
-    if (isSuccess(result)) {
-        return result.result;
+    if (result.success) {
+        return result.data as T;
     } else {
-        if (result.errorCode === "TOKEN_EXPIRED") {
+        if (result.error?.code === "TOKEN_EXPIRED" || result.error?.code === "TOKEN_INVALID") {
             throw new Error("TOKEN_EXPIRED");
         }
-        throw new Error(result.error || "Unknown error from server");
+        throw new Error(result.error?.message || "Unknown error from server");
     }
 }
 
-// Special handler for /me which might not be wrapped in AppScriptResponse if served directly by proxy logic
+// Special handler for /me which might not be wrapped in the GCF response format
 async function processUserResponse(response: Response): Promise<User> {
     if (!response.ok) {
         if (response.status === 401 || response.status === 403) {
@@ -41,86 +39,72 @@ async function processUserResponse(response: Response): Promise<User> {
         }
         throw new Error(`Failed to fetch user: ${response.statusText}`);
     }
-
-    const data = await response.json();
-
-    // Check if it matches AppScriptResponse structure
-    if (data && typeof data === "object" && "ok" in data && "result" in data) {
-        if (data.ok) {
-            return data.result as User;
-        } else {
-            throw new Error(data.error || "Failed to get user");
-        }
-    }
-
-    // Otherwise assume it is the User object directly (standard proxy response)
-    return data as User;
+    // Assumes the /me endpoint returns the User object directly
+    return response.json();
 }
 
-const getProxyUrl = () => {
-    const proxyUrl = process.env.NEXT_PUBLIC_AUTH_PROXY;
-    if (!proxyUrl) {
-        throw new Error("Missing NEXT_PUBLIC_AUTH_PROXY env variable.");
+const getGcfUrl = (path: string) => {
+    const gcfUrl = process.env.NEXT_PUBLIC_TRAVEL_SPLIT_GCF;
+    if (!gcfUrl) {
+        throw new Error("Missing NEXT_PUBLIC_TRAVEL_SPLIT_GCF env variable.");
     }
-    return `${proxyUrl}/auth/travel-split/api`;
+    const sheetId = process.env.NEXT_PUBLIC_SHEET_ID;
+    if (!sheetId) {
+        throw new Error("Missing NEXT_PUBLIC_SHEET_ID env variable.");
+    }
+    const url = new URL(`${gcfUrl}${path}`);
+    url.searchParams.append("sheetId", sheetId);
+    return url.toString();
 };
 
 export const api = {
     async getSheetConfig(): Promise<SheetConfig> {
-        const url = getProxyUrl();
-        const response = await fetch(url, {
-            method: "POST",
+        const url = getGcfUrl("/setting");
+        const response = await apiFetch(url, {
+            method: "GET",
             credentials: "include",
-            body: JSON.stringify({
-                action: "getConfig",
-            }),
         });
-        return processApiResponse<SheetConfig>(response);
+        logger.log("🚀 getSheetConfig response:", response);
+        return processGcfResponse<SheetConfig>(response);
     },
 
     async addExpense(expense: AddExpenseRequest): Promise<string> {
         logger.log("🚀 addExpense called with: ", expense);
-        const url = getProxyUrl();
+        const url = getGcfUrl("/add");
 
-        const response = await fetch(url, {
+        const response = await apiFetch(url, {
             method: "POST",
             credentials: "include",
-            body: JSON.stringify({
-                action: "addExpense",
-                payload: expense,
-            }),
+            body: JSON.stringify(expense),
+            headers: {
+                "Content-Type": "application/json",
+            },
         });
-        return processApiResponse<string>(response);
+        return processGcfResponse<string>(response);
     },
 
     async getExpenses(userEmail: string): Promise<Expense[]> {
         logger.log("🚀 getExpenses called for: ", userEmail);
-        const url = getProxyUrl();
+        const url = new URL(getGcfUrl("/data"));
+        url.searchParams.append("email", userEmail);
 
-        const response = await fetch(url, {
-            method: "POST",
+        const response = await apiFetch(url.toString(), {
+            method: "GET",
             credentials: "include",
-            body: JSON.stringify({
-                action: "getExpenses",
-                payload: { userEmail },
-            }),
         });
-        return processApiResponse<Expense[]>(response);
+        return processGcfResponse<Expense[]>(response);
     },
 
-    async deleteExpenses(timestamp: string): Promise<number[] | string> {
+    async deleteExpenses(timestamp: string): Promise<string> {
         logger.log("🚀 deleteExpenses called for: ", timestamp);
-        const url = getProxyUrl();
+        const url = new URL(getGcfUrl("/delete"));
+        url.searchParams.append("timestamp", timestamp);
 
-        const response = await fetch(url, {
-            method: "POST",
+        const response = await apiFetch(url.toString(), {
+            method: "DELETE",
             credentials: "include",
-            body: JSON.stringify({
-                action: "deleteExpense",
-                payload: { timestamp },
-            }),
         });
-        return processApiResponse<number[] | string>(response);
+        return processGcfResponse<string>(response);
     },
 
     async getCurrentUser(): Promise<User> {
@@ -132,6 +116,7 @@ export const api = {
             method: "GET",
             credentials: "include",
         });
+        logger.log("🚀 Fetched /me response:", response);
 
         return processUserResponse(response);
     },
