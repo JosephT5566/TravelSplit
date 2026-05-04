@@ -10,6 +10,30 @@ export type Expense = {
     exchangeRate: number;
 };
 
+// RawExpense represents the data structure directly from the Google Cloud Function's sheet.
+// It uses Chinese keys and may contain additional fields not directly mapped to 'Expense'.
+export interface RawExpense {
+    "時間戳記": string;
+    "日期": string;
+    "星期": string;
+    "類別": string;
+    "品項": string;
+    "金額": string;
+    "貨幣": string;
+    "匯率": string;
+    "付款人": string;
+    "個人小記": string;
+    "已結算": string;
+    [key: string]: string | number | null; // For dynamic user columns and other potential fields
+}
+
+export type AddExpenseResponse = {
+    timestamp: string; // The timestamp of the operation
+    operatorName: string;
+    newRecord: RawExpense; // The raw expense object that was added
+    isOperatorInvolved: boolean;
+};
+
 export type ExpensesResponse = AppScriptResponse<Expense[]>;
 
 export type AddExpenseRequest = Omit<Expense, "timestamp">;

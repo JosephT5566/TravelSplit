@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Expense, SheetConfig, AddExpenseRequest } from "../src/types";
-import { api } from "./api";
+import { Expense, SheetConfig, AddExpenseRequest, AddExpenseResponse } from "../src/types";
+import { api, mapRawExpenseToExpense } from "./api";
 import { useAuthState } from "../src/stores/AuthStore";
 import { EXPENSES_KEY, SHEET_CONFIG_KEY } from "./cacheKeys";
 import logger from "@/src/utils/logger";
@@ -19,16 +19,17 @@ export const useGetSheetConfig = () => {
 // Expenses hooks
 export const useExpensesQuery = () => {
     const { user, isSignedIn } = useAuthState();
+    const { data: sheetConfig } = useGetSheetConfig();
 
     return useQuery<Expense[], Error>({
-        queryKey: [EXPENSES_KEY, user?.email],
+        queryKey: [EXPENSES_KEY, user?.email, sheetConfig?.users],
         queryFn: () => {
-            if (!user?.email) {
+            if (!user?.email || !sheetConfig?.users) {
                 return Promise.resolve([]);
             }
-            return api.getExpenses(user.email);
+            return api.getExpenses(user.email, sheetConfig.users);
         },
-        enabled: isSignedIn && !!user?.email,
+        enabled: isSignedIn && !!user?.email && !!sheetConfig?.users,
         retry: 3,
     });
 };
@@ -36,13 +37,32 @@ export const useExpensesQuery = () => {
 export const useAddExpense = () => {
     const queryClient = useQueryClient();
     const { user } = useAuthState();
+    const { data: sheetConfig } = useGetSheetConfig();
 
-    return useMutation<string, Error, AddExpenseRequest>({
+    return useMutation<AddExpenseResponse, Error, AddExpenseRequest>({
         mutationFn: (newExpense) => api.addExpense(newExpense),
-        onSuccess: () => {
-            queryClient.invalidateQueries({
-                queryKey: [EXPENSES_KEY, user?.email],
-            });
+        onSuccess: (data) => {
+            if (!sheetConfig?.users) {
+                queryClient.invalidateQueries({
+                    queryKey: [EXPENSES_KEY, user?.email],
+                });
+                return;
+            }
+            const addedExpense = mapRawExpenseToExpense(
+                data.newRecord,
+                user?.email || "",
+                sheetConfig.users
+            );
+
+            queryClient.setQueryData<Expense[]>(
+                [EXPENSES_KEY, user?.email],
+                (old) => {
+                    if (!Array.isArray(old)) {
+                        return [addedExpense];
+                    }
+                    return [...old, addedExpense];
+                }
+            );
         },
     });
 };

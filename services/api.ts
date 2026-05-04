@@ -3,6 +3,8 @@ import {
     Expense,
     SheetConfig,
     User,
+    RawExpense,
+    AddExpenseResponse,
 } from "../src/types";
 import logger from "@/src/utils/logger";
 import { apiFetch } from "./fetcher";
@@ -24,9 +26,6 @@ async function processGcfResponse<T>(response: Response): Promise<T> {
     if (result.success) {
         return result.data as T;
     } else {
-        if (result.error?.code === "TOKEN_EXPIRED" || result.error?.code === "TOKEN_INVALID") {
-            throw new Error("TOKEN_EXPIRED");
-        }
         throw new Error(result.error?.message || "Unknown error from server");
     }
 }
@@ -57,23 +56,12 @@ const getGcfUrl = (path: string) => {
     return url.toString();
 };
 
-interface RawExpense {
-    "時間戳記": string;
-    "日期": string;
-    "星期": string;
-    "類別": string;
-    "品項": string;
-    "金額": string;
-    "貨幣": string;
-    "匯率": string;
-    "付款人": string;
-    "個人小記": string;
-    "已結算": string;
-    [key: string]: string | number | null;
-}
-
-// Maps raw expense data to the Expense type
-function mapRawExpenseToExpense(raw: RawExpense): Expense {
+// Maps raw expense data to the Expense type - EXPORTED for use in dataFetcher.ts
+export function mapRawExpenseToExpense(
+    raw: RawExpense,
+    currentUserEmail: string,
+    users: Record<string, string>,
+): Expense {
     const splitsJson: Record<string, number> = {};
     const knownColumns = [
         "時間戳記",
@@ -88,6 +76,11 @@ function mapRawExpenseToExpense(raw: RawExpense): Expense {
         "個人小記",
         "已結算",
     ];
+    const swappedUsers = Object.fromEntries(
+        Object.entries(users).map(([key, value]) => [value, key]),
+    );
+
+    splitsJson[currentUserEmail] = parseFloat(raw["個人小記"]) || 0;
 
     for (const key in raw) {
         if (
@@ -96,8 +89,13 @@ function mapRawExpenseToExpense(raw: RawExpense): Expense {
             raw[key] !== ""
         ) {
             const amount = parseFloat(raw[key] as string);
+
             if (!isNaN(amount)) {
-                splitsJson[key] = amount;
+                // The key is a nickname, find the corresponding email
+                const email = swappedUsers[key];
+                if (email) {
+                    splitsJson[email] = amount;
+                }
             }
         }
     }
@@ -126,22 +124,25 @@ export const api = {
         return processGcfResponse<SheetConfig>(response);
     },
 
-    async addExpense(expense: AddExpenseRequest): Promise<string> {
+    async addExpense(expense: AddExpenseRequest): Promise<AddExpenseResponse> {
         logger.log("🚀 addExpense called with: ", expense);
         const url = getGcfUrl("/add");
 
         const response = await apiFetch(url, {
             method: "POST",
             credentials: "include",
-            body: JSON.stringify(expense),
+            body: JSON.stringify({ payload: expense }),
             headers: {
                 "Content-Type": "application/json",
             },
         });
-        return processGcfResponse<string>(response);
+        return processGcfResponse<AddExpenseResponse>(response);
     },
 
-    async getExpenses(userEmail: string): Promise<Expense[]> {
+    async getExpenses(
+        userEmail: string,
+        users: Record<string, string>,
+    ): Promise<Expense[]> {
         logger.log("🚀 getExpenses called for: ", userEmail);
         const url = new URL(getGcfUrl("/data"));
         url.searchParams.append("email", userEmail);
@@ -153,7 +154,7 @@ export const api = {
 
         // The API now returns a raw format that needs conversion.
         const rawExpenses = await processGcfResponse<RawExpense[]>(response);
-        return rawExpenses.map(mapRawExpenseToExpense);
+        return rawExpenses.map((raw) => mapRawExpenseToExpense(raw, userEmail, users));
     },
 
     async deleteExpenses(timestamp: string): Promise<string> {
