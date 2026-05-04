@@ -7,13 +7,14 @@ We used to utilize Google Sheets for travel accounting, including expense splitt
 ## Google Sheet Setup
 
 1. Create a new Google Sheet.
-2. Create and link a Google App Scripts (GAS) project to serve as the backend.
+2. **Share with Service Account**: Share the sheet with the Google Cloud Function's service account email with "Editor" permissions.
 3. **Config Tab**: The 1st tab in the sheet is used for configuration. It requires the following rows (headers in column A, values in column B/C...):
     1. `users`: Comma-separated list of user identifiers/names.
     2. `categories`: Comma-separated list of expense categories.
     3. `currencies`: Supported currencies.
     4. `startDate`: Trip start date (YYYY-MM-DD).
     5. `endDate`: Trip end date (YYYY-MM-DD).
+    6. `allowedUsers`: Comma-separated list of Google account emails allowed to access the application.
 4. **User Tabs**: Create tabs starting from the 2nd position that match the `users` defined in the config.
 5. **Columns**: Set the columns for each user tab as follows:
     1. `timestamp`
@@ -34,39 +35,39 @@ We used to utilize Google Sheets for travel accounting, including expense splitt
 ### GitHub (Variables)
 To deploy this frontend to GitHub Pages, you need to configure the following environment variables in your repository settings (Settings > Secrets and variables > Actions > Variables):
 
-1. **`NEXT_PUBLIC_AUTH_PROXY`**: The URL of your deployed authentication proxy service (e.g., `https://auth.yourdomain.com`).
-   - This URL is used by the frontend to redirect users for login/logout and to proxy API requests.
-
-### Cloudflare (Worker/KV)
-The Auth Proxy (running on Cloudflare Workers) requires its own configuration, typically stored in **Cloudflare KV** or **Worker Variables**:
-(Please check the Cloudflare Workers KV page)
-
-1. **`key: config:<app-id>`**: A JSON configuration object containing:
-    - `allowed_origins`: A list of domains allowed to use the proxy (e.g., `["https://tripsplit.yourdomain.com", "http://localhost:3000"]`).
-    - `gas_url`: The Web App URL of your deployed Google Apps Script (backend).
-    - `allowed_emails`: A whitelist of email addresses allowed to sign in and access the app.
+1. **`NEXT_PUBLIC_AUTH_PROXY`**: The URL of your deployed authentication worker (e.g., `https://auth.yourdomain.com`). This service handles the OAuth token exchange.
+2. **`NEXT_PUBLIC_TRAVEL_SPLIT_GCF`**: The URL of your Google Cloud Function (e.g., `travel-split-gcf.yourdomain.com`).
+3. **`NEXT_PUBLIC_SHEET_ID`**: The ID of the Google Sheet used as the database.
 
 # App Structure
 
 ## Auth
 
-Authentication is handled via a centralized **Auth Proxy**. This application does not manage OAuth tokens directly (Client-Side). instead, it relies on secure HttpOnly cookies set by the proxy.
+Authentication is handled by a **Cloudflare Worker** acting as a "Token Issuer" and a **Google Cloud Function** acting as the "Resource Server." This architecture avoids exposing sensitive credentials to the frontend.
 
 - **Flow**:
     1.  User clicks "Sign in".
-    2.  App redirects to the Proxy's login endpoint.
-    3.  Proxy handles Google OAuth2 consent.
-    4.  Proxy sets a session cookie (`session_id`) and a flag cookie (`is_logged_in`).
-    5.  Proxy redirects back to this app.
-    6.  The app detects the `is_logged_in` cookie and fetches user profile via the proxy.
+    2.  The app initiates the Google OAuth2 flow.
+    3.  After user consent, Google redirects back to the frontend with an authorization `code`.
+    4.  The frontend sends this `code` to the Cloudflare Worker's `/auth/exchange` endpoint.
+    5.  The Worker securely exchanges the `code` for an `id_token` using its `CLIENT_SECRET`.
+    6.  The Worker returns the `id_token` to the frontend and sets it in a secure, `HttpOnly` cookie.
+    7.  For all subsequent API calls, the frontend sends the `id_token` (as a Bearer token or via the cookie) directly to the GCF.
+    8.  The GCF verifies the `id_token` and authorizes the user.
 
 ## Auth Routes
-The application interacts with the **Auth Proxy** through the following standard routes:
+The application interacts with two main services:
 
+### Cloudflare Worker (Token Issuer)
 -   `GET /auth/travel-split/login?redirect_to=...`: Initiates the Google OAuth2 login flow.
+-   `POST /auth/travel-split/exchange`: Exchanges an OAuth `code` for an `id_token`.
 -   `GET /auth/travel-split/logout?redirect_to=...`: Clears session cookies and logs the user out.
--   `GET /auth/travel-split/me`: Returns the current authenticated user's profile (email, name, picture).
--   `POST /auth/travel-split/api`: Proxies requests to the Google Apps Script backend, attaching the necessary credentials server-side.
+
+### Google Cloud Function (Resource Server)
+-   `GET /setting`: Fetches the sheet configuration.
+-   `GET /data`: Fetches expenses for the user.
+-   `POST /add`: Adds a new expense.
+-   `DELETE /delete`: Deletes an expense.
 
 ## Tech Note
 
@@ -79,9 +80,9 @@ The application interacts with the **Auth Proxy** through the following standard
 
 ### Deployment
 -   **Frontend**: Deployed to **GitHub Pages** as a static export.
--   **Domain & CDN**: Custom domain managed via **Cloudflare CDN** for edge caching and optimized delivery.
--   **Backend**: Google Apps Script (GAS) acting as a database and business logic layer for Google Sheets.
--   **Auth & Proxy**: A separate Cloudflare Worker (or similar edge function) that handles OAuth2, session management via HttpOnly cookies, and CORS policies. This architecture keeps sensitive tokens out of the browser.
+-   **Domain & CDN**: Custom domain managed via **Cloudflare CDN**.
+-   **Backend**: **Google Cloud Function (GCF)** providing a REST API over the Google Sheet.
+-   **Auth**: A **Cloudflare Worker** that handles the OAuth2 token exchange, keeping the client secret and other sensitive tokens out of the browser.
 
 # Run Locally
 
@@ -97,9 +98,11 @@ The application interacts with the **Auth Proxy** through the following standard
    Create a `.env.local` file in the root directory:
 
     ```env
-    NEXT_PUBLIC_AUTH_PROXY=https://your-auth-proxy-url.com
+    NEXT_PUBLIC_AUTH_PROXY=https://your-auth-worker-url.com
+    NEXT_PUBLIC_TRAVEL_SPLIT_GCF=your-gcf-url.cloudfunctions.net
+    NEXT_PUBLIC_SHEET_ID=your_google_sheet_id
     ```
-    Or we can run a proxy locally, please check https://github.com/JosephT5566/my-oauth
+    Or for the auth proxy, you can run one locally. Please check https://github.com/JosephT5566/my-oauth
 
 3. **Run the app:**
     ```bash

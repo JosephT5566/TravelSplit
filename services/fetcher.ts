@@ -49,13 +49,12 @@ export async function apiFetch(url: string, options: RequestInit = {}) {
 
         // Check for TOKEN_EXPIRED error in the response body if the call was not ok but was a 401
         if (!response.ok && response.status === 401) {
-            const errorBody = await response.json().catch(() => null);
-            if (
-                errorBody?.error?.code === "TOKEN_INVALID" ||
-                errorBody?.error?.code === "TOKEN_EXPIRED"
-            ) {
-                throw new Error("TOKEN_EXPIRED");
-            }
+            const errorBody = await response
+                .clone()
+                .json()
+                .catch(() => null);
+
+            throw new Error(errorBody?.error?.code);
         }
 
         // Also need to handle cases where our api wrapper throws this
@@ -75,7 +74,8 @@ export async function apiFetch(url: string, options: RequestInit = {}) {
 
         return response;
     } catch (error: any) {
-        if (error.message !== "TOKEN_EXPIRED") {
+        logger.log("apiFetch error:", error.message);
+        if (error.message !== "UNAUTHORIZED") {
             throw error;
         }
 

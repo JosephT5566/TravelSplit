@@ -57,6 +57,64 @@ const getGcfUrl = (path: string) => {
     return url.toString();
 };
 
+interface RawExpense {
+    "時間戳記": string;
+    "日期": string;
+    "星期": string;
+    "類別": string;
+    "品項": string;
+    "金額": string;
+    "貨幣": string;
+    "匯率": string;
+    "付款人": string;
+    "個人小記": string;
+    "已結算": string;
+    [key: string]: string | number | null;
+}
+
+// Maps raw expense data to the Expense type
+function mapRawExpenseToExpense(raw: RawExpense): Expense {
+    const splitsJson: Record<string, number> = {};
+    const knownColumns = [
+        "時間戳記",
+        "日期",
+        "星期",
+        "類別",
+        "品項",
+        "金額",
+        "貨幣",
+        "匯率",
+        "付款人",
+        "個人小記",
+        "已結算",
+    ];
+
+    for (const key in raw) {
+        if (
+            !knownColumns.includes(key) &&
+            raw[key] !== null &&
+            raw[key] !== ""
+        ) {
+            const amount = parseFloat(raw[key] as string);
+            if (!isNaN(amount)) {
+                splitsJson[key] = amount;
+            }
+        }
+    }
+
+    return {
+        timestamp: raw["時間戳記"],
+        date: raw["日期"],
+        itemName: raw["品項"],
+        category: raw["類別"],
+        payer: raw["付款人"],
+        amount: parseFloat(raw["金額"]),
+        currency: raw["貨幣"],
+        exchangeRate: parseFloat(raw["匯率"]) || 1,
+        splitsJson,
+    };
+}
+
 export const api = {
     async getSheetConfig(): Promise<SheetConfig> {
         const url = getGcfUrl("/setting");
@@ -92,7 +150,10 @@ export const api = {
             method: "GET",
             credentials: "include",
         });
-        return processGcfResponse<Expense[]>(response);
+
+        // The API now returns a raw format that needs conversion.
+        const rawExpenses = await processGcfResponse<RawExpense[]>(response);
+        return rawExpenses.map(mapRawExpenseToExpense);
     },
 
     async deleteExpenses(timestamp: string): Promise<string> {
