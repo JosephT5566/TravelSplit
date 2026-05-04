@@ -55,6 +55,18 @@ Authentication is handled by a **Cloudflare Worker** acting as a "Token Issuer" 
     7.  For all subsequent API calls, the frontend sends the `id_token` (as a Bearer token or via the cookie) directly to the GCF.
     8.  The GCF verifies the `id_token` and authorizes the user.
 
+### Authentication Cookies
+
+To maintain a secure session, the authentication proxy (Cloudflare Worker) sets the user's `id_token` in a browser cookie with strict security attributes:
+
+-   **`HttpOnly`**: This is a critical security measure that prevents the cookie from being accessed by client-side JavaScript. By making the token inaccessible to the browser's document object, it provides strong protection against Cross-Site Scripting (XSS) attacks.
+
+-   **`Secure`**: This attribute ensures that the cookie is only transmitted over an encrypted HTTPS connection. During local development, this requires running the development server with HTTPS enabled (`--experimental-https`), as configured in the `dev` script.
+
+-   **`SameSite=Strict`**: This attribute provides a strong defense against Cross-Site Request Forgery (CSRF) attacks. It ensures that the cookie is only sent with requests originating from the same site that set it.
+
+-   **`Domain`**: For the cookie to be correctly shared between the frontend application and the authentication proxy during development, they must share a common parent domain. For example, if the app runs on `travel-split-dev.josephtseng-tw.com` and the proxy on `auth.josephtseng-tw.com`, the cookie's `Domain` attribute would be set to `.josephtseng-tw.com`. This is crucial for seamless authentication across the different local services.
+
 ## Auth Routes
 The application interacts with two main services:
 
@@ -99,12 +111,33 @@ The application interacts with two main services:
 
     ```env
     NEXT_PUBLIC_AUTH_PROXY=https://your-auth-worker-url.com
-    NEXT_PUBLIC_TRAVEL_SPLIT_GCF=your-gcf-url.cloudfunctions.net
+    NEXT_PUBLIC_TRAVEL_SPLIT_GCF=https://your-gcf-url.cloudfunctions.net
     NEXT_PUBLIC_SHEET_ID=your_google_sheet_id
     ```
-    Or for the auth proxy, you can run one locally. Please check https://github.com/JosephT5566/my-oauth
+    For local development, you will typically point `NEXT_PUBLIC_AUTH_PROXY` and `NEXT_PUBLIC_TRAVEL_SPLIT_GCF` to their respective local URLs.
 
 3. **Run the app:**
     ```bash
     npm run dev
     ```
+
+### Local Development Setup
+
+To run the entire TravelSplit stack locally for development, you will need to set up and run three main components:
+
+1.  **Frontend App (This Repository)**:
+    *   First, install dependencies: `npm install`
+    *   Then, run the development server: `npm run dev`
+    *   The frontend app will run on `https://travel-split-dev.josephtseng-tw.com:3000` as configured in `package.json`.
+
+2.  **Authentication Proxy (Cloudflare Worker)**:
+    *   This component handles the OAuth token exchange. You will need to clone and set up its repository.
+    *   Refer to the [my-oauth repository](https://github.com/JosephT5566/my-oauth) for detailed instructions on how to set up and run the Cloudflare Worker locally (e.g., using `wrangler dev`).
+    *   Once running locally, update your `.env.local` file in this project to point `NEXT_PUBLIC_AUTH_PROXY` to its local development URL (e.g., `http://localhost:8787`).
+
+3.  **Travel Split GCF (Google Cloud Function)**:
+    *   This is your backend API interacting with Google Sheets. You will need its source code to run it locally.
+    *   Instructions for setting up and running the Google Cloud Function locally are typically found in its dedicated repository. You might use tools like `functions-framework` to serve it.
+    *   Once running locally, update your `.env.local` file in this project to point `NEXT_PUBLIC_TRAVEL_SPLIT_GCF` to its local development URL (e.g., `http://localhost:8080`).
+
+Ensure all three components are running and correctly configured in your `.env.local` for a complete local development experience.
