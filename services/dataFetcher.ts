@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Expense, SheetConfig, AddExpenseRequest, AddExpenseResponse } from "../src/types";
+import { Expense, SheetConfig, AddExpenseRequest, AddExpenseResponse, DeleteExpenseResponse } from "../src/types";
 import { api, mapRawExpenseToExpense } from "./api";
 import { useAuthState } from "../src/stores/AuthStore";
 import { EXPENSES_KEY, SHEET_CONFIG_KEY } from "./cacheKeys";
@@ -22,7 +22,7 @@ export const useExpensesQuery = () => {
     const { data: sheetConfig } = useGetSheetConfig();
 
     return useQuery<Expense[], Error>({
-        queryKey: [EXPENSES_KEY, user?.email, sheetConfig?.users],
+        queryKey: [EXPENSES_KEY, user?.email],
         queryFn: () => {
             if (!user?.email || !sheetConfig?.users) {
                 return Promise.resolve([]);
@@ -71,29 +71,22 @@ export const useDeleteExpense = () => {
     const queryClient = useQueryClient();
     const { user } = useAuthState();
 
-    return useMutation<
-        { response: string | number[]; timestamp: string },
-        Error,
-        string
-    >({
+    return useMutation<DeleteExpenseResponse, Error, string>({
         mutationFn: async (timestamp) => {
-            const response = await api.deleteExpenses(timestamp);
-            return { response, timestamp };
+            return api.deleteExpenses(timestamp);
         },
-        onSuccess: (resp) => {
-            logger.log("Deleted expense with timestamp:", resp.timestamp);
-            if (typeof resp.response === "string") {
-                logger.warn("Delete expense warning:", resp.response);
-                return;
-            }
+        onSuccess: (response) => {
+            logger.log("Deleted expense response:", response);
+            const { deletedTimestamp } = response;
+            const queryKey = [EXPENSES_KEY, user?.email];
             queryClient.setQueryData<Expense[]>(
-                [EXPENSES_KEY, user?.email],
+                queryKey,
                 (old) => {
                     if (!Array.isArray(old)) {
                         return old;
                     }
                     return old.filter(
-                        (expense) => expense.timestamp !== resp.timestamp
+                        (expense) => expense.timestamp !== deletedTimestamp
                     );
                 }
             );

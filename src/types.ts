@@ -34,6 +34,12 @@ export type AddExpenseResponse = {
     isOperatorInvolved: boolean;
 };
 
+export type DeleteExpenseResponse = {
+    message: string;
+    deletedTimestamp: string;
+    deletedCount: number;
+};
+
 export type ExpensesResponse = AppScriptResponse<Expense[]>;
 
 export type AddExpenseRequest = Omit<Expense, "timestamp">;

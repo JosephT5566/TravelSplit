@@ -48,28 +48,13 @@ export async function apiFetch(url: string, options: RequestInit = {}) {
         const response = await fetch(url, options);
 
         // Check for TOKEN_EXPIRED error in the response body if the call was not ok but was a 401
-        if (!response.ok && response.status === 401) {
+        if (!response.ok) {
             const errorBody = await response
                 .clone()
                 .json()
                 .catch(() => null);
 
             throw new Error(errorBody?.error?.code);
-        }
-
-        // Also need to handle cases where our api wrapper throws this
-        if (
-            response.headers.get("Content-Type")?.includes("application/json")
-        ) {
-            const clonedResponse = response.clone();
-            const body = await clonedResponse.json();
-            if (
-                body.error &&
-                (body.error.code === "TOKEN_EXPIRED" ||
-                    body.error.code === "TOKEN_INVALID")
-            ) {
-                throw new Error("TOKEN_EXPIRED");
-            }
         }
 
         return response;

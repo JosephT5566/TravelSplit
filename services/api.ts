@@ -5,6 +5,7 @@ import {
     User,
     RawExpense,
     AddExpenseResponse,
+    DeleteExpenseResponse,
 } from "../src/types";
 import logger from "@/src/utils/logger";
 import { apiFetch } from "./fetcher";
@@ -157,16 +158,19 @@ export const api = {
         return rawExpenses.map((raw) => mapRawExpenseToExpense(raw, userEmail, users));
     },
 
-    async deleteExpenses(timestamp: string): Promise<string> {
+    async deleteExpenses(timestamp: string): Promise<DeleteExpenseResponse> {
         logger.log("🚀 deleteExpenses called for: ", timestamp);
         const url = new URL(getGcfUrl("/delete"));
-        url.searchParams.append("timestamp", timestamp);
 
         const response = await apiFetch(url.toString(), {
             method: "DELETE",
             credentials: "include",
+            body: JSON.stringify({ timestamp: timestamp }),
+            headers: {
+                "Content-Type": "application/json",
+            },
         });
-        return processGcfResponse<string>(response);
+        return processGcfResponse<DeleteExpenseResponse>(response);
     },
 
     async getCurrentUser(): Promise<User> {
