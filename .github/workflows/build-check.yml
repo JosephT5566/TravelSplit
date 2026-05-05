@@ -1,0 +1,40 @@
+name: Build Check
+
+on:
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        env:
+          NEXT_PUBLIC_AUTH_PROXY: ${{ vars.NEXT_PUBLIC_AUTH_PROXY || 'https://example.com' }}
+          NEXT_PUBLIC_EMAIL_WHITE_LIST: ${{ vars.NEXT_PUBLIC_EMAIL_WHITE_LIST || '' }}
+          NEXT_PUBLIC_TRAVEL_SPLIT_GCF: ${{ vars.NEXT_PUBLIC_TRAVEL_SPLIT_GCF || 'https://example.com' }}
+          NEXT_PUBLIC_SHEET_ID: ${{ vars.NEXT_PUBLIC_SHEET_ID || 'build-check-sheet-id' }}
+          BASE_PATH: ""
+        run: npm run build
