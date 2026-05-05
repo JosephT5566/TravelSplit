@@ -1,13 +1,23 @@
 "use client";
 
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState } from "react";
 import { ExpenseList } from "../components/ExpenseList";
 import { useExpenses } from "../src/stores/ExpensesStore";
 import { useAuthState } from "../src/stores/AuthStore";
 import { ExpenseForm } from "../components/ExpenseForm";
 import { Expense } from "../src/types";
 import ExpenseDetail from "@/components/ExpenseDetail";
-import logger from "@/src/utils/logger";
+import { useMediaQuery } from "@/src/hooks/useMediaQuery";
+import {
+    Drawer,
+    DrawerContent,
+    DrawerTitle
+} from "@/components/ui/drawer";
+import {
+    Dialog,
+    DialogContent,
+    DialogTitle
+} from "@/components/ui/dialog";
 
 const MainPage: React.FC = () => {
     const { expenses, refreshExpenses, apiState } = useExpenses();
@@ -15,48 +25,39 @@ const MainPage: React.FC = () => {
     const [expense, setExpense] = useState<Expense | null>(null);
     const [isDialogOpen, setIsDialogOpen] = useState<boolean>(false);
     const [currentDate, setCurrentDate] = useState(new Date());
-
-    const dialogRef = useRef<HTMLDialogElement>(null);
-
-    useEffect(() => {
-        const clickOutside = (e: MouseEvent) => {
-            if (e.target === dialogRef.current) {
-                e.stopPropagation();
-                dialogRef.current?.close();
-            }
-        };
-
-        const handleDialogClosed = () => {
-            setIsDialogOpen(false);
-        };
-
-        dialogRef.current?.addEventListener("click", clickOutside);
-        dialogRef.current?.addEventListener("close", handleDialogClosed);
-
-        return () => {
-            dialogRef.current?.removeEventListener("click", clickOutside);
-            dialogRef.current?.removeEventListener("close", handleDialogClosed);
-        };
-    }, []);
+    const isDesktop = useMediaQuery("(min-width: 768px)");
 
     const openExpenseForm = (expense?: Expense) => {
         if (expense) {
-            logger.log("Editing expense:", expense);
             setExpense(expense);
         } else {
             setExpense(null);
         }
         setIsDialogOpen(true);
-        dialogRef.current?.showModal();
     };
 
     const closeExpenseForm = () => {
-        dialogRef.current?.close();
+        setIsDialogOpen(false);
     };
 
     const handleDialogClose = () => {
         setExpense(null);
     };
+
+    const renderContent = () => {
+        return expense == null ? (
+            <ExpenseForm
+                onCancel={closeExpenseForm}
+                isDialogOpen={isDialogOpen}
+                selectedDate={currentDate}
+            />
+        ) : (
+            <ExpenseDetail
+                expense={expense}
+                onCancel={closeExpenseForm}
+            />
+        )
+    }
 
     return (
         <div className="animate-in fade-in slide-in-from-right-4 duration-300">
@@ -69,20 +70,37 @@ const MainPage: React.FC = () => {
             />
 
             {user && (
-                <dialog ref={dialogRef} onClose={handleDialogClose}>
-                    {expense == null ? (
-                        <ExpenseForm
-                            onCancel={closeExpenseForm}
-                            isDialogOpen={isDialogOpen}
-                            selectedDate={currentDate}
-                        />
-                    ) : (
-                        <ExpenseDetail
-                            expense={expense}
-                            onCancel={closeExpenseForm}
-                        />
-                    )}
-                </dialog>
+                isDesktop ? (
+                    <Dialog
+                        open={isDialogOpen}
+                        onOpenChange={(open) => {
+                            if (!open) {
+                                closeExpenseForm();
+                                handleDialogClose();
+                            }
+                        }}
+                    >
+                        <DialogContent>
+                            <DialogTitle>{expense ? "Edit Expense" : "Add Expense"}</DialogTitle>
+                            {renderContent()}
+                        </DialogContent>
+                    </Dialog>
+                ) : (
+                    <Drawer
+                        open={isDialogOpen}
+                        onOpenChange={(open) => {
+                            if (!open) {
+                                closeExpenseForm();
+                                handleDialogClose();
+                            }
+                        }}
+                    >
+                        <DrawerContent>
+                            <DrawerTitle>{expense ? "Edit Expense" : "Add Expense"}</DrawerTitle>
+                            {renderContent()}
+                        </DrawerContent>
+                    </Drawer>
+                )
             )}
         </div>
     );
