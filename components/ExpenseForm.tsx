@@ -48,7 +48,7 @@ const calculateCleanedSplits = ({
 
     if (payType === "myself") {
         // If paying for myself, the total amount goes to the current user
-        splits = { [currentUserEmail]: totalAmountInBase };
+        splits = { [currentUserEmail]: Number(totalAmountInBase.toFixed(3)) };
     } else if (payType === "others") {
         if (splitMode === "equally") {
             const participants = selectedUsers;
