@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Expense, SheetConfig, AddExpenseRequest, AddExpenseResponse, DeleteExpenseResponse } from "../src/types";
 import { api, mapRawExpenseToExpense } from "./api";
 import { useAuthState } from "../src/stores/AuthStore";
+import { useConfig } from "../src/stores/ConfigStore";
 import { EXPENSES_KEY, SHEET_CONFIG_KEY } from "./cacheKeys";
 import logger from "@/src/utils/logger";
 
@@ -19,7 +20,7 @@ export const useGetSheetConfig = () => {
 // Expenses hooks
 export const useExpensesQuery = () => {
     const { user, isSignedIn } = useAuthState();
-    const { data: sheetConfig } = useGetSheetConfig();
+    const { sheetConfig } = useConfig();
 
     return useQuery<Expense[], Error>({
         queryKey: [EXPENSES_KEY, user?.email],
@@ -37,7 +38,7 @@ export const useExpensesQuery = () => {
 export const useAddExpense = () => {
     const queryClient = useQueryClient();
     const { user } = useAuthState();
-    const { data: sheetConfig } = useGetSheetConfig();
+    const { sheetConfig } = useConfig();
 
     return useMutation<AddExpenseResponse, Error, AddExpenseRequest>({
         mutationFn: (newExpense) => api.addExpense(newExpense),

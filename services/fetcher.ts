@@ -2,20 +2,38 @@ import logger from "@/src/utils/logger";
 
 let isRefreshing = false;
 let failedQueue: {
-    resolve: (value?: any) => void;
-    reject: (reason?: any) => void;
+    resolve: () => void;
+    reject: (reason?: unknown) => void;
 }[] = [];
 
-const processQueue = (error: any, token = null) => {
+const processQueue = (error?: unknown) => {
     failedQueue.forEach((prom) => {
         if (error) {
             prom.reject(error);
         } else {
-            prom.resolve(token);
+            prom.resolve();
         }
     });
 
     failedQueue = [];
+};
+
+const isUnauthorizedResponse = async (response: Response) => {
+    if (response.ok) {
+        return false;
+    }
+
+    if (response.status === 401 || response.status === 403) {
+        return true;
+    }
+
+    const errorBody = await response
+        .clone()
+        .json()
+        .catch(() => null);
+
+    const errorCode = errorBody?.error?.code;
+    return errorCode === "UNAUTHORIZED" || errorCode === "TOKEN_EXPIRED";
 };
 
 async function refreshToken() {
@@ -32,57 +50,55 @@ async function refreshToken() {
         if (!response.ok) {
             throw new Error("Failed to refresh token.");
         }
-
-        const { id_token } = await response.json();
-        return id_token;
     } catch (error) {
         logger.error("Could not refresh token:", error);
-        // If refresh fails, we should probably force a logout
-        // For now, just re-throw
         throw error;
     }
 }
 
-export async function apiFetch(url: string, options: RequestInit = {}) {
+export async function apiFetch(
+    url: string,
+    options: RequestInit = {},
+    hasRetried = false,
+): Promise<Response> {
     try {
         const response = await fetch(url, options);
 
-        // Check for TOKEN_EXPIRED error in the response body if the call was not ok but was a 401
-        if (!response.ok) {
-            const errorBody = await response
-                .clone()
-                .json()
-                .catch(() => null);
-
-            throw new Error(errorBody?.error?.code);
+        if (!(await isUnauthorizedResponse(response))) {
+            return response;
         }
 
-        return response;
-    } catch (error: any) {
-        logger.log("apiFetch error:", error.message);
-        if (error.message !== "UNAUTHORIZED") {
-            throw error;
+        if (hasRetried) {
+            return response;
         }
 
         if (isRefreshing) {
-            return new Promise((resolve, reject) => {
+            return new Promise<void>((resolve, reject) => {
                 failedQueue.push({ resolve, reject });
-            }).then(() => apiFetch(url, options));
+            }).then(() => apiFetch(url, options, true));
         }
 
         isRefreshing = true;
 
         try {
             await refreshToken();
-            processQueue(null);
-            return apiFetch(url, options); // Retry the request
+            processQueue();
+            return apiFetch(url, options, true); // Retry the request
         } catch (refreshError) {
             processQueue(refreshError);
-            // On refresh failure, redirect to login
-            window.location.href = "/";
+            if (typeof window !== "undefined") {
+                window.location.href = "/";
+            }
             return Promise.reject(refreshError);
         } finally {
             isRefreshing = false;
         }
+    } catch (error) {
+        logger.log(
+            "apiFetch error:",
+            error instanceof Error ? error.message : error,
+        );
+
+        throw error;
     }
 }
