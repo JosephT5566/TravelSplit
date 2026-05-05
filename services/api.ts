@@ -159,25 +159,6 @@ const getGcfUrl = (path: string) => {
     return url.toString();
 };
 
-const formatSheetConfig = (resources: unknown): SheetConfig["resources"] => {
-    if (Array.isArray(resources)) {
-        return resources as SheetConfig["resources"];
-    }
-
-    if (typeof resources !== "string") {
-        return [];
-    }
-
-    try {
-        const parsedResources = JSON.parse(resources);
-        return Array.isArray(parsedResources)
-            ? (parsedResources as SheetConfig["resources"])
-            : [];
-    } catch {
-        return [];
-    }
-};
-
 // Maps raw expense data to the Expense type - EXPORTED for use in dataFetcher.ts
 export function mapRawExpenseToExpense(
     raw: RawExpense,
@@ -243,12 +224,8 @@ export const api = {
             credentials: "include",
         });
         const sheetConfig = await processGcfResponse<SheetConfig>(response);
-        const formattedConfig = {
-            ...sheetConfig,
-            resources: formatSheetConfig(sheetConfig.resources),
-        };
-        logger.log("🚀 getSheetConfig:", formattedConfig);
-        return formattedConfig;
+        logger.log("🚀 getSheetConfig:", sheetConfig);
+        return sheetConfig;
     },
 
     async addExpense(expense: AddExpenseRequest): Promise<AddExpenseResponse> {
