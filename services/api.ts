@@ -57,6 +57,25 @@ const getGcfUrl = (path: string) => {
     return url.toString();
 };
 
+const formatSheetConfig = (resources: unknown): SheetConfig["resources"] => {
+    if (Array.isArray(resources)) {
+        return resources as SheetConfig["resources"];
+    }
+
+    if (typeof resources !== "string") {
+        return [];
+    }
+
+    try {
+        const parsedResources = JSON.parse(resources);
+        return Array.isArray(parsedResources)
+            ? (parsedResources as SheetConfig["resources"])
+            : [];
+    } catch {
+        return [];
+    }
+};
+
 // Maps raw expense data to the Expense type - EXPORTED for use in dataFetcher.ts
 export function mapRawExpenseToExpense(
     raw: RawExpense,
@@ -121,8 +140,13 @@ export const api = {
             method: "GET",
             credentials: "include",
         });
-        logger.log("🚀 getSheetConfig response:", response);
-        return processGcfResponse<SheetConfig>(response);
+        const sheetConfig = await processGcfResponse<SheetConfig>(response);
+        const formattedConfig = {
+            ...sheetConfig,
+            resources: formatSheetConfig(sheetConfig.resources),
+        };
+        logger.log("🚀 getSheetConfig:", formattedConfig);
+        return formattedConfig;
     },
 
     async addExpense(expense: AddExpenseRequest): Promise<AddExpenseResponse> {
@@ -155,7 +179,9 @@ export const api = {
 
         // The API now returns a raw format that needs conversion.
         const rawExpenses = await processGcfResponse<RawExpense[]>(response);
-        return rawExpenses.map((raw) => mapRawExpenseToExpense(raw, userEmail, users));
+        return rawExpenses.map((raw) =>
+            mapRawExpenseToExpense(raw, userEmail, users),
+        );
     },
 
     async deleteExpenses(timestamp: string): Promise<DeleteExpenseResponse> {
