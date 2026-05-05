@@ -1,16 +1,120 @@
 import {
     AddExpenseRequest,
-    AppScriptResponse,
     Expense,
-    isSuccess,
     SheetConfig,
     User,
+    RawExpense,
+    AddExpenseResponse,
+    DeleteExpenseResponse,
 } from "../src/types";
 import logger from "@/src/utils/logger";
 
-// Handle case where result might be the object directly (if proxy transformed it or it's a direct API)
-async function processApiResponse<T>(response: Response): Promise<T> {
+let isRefreshing = false;
+let failedQueue: {
+    resolve: () => void;
+    reject: (reason?: unknown) => void;
+}[] = [];
+
+const processQueue = (error?: unknown) => {
+    failedQueue.forEach((prom) => {
+        if (error) {
+            prom.reject(error);
+        } else {
+            prom.resolve();
+        }
+    });
+
+    failedQueue = [];
+};
+
+const isUnauthorizedResponse = async (response: Response) => {
+    if (response.ok) {
+        return false;
+    }
+
+    if (response.status === 401 || response.status === 403) {
+        return true;
+    }
+
+    const errorBody = await response
+        .clone()
+        .json()
+        .catch(() => null);
+
+    const errorCode = errorBody?.error?.code;
+    return errorCode === "UNAUTHORIZED" || errorCode === "TOKEN_EXPIRED";
+};
+
+async function refreshToken() {
+    try {
+        const proxyUrl = process.env.NEXT_PUBLIC_AUTH_PROXY;
+        if (!proxyUrl) {
+            throw new Error("Missing NEXT_PUBLIC_AUTH_PROXY env variable.");
+        }
+
+        const response = await fetch(`${proxyUrl}/auth/travel-split/refresh`, {
+            credentials: "include",
+        });
+
+        if (!response.ok) {
+            throw new Error("Failed to refresh token.");
+        }
+    } catch (error) {
+        logger.error("Could not refresh token:", error);
+        throw error;
+    }
+}
+
+async function apiFetch(
+    url: string,
+    options: RequestInit = {},
+    hasRetried = false,
+): Promise<Response> {
+    try {
+        const response = await fetch(url, options);
+
+        if (!(await isUnauthorizedResponse(response))) {
+            return response;
+        }
+
+        if (hasRetried) {
+            return response;
+        }
+
+        if (isRefreshing) {
+            return new Promise<void>((resolve, reject) => {
+                failedQueue.push({ resolve, reject });
+            }).then(() => apiFetch(url, options, true));
+        }
+
+        isRefreshing = true;
+
+        try {
+            await refreshToken();
+            processQueue();
+            return apiFetch(url, options, true);
+        } catch (refreshError) {
+            processQueue(refreshError);
+            if (typeof window !== "undefined") {
+                window.location.href = "/";
+            }
+            return Promise.reject(refreshError);
+        } finally {
+            isRefreshing = false;
+        }
+    } catch (error) {
+        logger.log(
+            "apiFetch error:",
+            error instanceof Error ? error.message : error,
+        );
+
+        throw error;
+    }
+}
+
+async function processGcfResponse<T>(response: Response): Promise<T> {
     if (!response.ok) {
+        // The fetcher will handle token expiry, but we leave this as a fallback.
         if (response.status === 401 || response.status === 403) {
             throw new Error("TOKEN_EXPIRED");
         }
@@ -19,21 +123,17 @@ async function processApiResponse<T>(response: Response): Promise<T> {
         throw err;
     }
 
-    const result: AppScriptResponse<T> & { errorCode?: string } =
-        await response.json();
+    const result = await response.json();
     logger.log("🚀 Fetched result:", result);
 
-    if (isSuccess(result)) {
-        return result.result;
+    if (result.success) {
+        return result.data as T;
     } else {
-        if (result.errorCode === "TOKEN_EXPIRED") {
-            throw new Error("TOKEN_EXPIRED");
-        }
-        throw new Error(result.error || "Unknown error from server");
+        throw new Error(result.error?.message || "Unknown error from server");
     }
 }
 
-// Special handler for /me which might not be wrapped in AppScriptResponse if served directly by proxy logic
+// Special handler for /me which might not be wrapped in the GCF response format
 async function processUserResponse(response: Response): Promise<User> {
     if (!response.ok) {
         if (response.status === 401 || response.status === 403) {
@@ -41,86 +141,141 @@ async function processUserResponse(response: Response): Promise<User> {
         }
         throw new Error(`Failed to fetch user: ${response.statusText}`);
     }
+    // Assumes the /me endpoint returns the User object directly
+    return response.json();
+}
 
-    const data = await response.json();
+const getGcfUrl = (path: string) => {
+    const gcfUrl = process.env.NEXT_PUBLIC_TRAVEL_SPLIT_GCF;
+    if (!gcfUrl) {
+        throw new Error("Missing NEXT_PUBLIC_TRAVEL_SPLIT_GCF env variable.");
+    }
+    const sheetId = process.env.NEXT_PUBLIC_SHEET_ID;
+    if (!sheetId) {
+        throw new Error("Missing NEXT_PUBLIC_SHEET_ID env variable.");
+    }
+    const url = new URL(`${gcfUrl}${path}`);
+    url.searchParams.append("sheetId", sheetId);
+    return url.toString();
+};
 
-    // Check if it matches AppScriptResponse structure
-    if (data && typeof data === "object" && "ok" in data && "result" in data) {
-        if (data.ok) {
-            return data.result as User;
-        } else {
-            throw new Error(data.error || "Failed to get user");
+// Maps raw expense data to the Expense type - EXPORTED for use in dataFetcher.ts
+export function mapRawExpenseToExpense(
+    raw: RawExpense,
+    currentUserEmail: string,
+    users: Record<string, string>,
+): Expense {
+    const splitsJson: Record<string, number> = {};
+    const knownColumns = [
+        "時間戳記",
+        "日期",
+        "星期",
+        "類別",
+        "品項",
+        "金額",
+        "貨幣",
+        "匯率",
+        "付款人",
+        "個人小記",
+        "已結算",
+    ];
+    const swappedUsers = Object.fromEntries(
+        Object.entries(users).map(([key, value]) => [value, key]),
+    );
+
+    splitsJson[currentUserEmail] = parseFloat(raw["個人小記"]) || 0;
+
+    for (const key in raw) {
+        if (
+            !knownColumns.includes(key) &&
+            raw[key] !== null &&
+            raw[key] !== ""
+        ) {
+            const amount = parseFloat(raw[key] as string);
+
+            if (!isNaN(amount)) {
+                // The key is a nickname, find the corresponding email
+                const email = swappedUsers[key];
+                if (email) {
+                    splitsJson[email] = amount;
+                }
+            }
         }
     }
 
-    // Otherwise assume it is the User object directly (standard proxy response)
-    return data as User;
+    return {
+        timestamp: raw["時間戳記"],
+        date: raw["日期"],
+        itemName: raw["品項"],
+        category: raw["類別"],
+        payer: raw["付款人"],
+        amount: parseFloat(raw["金額"]),
+        currency: raw["貨幣"],
+        exchangeRate: parseFloat(raw["匯率"]) || 1,
+        splitsJson,
+    };
 }
-
-const getProxyUrl = () => {
-    const proxyUrl = process.env.NEXT_PUBLIC_AUTH_PROXY;
-    if (!proxyUrl) {
-        throw new Error("Missing NEXT_PUBLIC_AUTH_PROXY env variable.");
-    }
-    return `${proxyUrl}/auth/travel-split/api`;
-};
 
 export const api = {
     async getSheetConfig(): Promise<SheetConfig> {
-        const url = getProxyUrl();
-        const response = await fetch(url, {
-            method: "POST",
+        const url = getGcfUrl("/setting");
+        const response = await apiFetch(url, {
+            method: "GET",
             credentials: "include",
-            body: JSON.stringify({
-                action: "getConfig",
-            }),
         });
-        return processApiResponse<SheetConfig>(response);
+        const sheetConfig = await processGcfResponse<SheetConfig>(response);
+        logger.log("🚀 getSheetConfig:", sheetConfig);
+        return sheetConfig;
     },
 
-    async addExpense(expense: AddExpenseRequest): Promise<string> {
+    async addExpense(expense: AddExpenseRequest): Promise<AddExpenseResponse> {
         logger.log("🚀 addExpense called with: ", expense);
-        const url = getProxyUrl();
+        const url = getGcfUrl("/add");
 
-        const response = await fetch(url, {
+        const response = await apiFetch(url, {
             method: "POST",
             credentials: "include",
-            body: JSON.stringify({
-                action: "addExpense",
-                payload: expense,
-            }),
+            body: JSON.stringify({ payload: expense }),
+            headers: {
+                "Content-Type": "application/json",
+            },
         });
-        return processApiResponse<string>(response);
+        return processGcfResponse<AddExpenseResponse>(response);
     },
 
-    async getExpenses(userEmail: string): Promise<Expense[]> {
+    async getExpenses(
+        userEmail: string,
+        users: Record<string, string>,
+    ): Promise<Expense[]> {
         logger.log("🚀 getExpenses called for: ", userEmail);
-        const url = getProxyUrl();
+        const url = new URL(getGcfUrl("/data"));
+        url.searchParams.append("email", userEmail);
 
-        const response = await fetch(url, {
-            method: "POST",
+        const response = await apiFetch(url.toString(), {
+            method: "GET",
             credentials: "include",
-            body: JSON.stringify({
-                action: "getExpenses",
-                payload: { userEmail },
-            }),
         });
-        return processApiResponse<Expense[]>(response);
+
+        // The API now returns a raw format that needs conversion.
+        const rawExpenses = await processGcfResponse<RawExpense[]>(response);
+        return rawExpenses.map((raw) =>
+            mapRawExpenseToExpense(raw, userEmail, users),
+        );
     },
 
-    async deleteExpenses(timestamp: string): Promise<number[] | string> {
+    async deleteExpenses(timestamp: string): Promise<DeleteExpenseResponse> {
         logger.log("🚀 deleteExpenses called for: ", timestamp);
-        const url = getProxyUrl();
+        const url = new URL(getGcfUrl("/delete"));
 
-        const response = await fetch(url, {
-            method: "POST",
+        const response = await apiFetch(url.toString(), {
+            method: "DELETE",
             credentials: "include",
-            body: JSON.stringify({
-                action: "deleteExpense",
-                payload: { timestamp },
-            }),
+            body: JSON.stringify({ timestamp: timestamp }),
+            headers: {
+                "Content-Type": "application/json",
+            },
         });
-        return processApiResponse<number[] | string>(response);
+        return processGcfResponse<DeleteExpenseResponse>(response);
     },
 
     async getCurrentUser(): Promise<User> {
@@ -132,6 +287,7 @@ export const api = {
             method: "GET",
             credentials: "include",
         });
+        logger.log("🚀 Fetched /me response:", response);
 
         return processUserResponse(response);
     },
