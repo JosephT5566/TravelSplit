@@ -49,7 +49,7 @@ Authentication is handled by a **Cloudflare Worker** acting as a "Token Issuer" 
     1.  User clicks "Sign in".
     2.  The app initiates the Google OAuth2 flow.
     3.  After user consent, Google redirects back to the frontend with an authorization `code`.
-    4.  The frontend sends this `code` to the Cloudflare Worker's `/auth/exchange` endpoint.
+    4.  The frontend sends this `code` to the Cloudflare Worker's `/auth/:app_id/refresh` endpoint.
     5.  The Worker securely exchanges the `code` for an `id_token` using its `CLIENT_SECRET`.
     6.  The Worker returns the `id_token` to the frontend and sets it in a secure, `HttpOnly` cookie.
     7.  For all subsequent API calls, the frontend sends the `id_token` (as a Bearer token or via the cookie) directly to the GCF.
@@ -72,7 +72,7 @@ The application interacts with two main services:
 
 ### Cloudflare Worker (Token Issuer)
 -   `GET /auth/travel-split/login?redirect_to=...`: Initiates the Google OAuth2 login flow.
--   `POST /auth/travel-split/exchange`: Exchanges an OAuth `code` for an `id_token`.
+-   `POST /auth/travel-split/refresh`: Exchanges an OAuth `code` for an `id_token`.
 -   `GET /auth/travel-split/logout?redirect_to=...`: Clears session cookies and logs the user out.
 
 ### Google Cloud Function (Resource Server)
