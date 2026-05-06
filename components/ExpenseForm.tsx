@@ -15,7 +15,8 @@ import {
 } from "lucide-react";
 import { useAuthState } from "../src/stores/AuthStore";
 import { useConfig } from "../src/stores/ConfigStore";
-import ExpenseContainer from "./ExpenseContainer";
+import { DialogFooter } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 import { useAddExpense } from "../services/dataFetcher";
 import logger from "@/src/utils/logger";
 
@@ -53,28 +54,36 @@ const calculateCleanedSplits = ({
         if (splitMode === "equally") {
             const participants = selectedUsers;
             if (participants.length === 0) {
-                throw new Error("Please select at least one participant for equal split.");
+                throw new Error(
+                    "Please select at least one participant for equal split.",
+                );
             }
             const totalInCents = Math.round(totalAmountInBase * 100);
             const splitInCents = Math.floor(totalInCents / participants.length);
-            const remainderCents = totalInCents - splitInCents * participants.length;
+            const remainderCents =
+                totalInCents - splitInCents * participants.length;
 
             participants.forEach((participant, index) => {
                 splits[participant] =
                     (splitInCents + (index < remainderCents ? 1 : 0)) / 100;
             });
         } else if (splitMode === "specific") {
-            const specifiedValues = Object.values(specificSplits).map(v => Number(v) || 0);
+            const specifiedValues = Object.values(specificSplits).map(
+                (v) => Number(v) || 0,
+            );
             const sumOfSplits = specifiedValues.reduce((a, b) => a + b, 0);
 
             if (Math.abs(sumOfSplits - numAmount) > 0.01) {
                 throw new Error(
-                    `Sum of splits (${sumOfSplits.toFixed(2)}) must equal total amount (${numAmount.toFixed(2)}).`
+                    `Sum of splits (${sumOfSplits.toFixed(2)}) must equal total amount (${numAmount.toFixed(2)}).`,
                 );
             }
 
             for (const user in specificSplits) {
-                const valueInBase = Math.round(Number(specificSplits[user]) * exchangeRate * 100) / 100;
+                const valueInBase =
+                    Math.round(
+                        Number(specificSplits[user]) * exchangeRate * 100,
+                    ) / 100;
                 if (!isNaN(valueInBase) && valueInBase > 0) {
                     splits[user] = valueInBase;
                 }
@@ -82,13 +91,16 @@ const calculateCleanedSplits = ({
         }
     }
 
-    if (Object.keys(splits).length === 0 && numAmount > 0 && payType === "others") {
+    if (
+        Object.keys(splits).length === 0 &&
+        numAmount > 0 &&
+        payType === "others"
+    ) {
         throw new Error("Please configure how to split the expense.");
     }
 
     return splits;
 };
-
 
 const InputGroup = ({
     icon: Icon,
@@ -135,7 +147,7 @@ export const ExpenseForm: React.FC<Props> = ({
     const [date, setDate] = useState(format(selectedDate, "yyyy-MM-dd"));
     const [currency, setCurrency] = useState("TWD");
     const [exchangeRate, setExchangeRate] = useState<number>(
-        currencies[currency]
+        currencies[currency],
     );
     const [category, setCategory] = useState("");
     const [payer, setPayer] = useState(currentUser.email);
@@ -145,7 +157,7 @@ export const ExpenseForm: React.FC<Props> = ({
     const [payType, setPayType] = useState<"myself" | "others">("myself");
     const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
     const [splitMode, setSplitMode] = useState<"equally" | "specific">(
-        "equally"
+        "equally",
     );
     const [specificSplits, setSpecificSplits] = useState<
         Record<string, string>
@@ -184,13 +196,15 @@ export const ExpenseForm: React.FC<Props> = ({
     useEffect(() => {
         const total = Object.values(specificSplits).reduce(
             (acc, curr) => acc + (Number(curr) || 0),
-            0
+            0,
         );
         setSplitSum(total);
     }, [specificSplits]);
 
     const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
+        if (e) {
+            e.preventDefault();
+        }
 
         // Reset errors
         setAmountError(null);
@@ -234,7 +248,7 @@ export const ExpenseForm: React.FC<Props> = ({
             splitMode,
             specificSplits,
         });
-        
+
         if (isEmpty(cleanedSplits)) {
             return;
         }
@@ -258,24 +272,7 @@ export const ExpenseForm: React.FC<Props> = ({
     };
 
     return (
-        <ExpenseContainer>
-            <div className="flex justify-center pt-3 pb-1 sm:hidden">
-                <span className="h-1.5 w-14 rounded-full bg-text-muted/30" />
-            </div>
-            {/* Header */}
-            <div className="px-4 py-3 border-b border-border flex align-center justify-between items-center bg-surface/95 backdrop-blur supports-[backdrop-filter]:bg-surface/80 sticky top-0 z-20">
-                <span className="font-semibold text-lg text-text-main">
-                    新增支出
-                </span>
-                <button
-                    type="button"
-                    onClick={onCancel}
-                    className="text-text-muted hover:text-text-main transition-colors"
-                >
-                    <X size={20} />
-                </button>
-            </div>
-
+        <>
             <form
                 onSubmit={handleSubmit}
                 className="flex-1 flex flex-col bg-surface"
@@ -303,7 +300,7 @@ export const ExpenseForm: React.FC<Props> = ({
                                         const newAmount =
                                             e.target.value.replace(
                                                 /^0+(?=\d)/,
-                                                ""
+                                                "",
                                             );
                                         setAmount(newAmount);
                                         setAmountError(null);
@@ -512,7 +509,7 @@ export const ExpenseForm: React.FC<Props> = ({
                                                         <input
                                                             type="checkbox"
                                                             checked={selectedUsers.includes(
-                                                                email
+                                                                email,
                                                             )}
                                                             onChange={(e) => {
                                                                 if (
@@ -521,31 +518,31 @@ export const ExpenseForm: React.FC<Props> = ({
                                                                 ) {
                                                                     setSelectedUsers(
                                                                         (
-                                                                            prev
+                                                                            prev,
                                                                         ) => [
                                                                             ...prev,
                                                                             email,
-                                                                        ]
+                                                                        ],
                                                                     );
                                                                 } else {
                                                                     setSelectedUsers(
                                                                         (
-                                                                            prev
+                                                                            prev,
                                                                         ) =>
                                                                             prev.filter(
                                                                                 (
-                                                                                    p
+                                                                                    p,
                                                                                 ) =>
                                                                                     p !==
-                                                                                    email
-                                                                            )
+                                                                                    email,
+                                                                            ),
                                                                     );
                                                                 }
                                                             }}
                                                         />
                                                         {name}
                                                     </label>
-                                                )
+                                                ),
                                             )}
                                         </div>
                                     )}
@@ -561,7 +558,7 @@ export const ExpenseForm: React.FC<Props> = ({
                                                         <span className="text-sm text-text-main">
                                                             {users[email] ||
                                                                 email.split(
-                                                                    "@"
+                                                                    "@",
                                                                 )[0]}
                                                         </span>
                                                         <div className="flex items-center gap-2">
@@ -576,19 +573,19 @@ export const ExpenseForm: React.FC<Props> = ({
                                                                 }
                                                                 min="0"
                                                                 onChange={(
-                                                                    e
+                                                                    e,
                                                                 ) => {
                                                                     setSpecificSplits(
                                                                         (
-                                                                            prev
+                                                                            prev,
                                                                         ) => ({
                                                                             ...prev,
                                                                             [email]:
                                                                                 e.target.value.replace(
                                                                                     /^0+(?=\d)/,
-                                                                                    ""
+                                                                                    "",
                                                                                 ),
-                                                                        })
+                                                                        }),
                                                                     );
                                                                 }}
                                                             />
@@ -597,7 +594,7 @@ export const ExpenseForm: React.FC<Props> = ({
                                                             </span>
                                                         </div>
                                                     </div>
-                                                )
+                                                ),
                                             )}
                                             {splitSum > 0 && (
                                                 <>
@@ -624,11 +621,12 @@ export const ExpenseForm: React.FC<Props> = ({
                         </InputGroup>
                     </div>
                 </div>
-
-                <div className="p-4 border-t border-border bg-surface shadow-inner">
-                    <button
+                <DialogFooter>
+                    <Button type="button" variant="ghost" onClick={onCancel}>
+                        Cancel
+                    </Button>
+                    <Button
                         type="submit"
-                        className={`w-full py-3 rounded-xl font-semibold bg-primary text-white hover:bg-primary-600 transition-colors disabled:opacity-60 disabled:cursor-not-allowed`}
                         disabled={
                             splitSum > Number(amount) ||
                             !!splitError ||
@@ -649,9 +647,9 @@ export const ExpenseForm: React.FC<Props> = ({
                         ) : (
                             "Save"
                         )}
-                    </button>
-                </div>
+                    </Button>
+                </DialogFooter>
             </form>
-        </ExpenseContainer>
+        </>
     );
 };
