@@ -8,8 +8,12 @@ import { ExpenseForm } from "../components/ExpenseForm";
 import { Expense } from "../src/types";
 import ExpenseDetail from "@/components/ExpenseDetail";
 import { useMediaQuery } from "@/src/hooks/useMediaQuery";
-import { Drawer, DrawerContent, DrawerTitle } from "@/components/ui/drawer";
-import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog";
 
 const MainPage: React.FC = () => {
     const { expenses, refreshExpenses, apiState } = useExpenses();
@@ -17,7 +21,6 @@ const MainPage: React.FC = () => {
     const [expense, setExpense] = useState<Expense | null>(null);
     const [isDialogOpen, setIsDialogOpen] = useState<boolean>(false);
     const [currentDate, setCurrentDate] = useState(new Date());
-    const isDesktop = useMediaQuery("(min-width: 768px)");
 
     const openExpenseForm = (expense?: Expense) => {
         if (expense) {
@@ -54,40 +57,25 @@ const MainPage: React.FC = () => {
                 onCurrentDateChange={setCurrentDate}
             />
 
-            {user &&
-                (isDesktop ? (
-                    <Dialog
-                        open={isDialogOpen}
-                        onOpenChange={(open) => {
-                            if (!open) {
-                                closeExpenseForm();
-                            }
-                        }}
-                    >
-                        <DialogContent>
+            {user && (
+                <Dialog
+                    open={isDialogOpen}
+                    onOpenChange={(open) => {
+                        if (!open) {
+                            closeExpenseForm();
+                        }
+                    }}
+                >
+                    <DialogContent className="sm:max-w-2xl bg-surface">
+                        <DialogHeader>
                             <DialogTitle>
-                                {expense ? "Edit Expense" : "Add Expense"}
+                                {expense ? "編輯支出" : "新增支出"}
                             </DialogTitle>
-                            {renderContent()}
-                        </DialogContent>
-                    </Dialog>
-                ) : (
-                    <Drawer
-                        open={isDialogOpen}
-                        onOpenChange={(open) => {
-                            if (!open) {
-                                closeExpenseForm();
-                            }
-                        }}
-                    >
-                        <DrawerContent>
-                            <DrawerTitle>
-                                {expense ? "Edit Expense" : "Add Expense"}
-                            </DrawerTitle>
-                            {renderContent()}
-                        </DrawerContent>
-                    </Drawer>
-                ))}
+                        </DialogHeader>
+                        {renderContent()}
+                    </DialogContent>
+                </Dialog>
+            )}
         </div>
     );
 };
