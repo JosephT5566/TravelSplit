@@ -622,7 +622,7 @@ export const ExpenseForm: React.FC<Props> = ({
                     </div>
                 </div>
                 <DialogFooter>
-                    <Button type="button" variant="ghost" onClick={onCancel}>
+                    <Button type="button" variant="destructive" onClick={onCancel}>
                         Cancel
                     </Button>
                     <Button

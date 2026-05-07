@@ -7,12 +7,12 @@ import { useAuthState } from "../src/stores/AuthStore";
 import { ExpenseForm } from "../components/ExpenseForm";
 import { Expense } from "../src/types";
 import ExpenseDetail from "@/components/ExpenseDetail";
-import { useMediaQuery } from "@/src/hooks/useMediaQuery";
 import {
     Dialog,
     DialogContent,
     DialogHeader,
     DialogTitle,
+    DialogDescription,
 } from "@/components/ui/dialog";
 
 const MainPage: React.FC = () => {
@@ -66,11 +66,18 @@ const MainPage: React.FC = () => {
                         }
                     }}
                 >
-                    <DialogContent className="sm:max-w-2xl bg-surface max-h-[80vh] overflow-auto">
+                    <DialogContent
+                        className="sm:max-w-2xl bg-surface max-h-[80vh] overflow-auto"
+                    >
                         <DialogHeader>
                             <DialogTitle>
                                 {expense ? "編輯支出" : "新增支出"}
                             </DialogTitle>
+                            <DialogDescription className="hidden">
+                                {expense
+                                    ? "在此查看和編輯支出詳情。"
+                                    : "填寫下列表單以新增支出。"}
+                            </DialogDescription>
                         </DialogHeader>
                         {renderContent()}
                     </DialogContent>
