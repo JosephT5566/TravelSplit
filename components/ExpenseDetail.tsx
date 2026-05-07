@@ -16,7 +16,8 @@ import {
 } from "lucide-react";
 import { useAuthState } from "../src/stores/AuthStore";
 import { useConfig } from "../src/stores/ConfigStore";
-import ExpenseContainer from "./ExpenseContainer";
+import { DialogFooter } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 import logger from "@/src/utils/logger";
 
 interface InfoGroupProps {
@@ -134,24 +135,7 @@ const ExpenseDetail: React.FC<Props> = ({ expense, onCancel }) => {
     };
 
     return (
-        <ExpenseContainer>
-            <div className="flex justify-center pt-3 pb-1 sm:hidden">
-                <span className="h-1.5 w-14 rounded-full bg-text-muted/30" />
-            </div>
-            {/* Header */}
-            <div className="flex justify-between items-center px-4 py-3 border-b border-border sticky top-0 bg-surface/95 backdrop-blur z-10">
-                <span className="font-semibold text-lg text-text-main">
-                    支出明細
-                </span>
-                <button
-                    type="button"
-                    onClick={onCancel}
-                    className="text-text-muted hover:text-text-main transition-colors"
-                >
-                    <X size={20} />
-                </button>
-            </div>
-
+        <>
             <div className="flex-1 overflow-y-auto p-4 sm:p-6">
                 <div className="px-6 pt-2 pb-6 sm:py-8 text-center">
                     <p className="text-sm text-text-muted">我的花費</p>
@@ -188,16 +172,12 @@ const ExpenseDetail: React.FC<Props> = ({ expense, onCancel }) => {
                     </InfoGroup>
                 </div>
             </div>
-            <div className="p-4 border-t border-border bg-surface shadow-inner">
-                <button
-                    type="button"
-                    onClick={onCancel}
-                    className={`w-full py-3 rounded-xl font-semibold bg-primary text-white hover:bg-primary-600 transition-colors`}
-                >
+            <DialogFooter>
+                <Button type="button" onClick={onCancel}>
                     Close
-                </button>
-            </div>
-        </ExpenseContainer>
+                </Button>
+            </DialogFooter>
+        </>
     );
 };
 
