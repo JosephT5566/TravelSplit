@@ -66,7 +66,7 @@ const MainPage: React.FC = () => {
                         }
                     }}
                 >
-                    <DialogContent className="sm:max-w-2xl bg-surface">
+                    <DialogContent className="sm:max-w-2xl bg-surface max-h-[80vh] overflow-auto">
                         <DialogHeader>
                             <DialogTitle>
                                 {expense ? "編輯支出" : "新增支出"}
