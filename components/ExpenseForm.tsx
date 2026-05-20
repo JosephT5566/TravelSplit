@@ -288,13 +288,14 @@ export const ExpenseForm: React.FC<Props> = ({
                                 <input
                                     type="number"
                                     placeholder="0"
-                                    pattern="[0-9]*"
+                                    inputMode="decimal"
                                     autoFocus
                                     required
                                     className={`bg-transparent text-6xl font-bold text-center outline-none w-full max-w-[240px] placeholder-text-muted/30 text-text-main ${
                                         amountError ? "border-red-500" : ""
                                     }`}
                                     min="0"
+                                    step="any"
                                     value={amount}
                                     onChange={(e) => {
                                         const newAmount =
@@ -341,8 +342,11 @@ export const ExpenseForm: React.FC<Props> = ({
                             </span>
                             <input
                                 type="number"
+                                inputMode="decimal"
                                 className="bg-transparent text-sm text-text-muted border-b border-transparent focus:border-border outline-none"
                                 value={exchangeRate}
+                                min="0"
+                                step="any"
                                 onChange={(e) =>
                                     setExchangeRate(e.target.valueAsNumber)
                                 }
@@ -564,6 +568,7 @@ export const ExpenseForm: React.FC<Props> = ({
                                                         <div className="flex items-center gap-2">
                                                             <input
                                                                 type="number"
+                                                                inputMode="decimal"
                                                                 className="w-24 p-1 border rounded bg-background text-right"
                                                                 placeholder="0"
                                                                 value={
@@ -572,6 +577,7 @@ export const ExpenseForm: React.FC<Props> = ({
                                                                     ] || ""
                                                                 }
                                                                 min="0"
+                                                                step="any"
                                                                 onChange={(
                                                                     e,
                                                                 ) => {
