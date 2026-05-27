@@ -2,16 +2,19 @@
 
 import React from "react";
 import { useQueries, useQueryClient } from "@tanstack/react-query";
+import { persistQueryClientSave } from "@tanstack/react-query-persist-client";
 import { useRouter } from "next/navigation";
 import { AlertTriangle, CheckCircle2, RefreshCw, Table2 } from "lucide-react";
 import { api } from "@/services/api";
 import { EXPENSES_KEY, SHEET_CONFIG_KEY } from "@/services/cacheKeys";
+import { createIDBPersister } from "@/services/persister";
+import { Button } from "@/components/ui/button";
 import { SheetConfig } from "@/src/types";
 import {
-    getActiveSheetIdOrNull,
     getAvailableSheetIds,
     saveSelectedSheetId,
 } from "@/src/utils/sheetSelection";
+import { useSelectedSheetId } from "@/src/hooks/useSelectedSheetId";
 
 const formatSheetId = (sheetId: string) => {
     if (sheetId.length <= 12) {
@@ -39,7 +42,13 @@ export default function SelectSheetPage() {
     const router = useRouter();
     const queryClient = useQueryClient();
     const sheetIds = getAvailableSheetIds();
-    const selectedSheetId = getActiveSheetIdOrNull();
+    const selectedSheetId = useSelectedSheetId();
+    const [selectingSheetId, setSelectingSheetId] = React.useState<
+        string | null
+    >(null);
+    const [selectionError, setSelectionError] = React.useState<string | null>(
+        null,
+    );
 
     const sheetQueries = useQueries({
         queries: sheetIds.map((sheetId) => ({
@@ -49,11 +58,48 @@ export default function SelectSheetPage() {
         })),
     });
 
-    const handleSelectSheet = (sheetId: string) => {
-        saveSelectedSheetId(sheetId);
-        queryClient.removeQueries({ queryKey: [SHEET_CONFIG_KEY] });
-        queryClient.removeQueries({ queryKey: [EXPENSES_KEY] });
-        router.replace("/");
+    /**
+     * Validates the target sheet before switching so the app does not persist
+     * a selection that cannot load its required config.
+     */
+    const handleSelectSheet = async (sheetId: string) => {
+        if (sheetId === selectedSheetId) {
+            router.replace("/");
+            return;
+        }
+
+        setSelectingSheetId(sheetId);
+        setSelectionError(null);
+
+        try {
+            const sheetConfigQueryKey = [SHEET_CONFIG_KEY, sheetId];
+            const sheetConfig =
+                queryClient.getQueryData<SheetConfig>(sheetConfigQueryKey) ??
+                (await queryClient.fetchQuery({
+                    queryKey: sheetConfigQueryKey,
+                    queryFn: () => api.getSheetConfig(sheetId),
+                }));
+
+            // Keep persisted query data aligned with the newly selected sheet.
+            saveSelectedSheetId(sheetId);
+            queryClient.setQueryData(sheetConfigQueryKey, sheetConfig);
+            queryClient.removeQueries({ queryKey: [SHEET_CONFIG_KEY, null] });
+            queryClient.removeQueries({ queryKey: [EXPENSES_KEY] });
+            await persistQueryClientSave({
+                queryClient,
+                persister: createIDBPersister(),
+            });
+
+            router.replace("/");
+        } catch (error) {
+            setSelectionError(
+                error instanceof Error
+                    ? error.message
+                    : "Unable to load the selected sheet setting.",
+            );
+        } finally {
+            setSelectingSheetId(null);
+        }
     };
 
     return (
@@ -75,11 +121,13 @@ export default function SelectSheetPage() {
                         const isSelected = selectedSheetId === sheetId;
 
                         return (
-                            <button
+                            <Button
                                 key={sheetId}
+                                variant="outline"
                                 type="button"
                                 onClick={() => handleSelectSheet(sheetId)}
-                                className={`rounded-lg border bg-surface p-4 text-left shadow-sm transition hover:border-primary hover:shadow-md active:scale-[0.99] ${
+                                disabled={selectingSheetId !== null}
+                                className={`h-auto w-full justify-start rounded-lg bg-surface p-4 text-left shadow-sm hover:border-primary hover:bg-surface hover:shadow-md disabled:opacity-100 ${
                                     isSelected
                                         ? "border-primary ring-2 ring-primary/20"
                                         : "border-border"
@@ -105,6 +153,12 @@ export default function SelectSheetPage() {
                                                     className="shrink-0 text-primary"
                                                 />
                                             )}
+                                            {selectingSheetId === sheetId && (
+                                                <RefreshCw
+                                                    size={20}
+                                                    className="shrink-0 animate-spin text-primary"
+                                                />
+                                            )}
                                         </div>
                                         <p className="mt-1 font-mono text-xs text-text-muted">
                                             {formatSheetId(sheetId)}
@@ -126,7 +180,7 @@ export default function SelectSheetPage() {
                                         )}
                                     </div>
                                 </div>
-                            </button>
+                            </Button>
                         );
                     })}
                 </div>
@@ -134,6 +188,12 @@ export default function SelectSheetPage() {
                 {sheetIds.length === 0 && (
                     <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
                         Missing NEXT_PUBLIC_SHEET_ID env variable.
+                    </div>
+                )}
+
+                {selectionError && (
+                    <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+                        {selectionError}
                     </div>
                 )}
             </div>

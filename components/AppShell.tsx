@@ -7,14 +7,15 @@ import { LoginView } from "./LoginView";
 import { useAuthState } from "../src/stores/AuthStore";
 import {
     getAvailableSheetIds,
-    getStoredSheetId,
     saveSelectedSheetId,
 } from "@/src/utils/sheetSelection";
+import { useSelectedSheetId } from "@/src/hooks/useSelectedSheetId";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
     const { isAuthInitialized, isSignedIn } = useAuthState();
     const pathname = usePathname();
     const router = useRouter();
+    const selectedSheetId = useSelectedSheetId();
     const [isSheetSelectionReady, setIsSheetSelectionReady] =
         React.useState(false);
 
@@ -35,7 +36,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             return;
         }
 
-        const selectedSheetId = getStoredSheetId();
         if (!selectedSheetId) {
             setIsSheetSelectionReady(pathname === "/select-sheet");
             if (pathname !== "/select-sheet") {
@@ -45,7 +45,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         }
 
         setIsSheetSelectionReady(true);
-    }, [isAuthInitialized, isSignedIn, pathname, router]);
+    }, [isAuthInitialized, isSignedIn, pathname, router, selectedSheetId]);
 
     if (!isAuthInitialized) {
         return (

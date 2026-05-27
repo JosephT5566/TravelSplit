@@ -15,11 +15,12 @@ import {
     getActiveSheetIdOrNull,
     isSheetSelectionRequired,
 } from "@/src/utils/sheetSelection";
+import { useSelectedSheetId } from "@/src/hooks/useSelectedSheetId";
 
 // AppConfig hooks
 export const useGetSheetConfig = () => {
     const { isSignedIn } = useAuthState();
-    const selectedSheetId = getActiveSheetIdOrNull();
+    const selectedSheetId = useSelectedSheetId();
     const canFetchSheetConfig =
         isSignedIn && (!isSheetSelectionRequired() || !!selectedSheetId);
 
@@ -34,7 +35,7 @@ export const useGetSheetConfig = () => {
 export const useExpensesQuery = () => {
     const { user, isSignedIn } = useAuthState();
     const { sheetConfig } = useConfig();
-    const selectedSheetId = getActiveSheetIdOrNull();
+    const selectedSheetId = useSelectedSheetId();
 
     return useQuery<Expense[], Error>({
         queryKey: [EXPENSES_KEY, selectedSheetId, user?.email],

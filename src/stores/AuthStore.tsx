@@ -13,6 +13,7 @@ import { User } from "../types";
 import { clearExpensesCache } from "./ExpensesStore";
 import { api } from "../../services/api";
 import logger from "@/src/utils/logger";
+import { hasAuthErrorSearchParam } from "@/src/utils/authError";
 
 type AuthState = {
     isSignedIn: boolean;
@@ -39,6 +40,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     useEffect(() => {
         const checkCookie = async () => {
+            if (hasAuthErrorSearchParam()) {
+                clearUser();
+                clearExpensesCache();
+                return;
+            }
+
             const isLoggedIn = Cookies.get("is_logged_in");
             logger.log("is_logged_in cookie", isLoggedIn);
 
