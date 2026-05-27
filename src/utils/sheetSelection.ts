@@ -85,6 +85,11 @@ export function getActiveSheetIdOrNull(): string | null {
     return getStoredSheetId();
 }
 
+/**
+ * Persists the user's selected sheet and notifies same-page subscribers.
+ * The native storage event only fires in other tabs, so the custom event keeps
+ * the current React tree in sync too.
+ */
 export function saveSelectedSheetId(sheetId: string) {
     window.localStorage.setItem(SHEET_ID_STORAGE_KEY, sheetId);
     window.dispatchEvent(new CustomEvent(SHEET_ID_CHANGE_EVENT));

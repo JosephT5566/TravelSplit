@@ -42,6 +42,11 @@ export const defaultUnauthorizedNotice: AuthErrorNotice = {
         "This Google account is not authorized to access TripSplit. Please sign in with an allowed account.",
 };
 
+/**
+ * Returns the auth error notice that should be shown once on the login screen.
+ * Session storage wins so redirects can preserve a notice even if query params
+ * are later removed from the URL.
+ */
 export function consumeAuthErrorNotice(): AuthErrorNotice | null {
     if (typeof window === "undefined") {
         return null;
@@ -72,6 +77,10 @@ export function consumeAuthErrorNotice(): AuthErrorNotice | null {
     return null;
 }
 
+/**
+ * Detects auth-error redirects before the normal cookie check runs.
+ * This keeps a failed OAuth redirect from reusing stale local user state.
+ */
 export function hasAuthErrorSearchParam() {
     if (typeof window === "undefined") {
         return false;

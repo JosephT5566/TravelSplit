@@ -58,6 +58,10 @@ export default function SelectSheetPage() {
         })),
     });
 
+    /**
+     * Validates the target sheet before switching so the app does not persist
+     * a selection that cannot load its required config.
+     */
     const handleSelectSheet = async (sheetId: string) => {
         if (sheetId === selectedSheetId) {
             router.replace("/");
@@ -76,6 +80,7 @@ export default function SelectSheetPage() {
                     queryFn: () => api.getSheetConfig(sheetId),
                 }));
 
+            // Keep persisted query data aligned with the newly selected sheet.
             saveSelectedSheetId(sheetId);
             queryClient.setQueryData(sheetConfigQueryKey, sheetConfig);
             queryClient.removeQueries({ queryKey: [SHEET_CONFIG_KEY, null] });
