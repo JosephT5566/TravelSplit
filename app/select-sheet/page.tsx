@@ -22,8 +22,8 @@ const formatSheetId = (sheetId: string) => {
 };
 
 const getSheetTitle = (sheetConfig: SheetConfig | undefined, index: number) => {
-    if (sheetConfig?.title) {
-        return sheetConfig.title;
+    if (sheetConfig?.tripName) {
+        return sheetConfig.tripName;
     }
 
     if (sheetConfig?.startDate || sheetConfig?.endDate) {

@@ -2,7 +2,7 @@
 
 import React from "react";
 import { FocusTrap } from "focus-trap-react";
-import { LogOut, FileCog, X, RefreshCw } from "lucide-react";
+import { LogOut, FileCog, X, RefreshCw, ArrowLeftRight } from "lucide-react";
 import Link from "next/link";
 import { useAuthActions, useAuthState } from "../src/stores/AuthStore";
 import { AppConfig } from "../src/types";
@@ -86,6 +86,17 @@ export const SideDrawer: React.FC = () => {
                             </div>
                         </div>
 
+                        {isSheetSelectionRequired() && (
+                            <Link
+                                href="/select-sheet"
+                                onClick={closeDrawer}
+                                className="mb-3 flex w-full items-center gap-3 rounded-lg border border-primary/30 bg-primary/10 px-4 py-3 text-sm font-semibold text-primary transition hover:border-primary hover:bg-primary/15 active:scale-[0.99]"
+                            >
+                                <ArrowLeftRight size={18} />
+                                Switch Sheet
+                            </Link>
+                        )}
+
                         <div className="collapse collapse-arrow bg-base-200/50 border border-base-300 rounded-xl">
                             <input type="checkbox" name="my-accordion-2" />
                             <div className="collapse-title flex items-center gap-3 text-sm font-bold">
@@ -94,34 +105,23 @@ export const SideDrawer: React.FC = () => {
                                 Sheet 設定
                             </div>
                             <div className="collapse-content ">
-                                <div className="flex items-center gap-2">
-                                    <button
-                                        className="p-1 text-primary bg-surface border border-border rounded-full"
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            refetchSheetConfig();
-                                        }}
-                                        disabled={isFetchingConfig}
-                                    >
-                                        <RefreshCw
-                                            size={12}
-                                            className={
-                                                isFetchingConfig
-                                                    ? "animate-spin"
-                                                    : ""
-                                            }
-                                        />
-                                    </button>
-                                    {isSheetSelectionRequired() && (
-                                        <Link
-                                            href="/select-sheet"
-                                            onClick={closeDrawer}
-                                            className="btn btn-xs btn-outline"
-                                        >
-                                            Switch Sheet
-                                        </Link>
-                                    )}
-                                </div>
+                                <button
+                                    className="p-1 text-primary bg-surface border border-border rounded-full"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        refetchSheetConfig();
+                                    }}
+                                    disabled={isFetchingConfig}
+                                >
+                                    <RefreshCw
+                                        size={12}
+                                        className={
+                                            isFetchingConfig
+                                                ? "animate-spin"
+                                                : ""
+                                        }
+                                    />
+                                </button>
                                 {sheetConfig ? (
                                     <div className="space-y-4 pt-2">
                                         {/* Date Section */}
