@@ -1,19 +1,32 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Expense, SheetConfig, AddExpenseRequest, AddExpenseResponse, DeleteExpenseResponse } from "../src/types";
+import {
+    Expense,
+    SheetConfig,
+    AddExpenseRequest,
+    AddExpenseResponse,
+    DeleteExpenseResponse,
+} from "../src/types";
 import { api, mapRawExpenseToExpense } from "./api";
 import { useAuthState } from "../src/stores/AuthStore";
 import { useConfig } from "../src/stores/ConfigStore";
 import { EXPENSES_KEY, SHEET_CONFIG_KEY } from "./cacheKeys";
 import logger from "@/src/utils/logger";
+import {
+    getActiveSheetIdOrNull,
+    isSheetSelectionRequired,
+} from "@/src/utils/sheetSelection";
 
 // AppConfig hooks
 export const useGetSheetConfig = () => {
     const { isSignedIn } = useAuthState();
+    const selectedSheetId = getActiveSheetIdOrNull();
+    const canFetchSheetConfig =
+        isSignedIn && (!isSheetSelectionRequired() || !!selectedSheetId);
 
     return useQuery<SheetConfig, Error>({
-        queryKey: [SHEET_CONFIG_KEY],
-        queryFn: () => api.getSheetConfig(),
-        enabled: isSignedIn,
+        queryKey: [SHEET_CONFIG_KEY, selectedSheetId],
+        queryFn: () => api.getSheetConfig(selectedSheetId || undefined),
+        enabled: canFetchSheetConfig,
     });
 };
 
@@ -21,16 +34,21 @@ export const useGetSheetConfig = () => {
 export const useExpensesQuery = () => {
     const { user, isSignedIn } = useAuthState();
     const { sheetConfig } = useConfig();
+    const selectedSheetId = getActiveSheetIdOrNull();
 
     return useQuery<Expense[], Error>({
-        queryKey: [EXPENSES_KEY, user?.email],
+        queryKey: [EXPENSES_KEY, selectedSheetId, user?.email],
         queryFn: () => {
             if (!user?.email || !sheetConfig?.users) {
                 return Promise.resolve([]);
             }
             return api.getExpenses(user.email, sheetConfig.users);
         },
-        enabled: isSignedIn && !!user?.email && !!sheetConfig?.users,
+        enabled:
+            isSignedIn &&
+            !!selectedSheetId &&
+            !!user?.email &&
+            !!sheetConfig?.users,
         retry: 3,
     });
 };
@@ -45,7 +63,11 @@ export const useAddExpense = () => {
         onSuccess: (data) => {
             if (!sheetConfig?.users) {
                 queryClient.invalidateQueries({
-                    queryKey: [EXPENSES_KEY, user?.email],
+                    queryKey: [
+                        EXPENSES_KEY,
+                        getActiveSheetIdOrNull(),
+                        user?.email,
+                    ],
                 });
                 return;
             }
@@ -56,7 +78,7 @@ export const useAddExpense = () => {
             );
 
             queryClient.setQueryData<Expense[]>(
-                [EXPENSES_KEY, user?.email],
+                [EXPENSES_KEY, getActiveSheetIdOrNull(), user?.email],
                 (old) => {
                     if (!Array.isArray(old)) {
                         return [addedExpense];
@@ -79,7 +101,11 @@ export const useDeleteExpense = () => {
         onSuccess: (response) => {
             logger.log("Deleted expense response:", response);
             const { deletedTimestamp } = response;
-            const queryKey = [EXPENSES_KEY, user?.email];
+            const queryKey = [
+                EXPENSES_KEY,
+                getActiveSheetIdOrNull(),
+                user?.email,
+            ];
             queryClient.setQueryData<Expense[]>(
                 queryKey,
                 (old) => {

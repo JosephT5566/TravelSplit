@@ -3,11 +3,13 @@
 import React from "react";
 import { FocusTrap } from "focus-trap-react";
 import { LogOut, FileCog, X, RefreshCw } from "lucide-react";
+import Link from "next/link";
 import { useAuthActions, useAuthState } from "../src/stores/AuthStore";
 import { AppConfig } from "../src/types";
 import { useUI } from "../src/stores/UIStore";
 import { useConfig } from "../src/stores/ConfigStore";
 import { format } from "date-fns";
+import { isSheetSelectionRequired } from "@/src/utils/sheetSelection";
 
 export const SideDrawer: React.FC = () => {
     const { signOut } = useAuthActions();
@@ -92,23 +94,34 @@ export const SideDrawer: React.FC = () => {
                                 Sheet 設定
                             </div>
                             <div className="collapse-content ">
-                                <button
-                                    className="p-1 text-primary bg-surface border border-border rounded-full"
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        refetchSheetConfig();
-                                    }}
-                                    disabled={isFetchingConfig}
-                                >
-                                    <RefreshCw
-                                        size={12}
-                                        className={
-                                            isFetchingConfig
-                                                ? "animate-spin"
-                                                : ""
-                                        }
-                                    />
-                                </button>
+                                <div className="flex items-center gap-2">
+                                    <button
+                                        className="p-1 text-primary bg-surface border border-border rounded-full"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            refetchSheetConfig();
+                                        }}
+                                        disabled={isFetchingConfig}
+                                    >
+                                        <RefreshCw
+                                            size={12}
+                                            className={
+                                                isFetchingConfig
+                                                    ? "animate-spin"
+                                                    : ""
+                                            }
+                                        />
+                                    </button>
+                                    {isSheetSelectionRequired() && (
+                                        <Link
+                                            href="/select-sheet"
+                                            onClick={closeDrawer}
+                                            className="btn btn-xs btn-outline"
+                                        >
+                                            Switch Sheet
+                                        </Link>
+                                    )}
+                                </div>
                                 {sheetConfig ? (
                                     <div className="space-y-4 pt-2">
                                         {/* Date Section */}

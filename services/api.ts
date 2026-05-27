@@ -8,6 +8,7 @@ import {
     DeleteExpenseResponse,
 } from "../src/types";
 import logger from "@/src/utils/logger";
+import { getSelectedSheetId } from "@/src/utils/sheetSelection";
 
 let isRefreshing = false;
 let failedQueue: {
@@ -145,12 +146,11 @@ async function processUserResponse(response: Response): Promise<User> {
     return response.json();
 }
 
-const getGcfUrl = (path: string) => {
+const getGcfUrl = (path: string, sheetId = getSelectedSheetId()) => {
     const gcfUrl = process.env.NEXT_PUBLIC_TRAVEL_SPLIT_GCF;
     if (!gcfUrl) {
         throw new Error("Missing NEXT_PUBLIC_TRAVEL_SPLIT_GCF env variable.");
     }
-    const sheetId = process.env.NEXT_PUBLIC_SHEET_ID;
     if (!sheetId) {
         throw new Error("Missing NEXT_PUBLIC_SHEET_ID env variable.");
     }
@@ -217,8 +217,8 @@ export function mapRawExpenseToExpense(
 }
 
 export const api = {
-    async getSheetConfig(): Promise<SheetConfig> {
-        const url = getGcfUrl("/setting");
+    async getSheetConfig(sheetId?: string): Promise<SheetConfig> {
+        const url = getGcfUrl("/setting", sheetId);
         const response = await apiFetch(url, {
             method: "GET",
             credentials: "include",

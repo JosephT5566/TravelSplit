@@ -114,6 +114,11 @@ The application interacts with two main services:
     NEXT_PUBLIC_TRAVEL_SPLIT_GCF=https://your-gcf-url.cloudfunctions.net
     NEXT_PUBLIC_SHEET_ID=your_google_sheet_id
     ```
+    To offer multiple sheets, set `NEXT_PUBLIC_SHEET_ID` to a JSON array:
+
+    ```env
+    NEXT_PUBLIC_SHEET_ID=<`sheet_id_1`>,<`sheet_id_2`>
+    ```
     For local development, you will typically point `NEXT_PUBLIC_AUTH_PROXY` and `NEXT_PUBLIC_TRAVEL_SPLIT_GCF` to their respective local URLs.
 
 3. **Run the app:**

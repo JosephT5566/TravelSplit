@@ -1,12 +1,51 @@
 "use client";
 
 import React from "react";
+import { usePathname, useRouter } from "next/navigation";
 import { Layout } from "./Layout";
 import { LoginView } from "./LoginView";
 import { useAuthState } from "../src/stores/AuthStore";
+import {
+    getAvailableSheetIds,
+    getStoredSheetId,
+    saveSelectedSheetId,
+} from "@/src/utils/sheetSelection";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
     const { isAuthInitialized, isSignedIn } = useAuthState();
+    const pathname = usePathname();
+    const router = useRouter();
+    const [isSheetSelectionReady, setIsSheetSelectionReady] =
+        React.useState(false);
+
+    React.useEffect(() => {
+        if (!isAuthInitialized || !isSignedIn) {
+            return;
+        }
+
+        const availableSheetIds = getAvailableSheetIds();
+        if (availableSheetIds.length <= 1) {
+            if (availableSheetIds[0]) {
+                saveSelectedSheetId(availableSheetIds[0]);
+            }
+            setIsSheetSelectionReady(true);
+            if (pathname === "/select-sheet") {
+                router.replace("/");
+            }
+            return;
+        }
+
+        const selectedSheetId = getStoredSheetId();
+        if (!selectedSheetId) {
+            setIsSheetSelectionReady(pathname === "/select-sheet");
+            if (pathname !== "/select-sheet") {
+                router.replace("/select-sheet");
+            }
+            return;
+        }
+
+        setIsSheetSelectionReady(true);
+    }, [isAuthInitialized, isSignedIn, pathname, router]);
 
     if (!isAuthInitialized) {
         return (
@@ -21,12 +60,21 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         return <LoginView />;
     }
 
+    if (!isSheetSelectionReady) {
+        return (
+            <div className="flex h-screen w-screen items-center justify-center bg-background">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+            </div>
+        );
+    }
+
     return (
         <div className="min-h-dvh bg-background text-text-main font-sans transition-colors duration-300">
-            <Layout>
-                {children}
-            </Layout>
+            {pathname === "/select-sheet" ? (
+                children
+            ) : (
+                <Layout>{children}</Layout>
+            )}
         </div>
     );
 }
-
