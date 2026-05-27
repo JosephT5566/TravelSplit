@@ -1,4 +1,5 @@
 export const SHEET_ID_STORAGE_KEY = "tripsplit_selected_sheet_id";
+export const SHEET_ID_CHANGE_EVENT = "tripsplit_selected_sheet_id_change";
 
 export function getAvailableSheetIds(): string[] {
     const rawSheetId = process.env.NEXT_PUBLIC_SHEET_ID;
@@ -86,4 +87,5 @@ export function getActiveSheetIdOrNull(): string | null {
 
 export function saveSelectedSheetId(sheetId: string) {
     window.localStorage.setItem(SHEET_ID_STORAGE_KEY, sheetId);
+    window.dispatchEvent(new CustomEvent(SHEET_ID_CHANGE_EVENT));
 }
