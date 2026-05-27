@@ -2,12 +2,14 @@
 
 import React from "react";
 import { FocusTrap } from "focus-trap-react";
-import { LogOut, FileCog, X, RefreshCw } from "lucide-react";
+import { LogOut, FileCog, X, RefreshCw, ArrowLeftRight } from "lucide-react";
+import Link from "next/link";
 import { useAuthActions, useAuthState } from "../src/stores/AuthStore";
 import { AppConfig } from "../src/types";
 import { useUI } from "../src/stores/UIStore";
 import { useConfig } from "../src/stores/ConfigStore";
 import { format } from "date-fns";
+import { isSheetSelectionRequired } from "@/src/utils/sheetSelection";
 
 export const SideDrawer: React.FC = () => {
     const { signOut } = useAuthActions();
@@ -83,6 +85,17 @@ export const SideDrawer: React.FC = () => {
                                 </p>
                             </div>
                         </div>
+
+                        {isSheetSelectionRequired() && (
+                            <Link
+                                href="/select-sheet"
+                                onClick={closeDrawer}
+                                className="mb-3 flex w-full items-center gap-3 rounded-lg border border-primary/30 bg-primary/10 px-4 py-3 text-sm font-semibold text-primary transition hover:border-primary hover:bg-primary/15 active:scale-[0.99]"
+                            >
+                                <ArrowLeftRight size={18} />
+                                Switch Sheet
+                            </Link>
+                        )}
 
                         <div className="collapse collapse-arrow bg-base-200/50 border border-base-300 rounded-xl">
                             <input type="checkbox" name="my-accordion-2" />

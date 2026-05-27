@@ -87,6 +87,7 @@ export type AppConfig = {
 };
 
 export type SheetConfig = {
+    tripName?: string;
     startDate: string;
     endDate?: string;
     currencies: Record<string, number>;
