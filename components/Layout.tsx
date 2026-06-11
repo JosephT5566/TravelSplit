@@ -7,6 +7,7 @@ import { PieChart, List, NotebookPen } from "lucide-react";
 import { useAuthState } from "../src/stores/AuthStore";
 import { useExpenses } from "../src/stores/ExpensesStore";
 import { useUI } from "../src/stores/UIStore";
+import { AppHeader } from "./AppHeader";
 import { SideDrawer } from "./SideDrawer";
 
 interface LayoutProps {
@@ -26,21 +27,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
     return (
         <>
             <SideDrawer />
-            {/* Header */}
-            <div className="p-4 bg-surface shadow sticky top-0 z-10 flex justify-between items-center transition-colors border-b border-border">
-                <h1 className="text-xl font-bold text-primary">TripSplit</h1>
-                <div className="text-xs">
-                    <button onClick={openDrawer} className="focus:outline-none">
-                        <img
-                            src={user.picture}
-                            alt={user.name}
-                            className="w-8 h-8 rounded-full border border-border"
-                            width={32}
-                            height={32}
-                        />
-                    </button>
-                </div>
-            </div>
+            <AppHeader user={user} onAccountClick={openDrawer} />
 
             {/* Main Content Area */}
             <div className="layout-container max-w-2xl mx-auto min-h-[calc(100dvh-140px)] max-h-[calc(100dvh-140px)] overflow-auto">

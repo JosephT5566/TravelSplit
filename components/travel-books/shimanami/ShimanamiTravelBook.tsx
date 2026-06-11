@@ -22,12 +22,15 @@ import {
     Route,
     ShieldAlert,
     ShoppingBag,
+    Share2,
     Sun,
     Utensils,
     WifiOff,
 } from "lucide-react";
+import { AppHeader } from "@/components/AppHeader";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useAuthState } from "@/src/stores/AuthStore";
 import {
     getDateInTimeZone,
     getEffectiveDayIndex,
@@ -330,6 +333,8 @@ function Checklist({
 
 export function ShimanamiTravelBook() {
     const trip = SHIMANAMI_TRIP;
+    const { isAuthInitialized, isSignedIn, user } = useAuthState();
+    const showUserHeader = isAuthInitialized && isSignedIn && Boolean(user);
     const storageKey = `${SHIMANAMI_TRAVEL_BOOK.id}-preparation`;
     const days = trip.days;
     const [effectiveIndex, setEffectiveIndex] = React.useState(() =>
@@ -338,7 +343,9 @@ export function ShimanamiTravelBook() {
     const [selectedIndex, setSelectedIndex] = React.useState(effectiveIndex);
     const [manualSelection, setManualSelection] = React.useState(false);
     const [offline, setOffline] = React.useState(false);
+    const [shareStatus, setShareStatus] = React.useState("");
     const dateStripRef = React.useRef<HTMLDivElement>(null);
+    const shareStatusTimerRef = React.useRef<number | null>(null);
 
     const refreshEffectiveDay = React.useCallback(() => {
         const nextIndex = getEffectiveDayIndex(days, new Date(), trip.timezone);
@@ -377,6 +384,14 @@ export function ShimanamiTravelBook() {
             });
     }, [selectedIndex]);
 
+    React.useEffect(() => {
+        return () => {
+            if (shareStatusTimerRef.current) {
+                window.clearTimeout(shareStatusTimerRef.current);
+            }
+        };
+    }, []);
+
     const day = days[selectedIndex];
     const currentTripDate = getDateInTimeZone(new Date(), trip.timezone);
     const beforeTrip = currentTripDate < trip.startDate;
@@ -392,8 +407,76 @@ export function ShimanamiTravelBook() {
         setSelectedIndex(effectiveIndex);
     };
 
+    const showShareStatus = (message: string) => {
+        setShareStatus(message);
+        if (shareStatusTimerRef.current) {
+            window.clearTimeout(shareStatusTimerRef.current);
+        }
+        shareStatusTimerRef.current = window.setTimeout(() => {
+            setShareStatus("");
+        }, 2500);
+    };
+
+    const copyCurrentUrl = async () => {
+        const url = window.location.href;
+
+        if (navigator.clipboard?.writeText) {
+            await navigator.clipboard.writeText(url);
+            return;
+        }
+
+        const input = document.createElement("textarea");
+        input.value = url;
+        input.setAttribute("readonly", "");
+        input.style.position = "fixed";
+        input.style.opacity = "0";
+        document.body.appendChild(input);
+        input.select();
+        const copied = document.execCommand("copy");
+        input.remove();
+
+        if (!copied) {
+            throw new Error("Unable to copy URL");
+        }
+    };
+
+    const shareTravelBook = async () => {
+        try {
+            if (navigator.share) {
+                await navigator.share({
+                    title: SHIMANAMI_TRAVEL_BOOK.metadata.title,
+                    text: SHIMANAMI_TRAVEL_BOOK.metadata.description,
+                    url: window.location.href,
+                });
+                showShareStatus("分享選單已開啟");
+                return;
+            }
+
+            await copyCurrentUrl();
+            showShareStatus("連結已複製");
+        } catch (error) {
+            if (error instanceof DOMException && error.name === "AbortError") {
+                return;
+            }
+
+            try {
+                await copyCurrentUrl();
+                showShareStatus("連結已複製");
+            } catch {
+                showShareStatus("無法複製連結");
+            }
+        }
+    };
+
     return (
         <main lang="zh-Hant" className="min-h-full bg-[#f7faf8] text-[#17323b]">
+            {showUserHeader && user && (
+                <AppHeader
+                    user={user}
+                    brandHref="/"
+                    accountDisabledLabel="旅遊手冊中無法開啟帳戶選單"
+                />
+            )}
             <header className="relative overflow-hidden bg-[#126b8a] px-5 pb-7 pt-8 text-white">
                 <div
                     aria-hidden="true"
@@ -408,10 +491,32 @@ export function ShimanamiTravelBook() {
                         <p className="font-mono text-[11px] font-bold tracking-[0.18em] text-[#cce7ed]">
                             TRAVEL BOOK · {trip.year}
                         </p>
-                        <span className="rounded-full bg-white/12 px-3 py-1 font-mono text-[10px] font-bold">
-                            {trip.timezoneLabel}
-                        </span>
+                        <div className="flex items-center gap-2">
+                            <span className="rounded-full bg-white/12 px-3 py-1 font-mono text-[10px] font-bold">
+                                {trip.timezoneLabel}
+                            </span>
+                            <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                onClick={shareTravelBook}
+                                aria-label="分享旅遊手冊"
+                                title="分享旅遊手冊"
+                                className="size-9 rounded-full bg-white/12 text-white hover:bg-white/20 hover:text-white"
+                            >
+                                <Share2 className="size-4" />
+                            </Button>
+                        </div>
                     </div>
+                    <p
+                        aria-live="polite"
+                        className={cn(
+                            "absolute right-0 top-11 rounded-full bg-[#17323b] px-3 py-1.5 text-xs font-bold shadow-lg transition-opacity",
+                            shareStatus ? "opacity-100" : "pointer-events-none opacity-0",
+                        )}
+                    >
+                        {shareStatus}
+                    </p>
                     <h1 className="mt-5 max-w-sm text-[2.55rem] font-black leading-[0.98] tracking-[-0.05em]">
                         {trip.heroTitle}
                         <br />
@@ -424,7 +529,12 @@ export function ShimanamiTravelBook() {
                 </div>
             </header>
 
-            <div className="sticky top-0 z-20 border-b border-[#c8dce1] bg-[#f7faf8]/95 backdrop-blur-md">
+            <div
+                className={cn(
+                    "sticky z-20 border-b border-[#c8dce1] bg-[#f7faf8]/95 backdrop-blur-md",
+                    showUserHeader ? "top-16" : "top-0",
+                )}
+            >
                 <div
                     ref={dateStripRef}
                     className="mx-auto flex max-w-xl gap-2 overflow-x-auto px-4 py-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"

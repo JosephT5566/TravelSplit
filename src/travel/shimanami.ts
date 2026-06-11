@@ -480,6 +480,7 @@ export const SHIMANAMI_TRIP = {
                     status: "informational",
                     links: [{ label: "開啟地圖", url: map("來島海峽大橋"), kind: "map" }],
                     highlight: {
+                        src: "https://www.honda.co.jp/content/dam/site/www/outdoor/cq_img/trip/shimanami/day3/img_day03_01.jpg",
                         alt: "騎乘自行車通過來島海峽大橋",
                         sourceUrl:
                             "https://www.honda.co.jp/outdoor/trip/shimanami/day3/day3-03.html",
