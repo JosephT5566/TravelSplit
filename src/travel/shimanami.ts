@@ -32,6 +32,13 @@ export interface ShimanamiEvent {
     status?: ShimanamiStatus;
     links?: ShimanamiLink[];
     warning?: string;
+    highlight?: {
+        src?: string;
+        alt: string;
+        sourceUrl?: string;
+        sourceLabel?: string;
+        placeholderName: string;
+    };
 }
 
 export interface ShimanamiDay {
@@ -168,6 +175,14 @@ export const SHIMANAMI_TRIP = {
                     links: [
                         { label: "開啟地圖", url: map("倉敷美觀地區"), kind: "map" },
                     ],
+                    highlight: {
+                        src: "https://www.kurashiki-tabi.jp/wp-content/uploads/2023/12/standard_01_top.jpg",
+                        alt: "倉敷美觀地區的白壁町家、運河與柳樹",
+                        sourceUrl:
+                            "https://www.kurashiki-tabi.jp/standard/kurashiki-bikan-historical-quarter/",
+                        sourceLabel: "倉敷觀光 WEB",
+                        placeholderName: "倉敷美觀地區運河",
+                    },
                 },
                 {
                     id: "d2-museum",
@@ -302,6 +317,13 @@ export const SHIMANAMI_TRIP = {
                     status: "informational",
                     description: "每座橋前都有爬升，過橋後主動補水，不等口渴。",
                     warning: "16:00 前結束騎行，不因趕行程進入夜騎。",
+                    highlight: {
+                        src: "https://www.japan-guide.com/g19/3478_12.jpg",
+                        alt: "島波海道自行車道沿著瀨戶內海跨越島嶼",
+                        sourceUrl: "https://www.japan-guide.com/e/e3478.html",
+                        sourceLabel: "Japan Guide",
+                        placeholderName: "島波海道跨海自行車道",
+                    },
                 },
                 {
                     id: "d4-temple",
@@ -321,6 +343,13 @@ export const SHIMANAMI_TRIP = {
                     priority: "required",
                     status: "confirmed",
                     links: [{ label: "開啟地圖", url: map("瀨戶田港"), kind: "map" }],
+                    highlight: {
+                        src: "https://san-tatsu.jp/assets/uploads/2023/06/20171423/22ba2e1cd7c0f61b12eacd0aba8c3281.jpg",
+                        alt: "生口島瀨戶田的檸檬自行車與跨海大橋景色",
+                        sourceUrl: "https://san-tatsu.jp/articles/246169/",
+                        sourceLabel: "散步的達人",
+                        placeholderName: "瀨戶田檸檬島",
+                    },
                 },
             ],
             contingencies: [
@@ -373,6 +402,13 @@ export const SHIMANAMI_TRIP = {
                     priority: "recommended",
                     status: "informational",
                     links: [{ label: "開啟地圖", url: map("大山祇神社"), kind: "map" }],
+                    highlight: {
+                        src: "https://oomishimagu.jp/wp/wp-content/uploads/2020/10/ogp-3.jpg",
+                        alt: "大三島大山祇神社的本殿與森林境內",
+                        sourceUrl: "https://oomishimagu.jp/",
+                        sourceLabel: "大山祇神社",
+                        placeholderName: "大山祇神社本殿",
+                    },
                 },
                 {
                     id: "d5-detour",
@@ -443,6 +479,13 @@ export const SHIMANAMI_TRIP = {
                     priority: "required",
                     status: "informational",
                     links: [{ label: "開啟地圖", url: map("來島海峽大橋"), kind: "map" }],
+                    highlight: {
+                        alt: "騎乘自行車通過來島海峽大橋",
+                        sourceUrl:
+                            "https://www.honda.co.jp/outdoor/trip/shimanami/day3/day3-03.html",
+                        sourceLabel: "Honda Outdoor",
+                        placeholderName: "來島海峽大橋騎行",
+                    },
                 },
                 {
                     id: "d6-return",
@@ -471,6 +514,13 @@ export const SHIMANAMI_TRIP = {
                     priority: "required",
                     status: "confirmed",
                     links: [{ label: "開啟地圖", url: map("道後溫泉"), kind: "map" }],
+                    highlight: {
+                        src: "https://dogo.jp/wp-content/uploads/2017/01/slide_01.jpg",
+                        alt: "道後溫泉本館的木造建築外觀",
+                        sourceUrl: "https://dogo.jp/en/honkan.php",
+                        sourceLabel: "道後溫泉官方網站",
+                        placeholderName: "道後溫泉本館",
+                    },
                 },
             ],
             contingencies: [

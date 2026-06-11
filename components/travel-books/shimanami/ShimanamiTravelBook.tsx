@@ -122,6 +122,9 @@ function EventCard({ event }: { event: ShimanamiEvent }) {
                     {event.description && (
                         <p className="mt-2 text-sm leading-6 text-[#506a73]">{event.description}</p>
                     )}
+                    {event.highlight && (
+                        <HighlightImage highlight={event.highlight} />
+                    )}
                     {event.warning && (
                         <div className="mt-3 flex gap-2 rounded-xl bg-[#fff0ed] p-3 text-xs font-semibold leading-5 text-[#9b3f36]">
                             <AlertTriangle className="mt-0.5 size-4 shrink-0" />
@@ -152,6 +155,57 @@ function EventCard({ event }: { event: ShimanamiEvent }) {
                 </div>
             </div>
         </article>
+    );
+}
+
+function HighlightImage({
+    highlight,
+}: {
+    highlight: NonNullable<ShimanamiEvent["highlight"]>;
+}) {
+    const [failed, setFailed] = React.useState(false);
+    const showPlaceholder = !highlight.src || failed;
+
+    return (
+        <figure className="mt-3 overflow-hidden rounded-xl border border-[#d6e3e6] bg-[#eaf5f7]">
+            {showPlaceholder ? (
+                <div
+                    className="flex aspect-[16/9] flex-col items-center justify-center gap-2 bg-[linear-gradient(135deg,#d9eef3,#f7faf8)] px-5 text-center"
+                    role="img"
+                    aria-label={`${highlight.placeholderName}圖片預留位置`}
+                >
+                    <MapPin className="size-6 text-[#126b8a]" />
+                    <span className="text-sm font-extrabold text-[#294852]">
+                        {highlight.placeholderName}
+                    </span>
+                    <span className="text-[11px] font-medium text-[#607983]">
+                        圖片預留位置
+                    </span>
+                </div>
+            ) : (
+                <img
+                    src={highlight.src}
+                    alt={highlight.alt}
+                    loading="lazy"
+                    decoding="async"
+                    onError={() => setFailed(true)}
+                    className="aspect-[16/9] w-full object-cover"
+                />
+            )}
+            <figcaption className="flex items-center justify-between gap-3 px-3 py-2 text-[10px] font-medium text-[#607983]">
+                <span>旅程亮點 · {highlight.placeholderName}</span>
+                {highlight.sourceUrl && highlight.sourceLabel && (
+                    <a
+                        href={highlight.sourceUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="shrink-0 font-bold text-[#126b8a] hover:underline"
+                    >
+                        圖片來源：{highlight.sourceLabel}
+                    </a>
+                )}
+            </figcaption>
+        </figure>
     );
 }
 
