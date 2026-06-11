@@ -2,6 +2,7 @@
 
 import React from "react";
 import { FileText, Table, ExternalLink, Sparkle } from "lucide-react"; // 使用 lucide-react 作為圖示庫
+import { TravelBookList } from "@/components/travel-books/TravelBookList";
 import { useConfig } from "../../src/stores/ConfigStore";
 import _isEmpty from "lodash/isEmpty";
 
@@ -24,6 +25,8 @@ const PlanPage = () => {
 
     return (
         <div className="flex flex-col gap-5 p-4 mx-auto pb-20">
+            <TravelBookList resources={resources} />
+
             {/* External Resources Section */}
             {!_isEmpty(resources) && (
                 <section>

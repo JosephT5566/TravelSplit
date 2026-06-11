@@ -1,4 +1,4 @@
-const CACHE_VERSION = "tripsplit-pwa-v1";
+const CACHE_VERSION = "tripsplit-pwa-v2";
 const APP_SHELL_CACHE = `${CACHE_VERSION}-shell`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 
@@ -8,6 +8,7 @@ const shellUrls = [
     "index.html",
     "summary.html",
     "plan.html",
+    "2026-shimanami.html",
     "select-sheet.html",
     "offline.html",
 ].map((path) => new URL(path, scopeUrl).toString());

@@ -10,16 +10,22 @@ import {
     saveSelectedSheetId,
 } from "@/src/utils/sheetSelection";
 import { useSelectedSheetId } from "@/src/hooks/useSelectedSheetId";
+import { isPublicTravelBookPath } from "@/src/travel/registry";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
     const { isAuthInitialized, isSignedIn } = useAuthState();
     const pathname = usePathname();
     const router = useRouter();
     const selectedSheetId = useSelectedSheetId();
+    const isPublicTravelBook = isPublicTravelBookPath(pathname);
     const [isSheetSelectionReady, setIsSheetSelectionReady] =
         React.useState(false);
 
     React.useEffect(() => {
+        if (isPublicTravelBook) {
+            return;
+        }
+
         if (!isAuthInitialized || !isSignedIn) {
             return;
         }
@@ -45,7 +51,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         }
 
         setIsSheetSelectionReady(true);
-    }, [isAuthInitialized, isSignedIn, pathname, router, selectedSheetId]);
+    }, [
+        isAuthInitialized,
+        isPublicTravelBook,
+        isSignedIn,
+        pathname,
+        router,
+        selectedSheetId,
+    ]);
+
+    if (isPublicTravelBook) {
+        return <>{children}</>;
+    }
 
     if (!isAuthInitialized) {
         return (
