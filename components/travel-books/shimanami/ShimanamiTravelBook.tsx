@@ -19,6 +19,7 @@ import {
     Info,
     MapPin,
     Navigation,
+    PackageCheck,
     Route,
     ShieldAlert,
     ShoppingBag,
@@ -29,6 +30,15 @@ import {
 } from "lucide-react";
 import { AppHeader } from "@/components/AppHeader";
 import { Button } from "@/components/ui/button";
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogHeader,
+    DialogTitle,
+    DialogTrigger,
+} from "@/components/ui/dialog";
+import { PackingChecklist } from "@/components/travel-books/shimanami/PackingChecklist";
 import { cn } from "@/lib/utils";
 import { useAuthState } from "@/src/stores/AuthStore";
 import {
@@ -336,6 +346,7 @@ export function ShimanamiTravelBook() {
     const { isAuthInitialized, isSignedIn, user } = useAuthState();
     const showUserHeader = isAuthInitialized && isSignedIn && Boolean(user);
     const storageKey = `${SHIMANAMI_TRAVEL_BOOK.id}-preparation`;
+    const packingStorageKey = `${SHIMANAMI_TRAVEL_BOOK.id}-packing-v1`;
     const days = trip.days;
     const [effectiveIndex, setEffectiveIndex] = React.useState(() =>
         getEffectiveDayIndex(days, new Date(), trip.timezone),
@@ -495,6 +506,29 @@ export function ShimanamiTravelBook() {
                             <span className="rounded-full bg-white/12 px-3 py-1 font-mono text-[10px] font-bold">
                                 {trip.timezoneLabel}
                             </span>
+                            <Dialog>
+                                <DialogTrigger asChild>
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="icon"
+                                        aria-label="開啟背包清單"
+                                        title="背包清單"
+                                        className="size-9 rounded-full bg-white/12 text-white hover:bg-white/20 hover:text-white"
+                                    >
+                                        <PackageCheck className="size-4" />
+                                    </Button>
+                                </DialogTrigger>
+                                <DialogContent className="max-h-[calc(100dvh-2rem)] gap-0 overflow-y-auto bg-[#f7faf8] p-0 sm:max-w-xl">
+                                    <DialogHeader className="sr-only">
+                                        <DialogTitle>40L／10kg 背包清單</DialogTitle>
+                                        <DialogDescription>
+                                            管理旅行用品、打包狀態與預估重量。
+                                        </DialogDescription>
+                                    </DialogHeader>
+                                    <PackingChecklist storageKey={packingStorageKey} />
+                                </DialogContent>
+                            </Dialog>
                             <Button
                                 type="button"
                                 variant="ghost"
