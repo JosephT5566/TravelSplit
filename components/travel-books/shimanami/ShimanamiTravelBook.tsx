@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import useEmblaCarousel from "embla-carousel-react";
 import {
     AlertTriangle,
     Bike,
@@ -19,6 +20,7 @@ import {
     Info,
     MapPin,
     Navigation,
+    PackageCheck,
     Route,
     ShieldAlert,
     ShoppingBag,
@@ -29,6 +31,15 @@ import {
 } from "lucide-react";
 import { AppHeader } from "@/components/AppHeader";
 import { Button } from "@/components/ui/button";
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogHeader,
+    DialogTitle,
+    DialogTrigger,
+} from "@/components/ui/dialog";
+import { PackingChecklist } from "@/components/travel-books/shimanami/PackingChecklist";
 import { cn } from "@/lib/utils";
 import { useAuthState } from "@/src/stores/AuthStore";
 import {
@@ -331,11 +342,113 @@ function Checklist({
     );
 }
 
+function DayItinerary({
+    day,
+    showPreparation,
+    storageKey,
+    preparationTitle,
+}: {
+    day: ShimanamiDay;
+    showPreparation: boolean;
+    storageKey: string;
+    preparationTitle: string;
+}) {
+    const headingId = `${day.id}-heading`;
+
+    return (
+        <div className="space-y-5">
+            <section aria-labelledby={headingId}>
+                <div className="flex items-end justify-between gap-4">
+                    <div>
+                        <p className="font-mono text-xs font-bold tracking-[0.14em] text-[#126b8a]">
+                            {day.date.replaceAll("-", ".")} · {day.weekday}
+                        </p>
+                        <h2
+                            id={headingId}
+                            className="mt-1 text-3xl font-black tracking-[-0.035em] text-[#17323b]"
+                        >
+                            {day.city}
+                        </h2>
+                    </div>
+                    <span className="font-mono text-4xl font-black text-[#c9dde2]">
+                        {day.dayLabel}
+                    </span>
+                </div>
+                <p className="mt-3 text-lg font-extrabold leading-snug text-[#294852]">
+                    {day.theme}
+                </p>
+                {day.note && (
+                    <p className="mt-2 border-l-4 border-[#f2c94c] pl-3 text-sm leading-6 text-[#607983]">
+                        {day.note}
+                    </p>
+                )}
+            </section>
+
+            {day.cycling && <CyclingProgress cycling={day.cycling} />}
+            {showPreparation && (
+                <Checklist
+                    items={PREPARATION_ITEMS}
+                    storageKey={storageKey}
+                    title={preparationTitle}
+                />
+            )}
+
+            <section className="relative space-y-4 pl-8" aria-label={`${day.city} 行程時間線`}>
+                <div
+                    aria-hidden="true"
+                    className="absolute bottom-5 left-[13px] top-5 w-[5px] rounded-full bg-[#126b8a]"
+                />
+                {day.events.map((event, index) => (
+                    <div key={event.id} className="relative">
+                        <span
+                            aria-hidden="true"
+                            className={cn(
+                                "absolute -left-[27px] top-6 z-10 size-[15px] rounded-full border-[3px] border-[#f7faf8]",
+                                index === 0 ? "bg-[#f2c94c]" : "bg-[#126b8a]",
+                            )}
+                        />
+                        <EventCard event={event} />
+                    </div>
+                ))}
+                <span
+                    aria-hidden="true"
+                    className="absolute -left-[1px] bottom-0 flex size-7 items-center justify-center rounded-full bg-[#17323b] text-white"
+                >
+                    <Flag className="size-3.5" />
+                </span>
+            </section>
+
+            {day.contingencies && (
+                <details className="group overflow-hidden rounded-[1.5rem] border border-[#efc1bb] bg-[#fff8f6]">
+                    <summary className="flex min-h-14 cursor-pointer list-none items-center justify-between gap-3 p-4 font-extrabold text-[#7f342d] [&::-webkit-details-marker]:hidden">
+                        <span className="flex items-center gap-3">
+                            <span className="flex size-9 items-center justify-center rounded-full bg-[#ffe4df]">
+                                <CloudRain className="size-4" />
+                            </span>
+                            雨天／體力備案
+                        </span>
+                        <ChevronDown className="size-5 transition-transform group-open:rotate-180" />
+                    </summary>
+                    <div className="space-y-3 border-t border-[#f0d4d0] p-4">
+                        {day.contingencies.map((item) => (
+                            <div key={item} className="flex gap-2 text-sm leading-6 text-[#714c47]">
+                                <CircleHelp className="mt-1 size-4 shrink-0" />
+                                <p>{item}</p>
+                            </div>
+                        ))}
+                    </div>
+                </details>
+            )}
+        </div>
+    );
+}
+
 export function ShimanamiTravelBook() {
     const trip = SHIMANAMI_TRIP;
     const { isAuthInitialized, isSignedIn, user } = useAuthState();
     const showUserHeader = isAuthInitialized && isSignedIn && Boolean(user);
     const storageKey = `${SHIMANAMI_TRAVEL_BOOK.id}-preparation`;
+    const packingStorageKey = `${SHIMANAMI_TRAVEL_BOOK.id}-packing-v1`;
     const days = trip.days;
     const [effectiveIndex, setEffectiveIndex] = React.useState(() =>
         getEffectiveDayIndex(days, new Date(), trip.timezone),
@@ -344,6 +457,13 @@ export function ShimanamiTravelBook() {
     const [manualSelection, setManualSelection] = React.useState(false);
     const [offline, setOffline] = React.useState(false);
     const [shareStatus, setShareStatus] = React.useState("");
+    const [carouselHeight, setCarouselHeight] = React.useState<number>();
+    const [carouselRef, carouselApi] = useEmblaCarousel({
+        align: "start",
+        containScroll: "trimSnaps",
+        duration: 24,
+        startIndex: effectiveIndex,
+    });
     const dateStripRef = React.useRef<HTMLDivElement>(null);
     const shareStatusTimerRef = React.useRef<number | null>(null);
 
@@ -385,6 +505,51 @@ export function ShimanamiTravelBook() {
     }, [selectedIndex]);
 
     React.useEffect(() => {
+        if (!carouselApi || carouselApi.selectedScrollSnap() === selectedIndex) {
+            return;
+        }
+
+        carouselApi.scrollTo(selectedIndex);
+    }, [carouselApi, selectedIndex]);
+
+    React.useEffect(() => {
+        if (!carouselApi) {
+            return;
+        }
+
+        const onSelect = () => {
+            const nextIndex = carouselApi.selectedScrollSnap();
+            setSelectedIndex(nextIndex);
+            setManualSelection(nextIndex !== effectiveIndex);
+        };
+
+        carouselApi.on("select", onSelect);
+        carouselApi.on("reInit", onSelect);
+        return () => {
+            carouselApi.off("select", onSelect);
+            carouselApi.off("reInit", onSelect);
+        };
+    }, [carouselApi, effectiveIndex]);
+
+    React.useEffect(() => {
+        if (!carouselApi) {
+            return;
+        }
+
+        const slide = carouselApi.slideNodes()[selectedIndex];
+        if (!slide) {
+            return;
+        }
+
+        const updateHeight = () => setCarouselHeight(slide.scrollHeight);
+        updateHeight();
+
+        const observer = new ResizeObserver(updateHeight);
+        observer.observe(slide);
+        return () => observer.disconnect();
+    }, [carouselApi, selectedIndex]);
+
+    React.useEffect(() => {
         return () => {
             if (shareStatusTimerRef.current) {
                 window.clearTimeout(shareStatusTimerRef.current);
@@ -392,7 +557,6 @@ export function ShimanamiTravelBook() {
         };
     }, []);
 
-    const day = days[selectedIndex];
     const currentTripDate = getDateInTimeZone(new Date(), trip.timezone);
     const beforeTrip = currentTripDate < trip.startDate;
     const afterTrip = currentTripDate > trip.endDate;
@@ -495,6 +659,29 @@ export function ShimanamiTravelBook() {
                             <span className="rounded-full bg-white/12 px-3 py-1 font-mono text-[10px] font-bold">
                                 {trip.timezoneLabel}
                             </span>
+                            <Dialog>
+                                <DialogTrigger asChild>
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="icon"
+                                        aria-label="開啟背包清單"
+                                        title="背包清單"
+                                        className="size-9 rounded-full bg-white/12 text-white hover:bg-white/20 hover:text-white"
+                                    >
+                                        <PackageCheck className="size-4" />
+                                    </Button>
+                                </DialogTrigger>
+                                <DialogContent className="max-h-[calc(100dvh-2rem)] gap-0 overflow-y-auto bg-[#f7faf8] p-0 sm:max-w-xl">
+                                    <DialogHeader className="sr-only">
+                                        <DialogTitle>40L／10kg 背包清單</DialogTitle>
+                                        <DialogDescription>
+                                            管理旅行用品、打包狀態與預估重量。
+                                        </DialogDescription>
+                                    </DialogHeader>
+                                    <PackingChecklist storageKey={packingStorageKey} />
+                                </DialogContent>
+                            </Dialog>
                             <Button
                                 type="button"
                                 variant="ghost"
@@ -598,88 +785,38 @@ export function ShimanamiTravelBook() {
                     </Button>
                 )}
 
-                <section aria-labelledby="selected-day-heading">
-                    <div className="flex items-end justify-between gap-4">
-                        <div>
-                            <p className="font-mono text-xs font-bold tracking-[0.14em] text-[#126b8a]">
-                                {day.date.replaceAll("-", ".")} · {day.weekday}
-                            </p>
-                            <h2
-                                id="selected-day-heading"
-                                className="mt-1 text-3xl font-black tracking-[-0.035em] text-[#17323b]"
+                <div
+                    ref={carouselRef}
+                    className="overflow-hidden touch-pan-y transition-[height] duration-300 ease-out motion-reduce:transition-none"
+                    style={{ height: carouselHeight }}
+                    role="region"
+                    aria-roledescription="carousel"
+                    aria-label="每日行程"
+                >
+                    <div className="flex items-start">
+                        {days.map((item, index) => (
+                            <div
+                                key={item.id}
+                                className="min-w-0 flex-[0_0_100%]"
+                                role="group"
+                                aria-roledescription="slide"
+                                aria-label={`${index + 1} / ${days.length}`}
+                                aria-hidden={index !== selectedIndex}
+                                inert={index !== selectedIndex}
                             >
-                                {day.city}
-                            </h2>
-                        </div>
-                        <span className="font-mono text-4xl font-black text-[#c9dde2]">
-                            {day.dayLabel}
-                        </span>
+                                <DayItinerary
+                                    day={item}
+                                    showPreparation={
+                                        index === selectedIndex &&
+                                        index < trip.preparationVisibleThroughDay
+                                    }
+                                    storageKey={storageKey}
+                                    preparationTitle={trip.preparationTitle}
+                                />
+                            </div>
+                        ))}
                     </div>
-                    <p className="mt-3 text-lg font-extrabold leading-snug text-[#294852]">
-                        {day.theme}
-                    </p>
-                    {day.note && (
-                        <p className="mt-2 border-l-4 border-[#f2c94c] pl-3 text-sm leading-6 text-[#607983]">
-                            {day.note}
-                        </p>
-                    )}
-                </section>
-
-                {day.cycling && <CyclingProgress cycling={day.cycling} />}
-                {selectedIndex < trip.preparationVisibleThroughDay && (
-                    <Checklist
-                        items={PREPARATION_ITEMS}
-                        storageKey={storageKey}
-                        title={trip.preparationTitle}
-                    />
-                )}
-
-                <section className="relative space-y-4 pl-8" aria-label={`${day.city} 行程時間線`}>
-                    <div
-                        aria-hidden="true"
-                        className="absolute bottom-5 left-[13px] top-5 w-[5px] rounded-full bg-[#126b8a]"
-                    />
-                    {day.events.map((event, index) => (
-                        <div key={event.id} className="relative">
-                            <span
-                                aria-hidden="true"
-                                className={cn(
-                                    "absolute -left-[27px] top-6 z-10 size-[15px] rounded-full border-[3px] border-[#f7faf8]",
-                                    index === 0 ? "bg-[#f2c94c]" : "bg-[#126b8a]",
-                                )}
-                            />
-                            <EventCard event={event} />
-                        </div>
-                    ))}
-                    <span
-                        aria-hidden="true"
-                        className="absolute -left-[1px] bottom-0 flex size-7 items-center justify-center rounded-full bg-[#17323b] text-white"
-                    >
-                        <Flag className="size-3.5" />
-                    </span>
-                </section>
-
-                {day.contingencies && (
-                    <details className="group overflow-hidden rounded-[1.5rem] border border-[#efc1bb] bg-[#fff8f6]">
-                        <summary className="flex min-h-14 cursor-pointer list-none items-center justify-between gap-3 p-4 font-extrabold text-[#7f342d] [&::-webkit-details-marker]:hidden">
-                            <span className="flex items-center gap-3">
-                                <span className="flex size-9 items-center justify-center rounded-full bg-[#ffe4df]">
-                                    <CloudRain className="size-4" />
-                                </span>
-                                雨天／體力備案
-                            </span>
-                            <ChevronDown className="size-5 transition-transform group-open:rotate-180" />
-                        </summary>
-                        <div className="space-y-3 border-t border-[#f0d4d0] p-4">
-                            {day.contingencies.map((item) => (
-                                <div key={item} className="flex gap-2 text-sm leading-6 text-[#714c47]">
-                                    <CircleHelp className="mt-1 size-4 shrink-0" />
-                                    <p>{item}</p>
-                                </div>
-                            ))}
-                        </div>
-                    </details>
-                )}
+                </div>
 
                 <nav className="grid grid-cols-2 gap-3" aria-label="前後日期">
                     <Button
