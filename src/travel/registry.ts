@@ -19,8 +19,25 @@ export const SHIMANAMI_TRAVEL_BOOK = {
     },
 } satisfies TravelBookDefinition;
 
+export const HOKKAIDO_CAR_TRAVEL_BOOK = {
+    id: "2026-hokkaido-car",
+    path: "/2026-hokkaido-car",
+    sourceDocumentIds: [
+        "1KTb3yvRp3MPHajXC5oqxgHQb6AjHNmERxbrX0KcEHmc",
+    ],
+    title: "北海道自駕",
+    eyebrow: "2026 ROAD BOOK",
+    dateRange: "8/5–8/16",
+    destinations: "道北、道東、美瑛、札幌",
+    metadata: {
+        title: "北海道自駕 2026 | TripSplit",
+        description: "從新千歲一路前往宗谷岬、利尻、知床、阿寒湖、美瑛與札幌的十二日自駕手冊。",
+    },
+} satisfies TravelBookDefinition;
+
 export const TRAVEL_BOOKS: readonly TravelBookDefinition[] = [
     SHIMANAMI_TRAVEL_BOOK,
+    HOKKAIDO_CAR_TRAVEL_BOOK,
 ];
 
 export function resourceMatchesTravelBook(
@@ -47,5 +64,11 @@ export function getTravelBooksForResources(
 }
 
 export function isPublicTravelBookPath(pathname: string) {
-    return TRAVEL_BOOKS.some((travelBook) => travelBook.path === pathname);
+    const normalizedPath = pathname
+        .replace(/\.html$/, "")
+        .replace(/\/$/, "") || "/";
+
+    return TRAVEL_BOOKS.some(
+        (travelBook) => travelBook.path === normalizedPath,
+    );
 }

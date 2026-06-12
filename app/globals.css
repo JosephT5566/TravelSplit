@@ -188,3 +188,33 @@
         @apply font-sans;
     }
 }
+
+@layer utilities {
+    .font-hokkaido-body {
+        font-family:
+            "Noto Sans TC",
+            "PingFang TC",
+            "Microsoft JhengHei",
+            system-ui,
+            sans-serif;
+    }
+
+    .font-hokkaido-display {
+        font-family:
+            "LXGW WenKai TC",
+            "Kaiti TC",
+            "DFKai-SB",
+            "Noto Sans TC",
+            serif;
+    }
+
+    .font-hokkaido-data {
+        font-family:
+            "IBM Plex Sans Condensed",
+            "Arial Narrow",
+            "Noto Sans TC",
+            system-ui,
+            sans-serif;
+        font-stretch: condensed;
+    }
+}
