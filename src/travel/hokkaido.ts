@@ -75,7 +75,7 @@ export interface HokkaidoDay {
     destination: string;
     theme: string;
     note?: string;
-    driving: HokkaidoDrivingSegment;
+    driving?: HokkaidoDrivingSegment;
     events: HokkaidoEvent[];
 }
 
@@ -896,17 +896,6 @@ export const HOKKAIDO_TRIP: HokkaidoTrip = {
             region: "札幌",
             destination: "札幌市區",
             theme: "不再開車，用一整天慢慢收尾",
-            driving: {
-                mode: "returned",
-                origin: "札幌",
-                destination: "札幌",
-                waypoints: ["藻岩山"],
-                distanceKm: 0,
-                note: "租車已歸還。市區以步行、地下鐵與路面電車移動。",
-                alerts: [
-                    { label: "盆節週末人潮多，夜景交通預留排隊時間", severity: "notice" },
-                ],
-            },
             events: [
                 {
                     id: "d11-city",
@@ -957,17 +946,6 @@ export const HOKKAIDO_TRIP: HokkaidoTrip = {
             region: "札幌 → 新千歲",
             destination: "新千歲 → 台北",
             theme: "提早到機場，讓旅程平穩降落",
-            driving: {
-                mode: "returned",
-                origin: "札幌",
-                destination: "新千歲機場",
-                waypoints: ["JR 快速列車"],
-                distanceKm: 0,
-                note: "租車已歸還；搭 JR 或其他公共交通前往機場。",
-                alerts: [
-                    { label: "09:30 前抵達機場", severity: "deadline" },
-                ],
-            },
             events: [
                 {
                     id: "d12-train",

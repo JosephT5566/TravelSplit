@@ -92,7 +92,22 @@ const WARNING_STYLE: Record<HokkaidoWarningSeverity, string> = {
     safety: "border-[#efb4ac] bg-[#fff0ed] text-[#8b3931]",
 };
 
-function RoadRibbon({ driving }: { driving: HokkaidoDrivingSegment }) {
+const ROUTE_IMAGE_BY_DAY: Partial<Record<HokkaidoDay["id"], string>> = {
+    "day-1": "https://cdn.josephtseng-tw.com/travel-split/2026-hokkaido-d1.jpg",
+    "day-2": "https://cdn.josephtseng-tw.com/travel-split/2026-hokkaido-d2.jpg",
+    "day-4": "https://cdn.josephtseng-tw.com/travel-split/2026-hokkaido-d4.jpg",
+    "day-5": "https://cdn.josephtseng-tw.com/travel-split/2026-hokkaido-d5.jpg",
+    "day-7": "https://cdn.josephtseng-tw.com/travel-split/2026-hokkaido-d7.jpg",
+    "day-8": "https://cdn.josephtseng-tw.com/travel-split/2026-hokkaido-d8.jpg",
+};
+
+function RoadRibbon({
+    driving,
+    routeImageUrl,
+}: {
+    driving: HokkaidoDrivingSegment;
+    routeImageUrl?: string;
+}) {
     const routeStops = [
         driving.origin,
         ...driving.waypoints,
@@ -135,46 +150,57 @@ function RoadRibbon({ driving }: { driving: HokkaidoDrivingSegment }) {
                 </div>
             </div>
 
-            <div className="relative mx-5 overflow-hidden rounded-[1.25rem] bg-[#101f28] px-4 py-5">
-                <div
-                    aria-hidden="true"
-                    className="absolute bottom-0 left-1/2 top-0 w-[2px] -translate-x-1/2 bg-[repeating-linear-gradient(to_bottom,#f4c542_0,#f4c542_12px,transparent_12px,transparent_23px)] opacity-80"
+            {routeImageUrl ? (
+                <img
+                    src={routeImageUrl}
+                    alt={`${driving.origin}到${driving.destination}路線圖`}
+                    className="mx-5 mb-5 h-auto w-[calc(100%-2.5rem)] rounded-[1.25rem]"
                 />
-                <ol className="relative z-10 space-y-4">
-                    {routeStops.map((stop, index) => {
-                        const edge =
-                            index === 0 || index === routeStops.length - 1;
-                        const leftSide = index % 2 === 0;
-                        return (
-                            <li
-                                key={`${stop}-${index}`}
-                                className="grid grid-cols-[minmax(0,1fr)_24px_minmax(0,1fr)] items-center"
-                            >
-                                <div
-                                    className={cn(
-                                        "min-w-0 rounded-xl border px-3 py-2 text-xs font-bold leading-4",
-                                        edge
-                                            ? "border-[#f4c542]/55 bg-[#f4c542] text-[#172a36]"
-                                            : "border-white/15 bg-white/10 text-white",
-                                        leftSide
-                                            ? "col-start-1 mr-3 justify-self-end text-right"
-                                            : "col-start-3 ml-3 justify-self-start",
-                                    )}
+            ) : (
+                <div className="relative mx-5 overflow-hidden rounded-[1.25rem] bg-[#101f28] px-4 py-5">
+                    <div
+                        aria-hidden="true"
+                        className="absolute bottom-0 left-1/2 top-0 w-[2px] -translate-x-1/2 bg-[repeating-linear-gradient(to_bottom,#f4c542_0,#f4c542_12px,transparent_12px,transparent_23px)] opacity-80"
+                    />
+                    <ol className="relative z-10 space-y-4">
+                        {routeStops.map((stop, index) => {
+                            const edge =
+                                index === 0 ||
+                                index === routeStops.length - 1;
+                            const leftSide = index % 2 === 0;
+                            return (
+                                <li
+                                    key={`${stop}-${index}`}
+                                    className="grid grid-cols-[minmax(0,1fr)_24px_minmax(0,1fr)] items-center"
                                 >
-                                    {stop}
-                                </div>
-                                <span
-                                    aria-hidden="true"
-                                    className={cn(
-                                        "col-start-2 row-start-1 mx-auto size-3 rounded-full border-2 border-[#101f28]",
-                                        edge ? "bg-[#f4c542]" : "bg-white",
-                                    )}
-                                />
-                            </li>
-                        );
-                    })}
-                </ol>
-            </div>
+                                    <div
+                                        className={cn(
+                                            "min-w-0 rounded-xl border px-3 py-2 text-xs font-bold leading-4",
+                                            edge
+                                                ? "border-[#f4c542]/55 bg-[#f4c542] text-[#172a36]"
+                                                : "border-white/15 bg-white/10 text-white",
+                                            leftSide
+                                                ? "col-start-1 mr-3 justify-self-end text-right"
+                                                : "col-start-3 ml-3 justify-self-start",
+                                        )}
+                                    >
+                                        {stop}
+                                    </div>
+                                    <span
+                                        aria-hidden="true"
+                                        className={cn(
+                                            "col-start-2 row-start-1 mx-auto size-3 rounded-full border-2 border-[#101f28]",
+                                            edge
+                                                ? "bg-[#f4c542]"
+                                                : "bg-white",
+                                        )}
+                                    />
+                                </li>
+                            );
+                        })}
+                    </ol>
+                </div>
+            )}
 
             <div className="grid grid-cols-2 gap-px bg-white/10">
                 <div className="bg-black/10 px-5 py-4">
@@ -490,6 +516,7 @@ function PreparationChecklist({ storageKey }: { storageKey: string }) {
 
 function DayItinerary({ day }: { day: HokkaidoDay }) {
     const headingId = `${day.id}-heading`;
+    const routeImageUrl = ROUTE_IMAGE_BY_DAY[day.id];
 
     return (
         <div className="space-y-5">
@@ -523,7 +550,12 @@ function DayItinerary({ day }: { day: HokkaidoDay }) {
                 )}
             </section>
 
-            <RoadRibbon driving={day.driving} />
+            {day.driving && (
+                <RoadRibbon
+                    driving={day.driving}
+                    routeImageUrl={routeImageUrl}
+                />
+            )}
 
             <section
                 className="relative space-y-4 pl-8"
