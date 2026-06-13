@@ -92,7 +92,22 @@ const WARNING_STYLE: Record<HokkaidoWarningSeverity, string> = {
     safety: "border-[#efb4ac] bg-[#fff0ed] text-[#8b3931]",
 };
 
-function RoadRibbon({ driving }: { driving: HokkaidoDrivingSegment }) {
+const ROUTE_IMAGE_BY_DAY: Partial<Record<HokkaidoDay["id"], string>> = {
+    "day-1": "https://cdn.josephtseng-tw.com/travel-split/2026-hokkaido-d1.jpg",
+    "day-2": "https://cdn.josephtseng-tw.com/travel-split/2026-hokkaido-d2.jpg",
+    "day-4": "https://cdn.josephtseng-tw.com/travel-split/2026-hokkaido-d4.jpg",
+    "day-5": "https://cdn.josephtseng-tw.com/travel-split/2026-hokkaido-d5.jpg",
+    "day-7": "https://cdn.josephtseng-tw.com/travel-split/2026-hokkaido-d7.jpg",
+    "day-8": "https://cdn.josephtseng-tw.com/travel-split/2026-hokkaido-d8.jpg",
+};
+
+function RoadRibbon({
+    driving,
+    routeImageUrl,
+}: {
+    driving: HokkaidoDrivingSegment;
+    routeImageUrl?: string;
+}) {
     const routeStops = [
         driving.origin,
         ...driving.waypoints,
@@ -135,46 +150,57 @@ function RoadRibbon({ driving }: { driving: HokkaidoDrivingSegment }) {
                 </div>
             </div>
 
-            <div className="relative mx-5 overflow-hidden rounded-[1.25rem] bg-[#101f28] px-4 py-5">
-                <div
-                    aria-hidden="true"
-                    className="absolute bottom-0 left-1/2 top-0 w-[2px] -translate-x-1/2 bg-[repeating-linear-gradient(to_bottom,#f4c542_0,#f4c542_12px,transparent_12px,transparent_23px)] opacity-80"
+            {routeImageUrl ? (
+                <img
+                    src={routeImageUrl}
+                    alt={`${driving.origin}到${driving.destination}路線圖`}
+                    className="mx-5 mb-5 h-auto w-[calc(100%-2.5rem)] rounded-[1.25rem]"
                 />
-                <ol className="relative z-10 space-y-4">
-                    {routeStops.map((stop, index) => {
-                        const edge =
-                            index === 0 || index === routeStops.length - 1;
-                        const leftSide = index % 2 === 0;
-                        return (
-                            <li
-                                key={`${stop}-${index}`}
-                                className="grid grid-cols-[minmax(0,1fr)_24px_minmax(0,1fr)] items-center"
-                            >
-                                <div
-                                    className={cn(
-                                        "min-w-0 rounded-xl border px-3 py-2 text-xs font-bold leading-4",
-                                        edge
-                                            ? "border-[#f4c542]/55 bg-[#f4c542] text-[#172a36]"
-                                            : "border-white/15 bg-white/10 text-white",
-                                        leftSide
-                                            ? "col-start-1 mr-3 justify-self-end text-right"
-                                            : "col-start-3 ml-3 justify-self-start",
-                                    )}
+            ) : (
+                <div className="relative mx-5 overflow-hidden rounded-[1.25rem] bg-[#101f28] px-4 py-5">
+                    <div
+                        aria-hidden="true"
+                        className="absolute bottom-0 left-1/2 top-0 w-[2px] -translate-x-1/2 bg-[repeating-linear-gradient(to_bottom,#f4c542_0,#f4c542_12px,transparent_12px,transparent_23px)] opacity-80"
+                    />
+                    <ol className="relative z-10 space-y-4">
+                        {routeStops.map((stop, index) => {
+                            const edge =
+                                index === 0 ||
+                                index === routeStops.length - 1;
+                            const leftSide = index % 2 === 0;
+                            return (
+                                <li
+                                    key={`${stop}-${index}`}
+                                    className="grid grid-cols-[minmax(0,1fr)_24px_minmax(0,1fr)] items-center"
                                 >
-                                    {stop}
-                                </div>
-                                <span
-                                    aria-hidden="true"
-                                    className={cn(
-                                        "col-start-2 row-start-1 mx-auto size-3 rounded-full border-2 border-[#101f28]",
-                                        edge ? "bg-[#f4c542]" : "bg-white",
-                                    )}
-                                />
-                            </li>
-                        );
-                    })}
-                </ol>
-            </div>
+                                    <div
+                                        className={cn(
+                                            "min-w-0 rounded-xl border px-3 py-2 text-xs font-bold leading-4",
+                                            edge
+                                                ? "border-[#f4c542]/55 bg-[#f4c542] text-[#172a36]"
+                                                : "border-white/15 bg-white/10 text-white",
+                                            leftSide
+                                                ? "col-start-1 mr-3 justify-self-end text-right"
+                                                : "col-start-3 ml-3 justify-self-start",
+                                        )}
+                                    >
+                                        {stop}
+                                    </div>
+                                    <span
+                                        aria-hidden="true"
+                                        className={cn(
+                                            "col-start-2 row-start-1 mx-auto size-3 rounded-full border-2 border-[#101f28]",
+                                            edge
+                                                ? "bg-[#f4c542]"
+                                                : "bg-white",
+                                        )}
+                                    />
+                                </li>
+                            );
+                        })}
+                    </ol>
+                </div>
+            )}
 
             <div className="grid grid-cols-2 gap-px bg-white/10">
                 <div className="bg-black/10 px-5 py-4">
@@ -490,6 +516,7 @@ function PreparationChecklist({ storageKey }: { storageKey: string }) {
 
 function DayItinerary({ day }: { day: HokkaidoDay }) {
     const headingId = `${day.id}-heading`;
+    const routeImageUrl = ROUTE_IMAGE_BY_DAY[day.id];
 
     return (
         <div className="space-y-5">
@@ -523,7 +550,12 @@ function DayItinerary({ day }: { day: HokkaidoDay }) {
                 )}
             </section>
 
-            <RoadRibbon driving={day.driving} />
+            {day.driving && (
+                <RoadRibbon
+                    driving={day.driving}
+                    routeImageUrl={routeImageUrl}
+                />
+            )}
 
             <section
                 className="relative space-y-4 pl-8"
@@ -755,19 +787,24 @@ export function HokkaidoTravelBook() {
                 />
             )}
 
-            <header className="relative overflow-hidden bg-[#172a36] px-5 pb-8 pt-8 text-white">
+            <header className="relative aspect-[4/3] overflow-hidden bg-[#172a36] px-5 py-5 text-white md:aspect-auto md:min-h-[38rem] md:px-8 md:pb-10 md:pt-8 lg:px-12">
+                <picture aria-hidden="true" className="absolute inset-0">
+                    <source
+                        media="(min-width: 768px)"
+                        srcSet="https://cdn.josephtseng-tw.com/travel-split/2026-hokkaido-hero-dweb.jpg"
+                    />
+                    <img
+                        src="https://cdn.josephtseng-tw.com/travel-split/2026-hokkaido-hero-mweb.jpg"
+                        alt=""
+                        className="size-full object-cover object-center"
+                    />
+                </picture>
                 <div
                     aria-hidden="true"
-                    className="absolute inset-0 opacity-30 [background-image:linear-gradient(110deg,transparent_0%,transparent_46%,rgba(255,255,255,0.08)_46%,rgba(255,255,255,0.08)_47%,transparent_47%),radial-gradient(circle_at_82%_18%,#8067a8_0,transparent_24%)]"
+                    className="absolute inset-0 bg-[linear-gradient(180deg,rgba(10,25,34,0.82)_0%,rgba(10,25,34,0.52)_45%,rgba(10,25,34,0.08)_76%),linear-gradient(90deg,rgba(10,25,34,0.76)_0%,rgba(10,25,34,0.28)_58%,transparent_82%)] md:bg-[linear-gradient(180deg,rgba(10,25,34,0.72)_0%,rgba(10,25,34,0.18)_62%,transparent_85%),linear-gradient(90deg,rgba(10,25,34,0.8)_0%,rgba(10,25,34,0.42)_38%,transparent_68%)]"
                 />
-                <div
-                    aria-hidden="true"
-                    className="absolute -bottom-28 left-1/2 h-60 w-36 -translate-x-1/2 rounded-t-[4rem] bg-[#101f28]"
-                >
-                    <div className="mx-auto h-full w-[3px] bg-[repeating-linear-gradient(to_bottom,#f4c542_0,#f4c542_18px,transparent_18px,transparent_34px)]" />
-                </div>
 
-                <div className="relative mx-auto max-w-xl">
+                <div className="relative mx-auto max-w-7xl">
                     <div className="flex items-center justify-between gap-3">
                         <p className="font-hokkaido-data text-[11px] font-bold uppercase tracking-[0.2em] text-[#a9c8d2]">
                             Hokkaido road book · {trip.year}
@@ -823,25 +860,25 @@ export function HokkaidoTravelBook() {
                         {shareStatus}
                     </p>
 
-                    <div className="mt-10 max-w-md">
+                    <div className="mt-5 max-w-md md:mt-10">
                         <p className="flex items-center gap-2 text-xs font-bold text-[#c9dbe0]">
                             <Sparkles className="size-4 text-[#f4c542]" />
                             12 DAYS · 1,368 KM PLANNED
                         </p>
-                        <h1 className="mt-3 font-hokkaido-display text-[3.2rem] font-bold leading-[0.94] tracking-[-0.055em]">
+                        <h1 className="mt-2 font-hokkaido-display text-[2.5rem] font-bold leading-[0.94] tracking-[-0.055em] md:mt-3 md:text-[3.2rem]">
                             {trip.heroTitle}
                             <br />
                             <span className="text-[#f4c542]">
                                 {trip.heroAccent}
                             </span>
                         </h1>
-                        <p className="mt-5 flex items-start gap-2 text-sm font-bold leading-6 text-[#c9dbe0]">
+                        <p className="mt-3 flex items-start gap-2 text-xs font-bold leading-5 text-[#c9dbe0] md:mt-5 md:text-sm md:leading-6">
                             <MapPin className="mt-1 size-4 shrink-0 text-[#8067a8]" />
                             {trip.routeSummary}
                         </p>
                     </div>
 
-                    <div className="mt-7 grid grid-cols-2 gap-2">
+                    <div className="mt-4 grid max-w-md grid-cols-2 gap-2 md:mt-7">
                         <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
                             <p className="font-hokkaido-data text-[9px] font-bold uppercase tracking-[0.18em] text-white/45">
                                 rental car
