@@ -787,19 +787,24 @@ export function HokkaidoTravelBook() {
                 />
             )}
 
-            <header className="relative overflow-hidden bg-[#172a36] px-5 pb-8 pt-8 text-white">
+            <header className="relative aspect-[4/3] overflow-hidden bg-[#172a36] px-5 py-5 text-white md:aspect-auto md:min-h-[38rem] md:px-8 md:pb-10 md:pt-8 lg:px-12">
+                <picture aria-hidden="true" className="absolute inset-0">
+                    <source
+                        media="(min-width: 768px)"
+                        srcSet="https://cdn.josephtseng-tw.com/travel-split/2026-hokkaido-hero-dweb.jpg"
+                    />
+                    <img
+                        src="https://cdn.josephtseng-tw.com/travel-split/2026-hokkaido-hero-mweb.jpg"
+                        alt=""
+                        className="size-full object-cover object-center"
+                    />
+                </picture>
                 <div
                     aria-hidden="true"
-                    className="absolute inset-0 opacity-30 [background-image:linear-gradient(110deg,transparent_0%,transparent_46%,rgba(255,255,255,0.08)_46%,rgba(255,255,255,0.08)_47%,transparent_47%),radial-gradient(circle_at_82%_18%,#8067a8_0,transparent_24%)]"
+                    className="absolute inset-0 bg-[linear-gradient(180deg,rgba(10,25,34,0.82)_0%,rgba(10,25,34,0.52)_45%,rgba(10,25,34,0.08)_76%),linear-gradient(90deg,rgba(10,25,34,0.76)_0%,rgba(10,25,34,0.28)_58%,transparent_82%)] md:bg-[linear-gradient(180deg,rgba(10,25,34,0.72)_0%,rgba(10,25,34,0.18)_62%,transparent_85%),linear-gradient(90deg,rgba(10,25,34,0.8)_0%,rgba(10,25,34,0.42)_38%,transparent_68%)]"
                 />
-                <div
-                    aria-hidden="true"
-                    className="absolute -bottom-28 left-1/2 h-60 w-36 -translate-x-1/2 rounded-t-[4rem] bg-[#101f28]"
-                >
-                    <div className="mx-auto h-full w-[3px] bg-[repeating-linear-gradient(to_bottom,#f4c542_0,#f4c542_18px,transparent_18px,transparent_34px)]" />
-                </div>
 
-                <div className="relative mx-auto max-w-xl">
+                <div className="relative mx-auto max-w-7xl">
                     <div className="flex items-center justify-between gap-3">
                         <p className="font-hokkaido-data text-[11px] font-bold uppercase tracking-[0.2em] text-[#a9c8d2]">
                             Hokkaido road book · {trip.year}
@@ -855,25 +860,25 @@ export function HokkaidoTravelBook() {
                         {shareStatus}
                     </p>
 
-                    <div className="mt-10 max-w-md">
+                    <div className="mt-5 max-w-md md:mt-10">
                         <p className="flex items-center gap-2 text-xs font-bold text-[#c9dbe0]">
                             <Sparkles className="size-4 text-[#f4c542]" />
                             12 DAYS · 1,368 KM PLANNED
                         </p>
-                        <h1 className="mt-3 font-hokkaido-display text-[3.2rem] font-bold leading-[0.94] tracking-[-0.055em]">
+                        <h1 className="mt-2 font-hokkaido-display text-[2.5rem] font-bold leading-[0.94] tracking-[-0.055em] md:mt-3 md:text-[3.2rem]">
                             {trip.heroTitle}
                             <br />
                             <span className="text-[#f4c542]">
                                 {trip.heroAccent}
                             </span>
                         </h1>
-                        <p className="mt-5 flex items-start gap-2 text-sm font-bold leading-6 text-[#c9dbe0]">
+                        <p className="mt-3 flex items-start gap-2 text-xs font-bold leading-5 text-[#c9dbe0] md:mt-5 md:text-sm md:leading-6">
                             <MapPin className="mt-1 size-4 shrink-0 text-[#8067a8]" />
                             {trip.routeSummary}
                         </p>
                     </div>
 
-                    <div className="mt-7 grid grid-cols-2 gap-2">
+                    <div className="mt-4 grid max-w-md grid-cols-2 gap-2 md:mt-7">
                         <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
                             <p className="font-hokkaido-data text-[9px] font-bold uppercase tracking-[0.18em] text-white/45">
                                 rental car
