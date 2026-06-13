@@ -6,6 +6,7 @@ import React, {
     useContext,
     useEffect,
     useMemo,
+    useState,
 } from "react";
 import Cookies from "js-cookie";
 import { useLocalStorageUser } from "../hooks/useLocalStorageUser";
@@ -35,62 +36,64 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         user: persistedUser,
         saveUser,
         clearUser,
-        isInitialized: isAuthInitialized,
+        isInitialized: isLocalUserInitialized,
     } = useLocalStorageUser();
+    const [isAuthInitialized, setIsAuthInitialized] = useState(false);
 
     useEffect(() => {
         const checkCookie = async () => {
-            if (hasAuthErrorSearchParam()) {
-                clearUser();
-                clearExpensesCache();
-                return;
-            }
-
-            const isLoggedIn = Cookies.get("is_logged_in");
-            logger.log("is_logged_in cookie", isLoggedIn);
-
-            // Case 1: No login cookie
-            if (!isLoggedIn) {
-                // If we have a persisted user but no login cookie, it means session expired or was cleared.
-                // We should clean up local state.
-                if (persistedUser) {
-                    logger.log("No login cookie found, clearing local user.");
+            try {
+                if (hasAuthErrorSearchParam()) {
                     clearUser();
                     clearExpensesCache();
+                    return;
                 }
-                return;
-            }
 
-            // Case 2: Login cookie exists, but no local user data
-            if (isLoggedIn && !persistedUser) {
-                try {
-                    logger.log(
-                        "Login cookie found but no local user, fetching /me...",
-                    );
-                    const user = await api.getCurrentUser();
-                    if (user) {
-                        saveUser(user);
+                const isLoggedIn = Cookies.get("is_logged_in");
+                logger.log("is_logged_in cookie", isLoggedIn);
+
+                // Case 1: No login cookie
+                if (!isLoggedIn) {
+                    // If we have a persisted user but no login cookie, it means session expired or was cleared.
+                    // We should clean up local state.
+                    if (persistedUser) {
+                        logger.log("No login cookie found, clearing local user.");
+                        clearUser();
+                        clearExpensesCache();
                     }
-                } catch (error) {
-                    logger.error(
-                        "Failed to restore session from cookie",
-                        error,
-                    );
-                    // If fetching /me fails (e.g. 401 even with cookie), clear everything
-                    clearUser();
-                    clearExpensesCache();
+                    return;
                 }
-            }
 
-            // Case 3: Login cookie exists AND local user exists
-            // We assume they are in sync. We could optionally re-verify here if needed.
+                // Case 2: Login cookie exists, but no local user data
+                if (!persistedUser) {
+                    try {
+                        logger.log(
+                            "Login cookie found but no local user, fetching /me...",
+                        );
+                        const user = await api.getCurrentUser();
+                        if (user) {
+                            saveUser(user);
+                        }
+                    } catch (error) {
+                        logger.error(
+                            "Failed to restore session from cookie",
+                            error,
+                        );
+                        // If fetching /me fails (e.g. 401 even with cookie), clear everything
+                        clearUser();
+                        clearExpensesCache();
+                    }
+                }
+            } finally {
+                setIsAuthInitialized(true);
+            }
         };
 
-        if (isAuthInitialized) {
-            logger.log("isAuthInitialized", isAuthInitialized);
+        if (isLocalUserInitialized) {
+            logger.log("isLocalUserInitialized", isLocalUserInitialized);
             checkCookie();
         }
-    }, [saveUser, clearUser, isAuthInitialized, persistedUser]);
+    }, [saveUser, clearUser, isLocalUserInitialized, persistedUser]);
 
     const signOut = useCallback(() => {
         const url = process.env.NEXT_PUBLIC_AUTH_PROXY;
