@@ -11,6 +11,7 @@ import {
 } from "@/src/utils/sheetSelection";
 import { useSelectedSheetId } from "@/src/hooks/useSelectedSheetId";
 import { isPublicTravelBookPath } from "@/src/travel/registry";
+import { StartupLoading } from "./StartupLoading";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
     const { isAuthInitialized, isSignedIn } = useAuthState();
@@ -66,9 +67,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
     if (!isAuthInitialized) {
         return (
-            <div className="flex h-screen w-screen items-center justify-center bg-background">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-            </div>
+            <StartupLoading
+                value="your signed-in account"
+                detail="Checking the saved user and confirming the current login session."
+            />
         );
     }
 
@@ -79,9 +81,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
     if (!isSheetSelectionReady) {
         return (
-            <div className="flex h-screen w-screen items-center justify-center bg-background">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-            </div>
+            <StartupLoading
+                value="the selected trip sheet"
+                detail="Reading the available Google Sheets and opening your active trip."
+            />
         );
     }
 
