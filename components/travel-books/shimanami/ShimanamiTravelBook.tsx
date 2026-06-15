@@ -136,6 +136,48 @@ function EventCard({ event }: { event: ShimanamiEvent }) {
                     {event.description && (
                         <p className="mt-2 text-sm leading-6 text-[#506a73]">{event.description}</p>
                     )}
+                    {event.options && (
+                        <div className="mt-3 space-y-2" aria-label={`${event.title}選項`}>
+                            {event.options.map((option, index) => (
+                                <div
+                                    key={option.id}
+                                    className="rounded-xl border border-[#c8dce1] bg-[#f2f7f8] p-3"
+                                >
+                                    <div className="flex items-start gap-2.5">
+                                        <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-[#126b8a] font-mono text-[11px] font-black text-white">
+                                            {index + 1}
+                                        </span>
+                                        <div className="min-w-0 flex-1">
+                                            <h4 className="text-sm font-extrabold text-[#17323b]">
+                                                {option.title}
+                                            </h4>
+                                            {option.description && (
+                                                <p className="mt-1 text-xs leading-5 text-[#607983]">
+                                                    {option.description}
+                                                </p>
+                                            )}
+                                            {option.links && (
+                                                <div className="mt-2 flex flex-wrap gap-2">
+                                                    {option.links.map((link) => (
+                                                        <a
+                                                            key={link.url}
+                                                            href={link.url}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            className="inline-flex min-h-9 items-center gap-1.5 rounded-full border border-[#b8d1d8] bg-white px-3 text-[11px] font-bold text-[#126b8a] hover:bg-[#eaf5f7]"
+                                                        >
+                                                            <Navigation className="size-3.5" />
+                                                            {link.label}
+                                                        </a>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
                     {event.highlight && (
                         <HighlightImage highlight={event.highlight} />
                     )}
