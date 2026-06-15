@@ -1,4 +1,8 @@
 import { HOKKAIDO_CAR_TRAVEL_BOOK } from "./registry";
+import {
+    createGoogleMapsDirectionsUrl as directions,
+    createGoogleMapsSearchUrl as map,
+} from "./maps";
 
 export type HokkaidoEventType =
     | "drive"
@@ -93,28 +97,6 @@ export interface HokkaidoTrip {
     sourceUrl: string;
     days: HokkaidoDay[];
 }
-
-const map = (query: string) =>
-    `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
-
-const directions = (
-    origin: string,
-    destination: string,
-    waypoints: string[] = [],
-) => {
-    const params = new URLSearchParams({
-        api: "1",
-        origin,
-        destination,
-        travelmode: "driving",
-    });
-
-    if (waypoints.length > 0) {
-        params.set("waypoints", waypoints.join("|"));
-    }
-
-    return `https://www.google.com/maps/dir/?${params.toString()}`;
-};
 
 export const HOKKAIDO_PREPARATION_ITEMS = [
     { id: "rishiri-ferry", label: "確認並購買稚內 ↔ 利尻島船票" },
