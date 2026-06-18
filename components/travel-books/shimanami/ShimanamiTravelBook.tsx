@@ -43,6 +43,7 @@ import { PackingChecklist } from "@/components/travel-books/shimanami/PackingChe
 import { cn } from "@/lib/utils";
 import { useAuthState } from "@/src/stores/AuthStore";
 import {
+    formatMonthDay,
     getDateInTimeZone,
     getEffectiveDayIndex,
 } from "@/src/travel/date";
@@ -785,7 +786,7 @@ export function ShimanamiTravelBook() {
                         >
                             <span className="block font-mono text-[10px] font-bold">{item.dayLabel}</span>
                             <span className="mt-0.5 block text-sm font-black">
-                                {Number(item.date.slice(8))}
+                                {formatMonthDay(item.date)}
                             </span>
                             {index === effectiveIndex && (
                                 <span

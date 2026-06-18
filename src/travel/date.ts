@@ -13,6 +13,12 @@ export function getDateInTimeZone(date: Date, timeZone: string) {
     return `${values.year}-${values.month}-${values.day}`;
 }
 
+export function formatMonthDay(date: string) {
+    const [, month, day] = date.split("-");
+
+    return `${Number(month)}/${Number(day)}`;
+}
+
 export function getEffectiveDayIndex<T extends { date: string }>(
     days: readonly T[],
     now: Date,
