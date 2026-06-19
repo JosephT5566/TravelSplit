@@ -2,6 +2,8 @@
 
 import * as React from "react";
 import useEmblaCarousel from "embla-carousel-react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import {
     AlertTriangle,
     Bike,
@@ -19,6 +21,7 @@ import {
     Hotel,
     Info,
     MapPin,
+    NotebookPen,
     Navigation,
     PackageCheck,
     Route,
@@ -55,6 +58,11 @@ import {
     type ShimanamiEventType,
 } from "@/src/travel/shimanami";
 import { SHIMANAMI_TRAVEL_BOOK } from "@/src/travel/registry";
+import {
+    getTravelNotes,
+    requestPersistentTravelStorage,
+    saveTravelNote,
+} from "@/src/travel/travelNotes";
 
 const EVENT_ICON: Record<ShimanamiEventType, React.ComponentType<{ className?: string }>> = {
     transport: BusFront,
@@ -78,6 +86,8 @@ const PRIORITY_LABEL = {
     recommended: "建議",
     optional: "可選",
 };
+
+type NoteSaveStatus = "idle" | "saving" | "saved" | "error";
 
 function EventCard({ event }: { event: ShimanamiEvent }) {
     const Icon = EVENT_ICON[event.type];
@@ -431,16 +441,170 @@ function Checklist({
     );
 }
 
+function DayNoteDialog({
+    day,
+    note,
+    loaded,
+    saveStatus,
+    onNoteChange,
+    onClose,
+}: {
+    day: ShimanamiDay;
+    note: string;
+    loaded: boolean;
+    saveStatus: NoteSaveStatus;
+    onNoteChange: (markdown: string) => void;
+    onClose: () => void;
+}) {
+    const [open, setOpen] = React.useState(false);
+    const [mode, setMode] = React.useState<"edit" | "preview">("edit");
+    const hasNote = note.trim().length > 0;
+
+    const setDialogOpen = (nextOpen: boolean) => {
+        setOpen(nextOpen);
+        if (!nextOpen) {
+            onClose();
+            setMode("edit");
+        }
+    };
+
+    return (
+        <Dialog open={open} onOpenChange={setDialogOpen}>
+            <DialogTrigger asChild>
+                <Button
+                    type="button"
+                    variant="outline"
+                    disabled={!loaded}
+                    className={cn(
+                        "mt-4 h-11 w-full justify-start rounded-2xl border-[#b8d1d8] bg-white px-4 font-bold text-[#294852] hover:bg-[#eaf5f7] hover:text-[#126b8a]",
+                        hasNote && "border-[#8fc0cc] bg-[#eaf5f7] text-[#126b8a]",
+                        saveStatus === "error" && "border-[#efc1bb] bg-[#fff8f6] text-[#9b3f36]",
+                    )}
+                >
+                    <NotebookPen className="size-4" />
+                    {!loaded
+                        ? "正在載入今日筆記…"
+                        : hasNote
+                          ? saveStatus === "error"
+                              ? "編輯今日筆記 · 儲存失敗"
+                              : saveStatus === "saving"
+                                ? "編輯今日筆記 · 儲存中"
+                                : "編輯今日筆記 · 已儲存"
+                          : "撰寫今日筆記"}
+                </Button>
+            </DialogTrigger>
+            <DialogContent className="flex max-h-[calc(100dvh-2rem)] flex-col gap-0 overflow-hidden bg-[#f7faf8] p-0 sm:max-w-xl">
+                <DialogHeader className="border-b border-[#d6e3e6] bg-white px-5 py-4 text-left">
+                    <DialogTitle className="flex items-center gap-2 text-[#17323b]">
+                        <NotebookPen className="size-5 text-[#126b8a]" />
+                        {day.city} · 今日筆記
+                    </DialogTitle>
+                    <DialogDescription>
+                        {day.date.replaceAll("-", ".")} · {day.weekday}。使用 Markdown 記下旅途中的想法與體驗。
+                    </DialogDescription>
+                </DialogHeader>
+
+                <div className="flex items-center justify-between gap-3 border-b border-[#d6e3e6] px-4 py-3">
+                    <div
+                        className="inline-flex rounded-xl border border-[#c8dce1] bg-white p-1"
+                        role="tablist"
+                        aria-label="筆記模式"
+                    >
+                        {(["edit", "preview"] as const).map((item) => (
+                            <button
+                                key={item}
+                                type="button"
+                                role="tab"
+                                aria-selected={mode === item}
+                                onClick={() => setMode(item)}
+                                className={cn(
+                                    "min-h-9 rounded-lg px-4 text-xs font-extrabold transition-colors",
+                                    mode === item
+                                        ? "bg-[#17323b] text-white"
+                                        : "text-[#607983] hover:bg-[#f2f7f8]",
+                                )}
+                            >
+                                {item === "edit" ? "編輯" : "預覽"}
+                            </button>
+                        ))}
+                    </div>
+                    <p
+                        className={cn(
+                            "text-xs font-bold",
+                            saveStatus === "error" ? "text-[#9b3f36]" : "text-[#607983]",
+                        )}
+                        role="status"
+                        aria-live="polite"
+                    >
+                        {saveStatus === "saving" && "儲存中…"}
+                        {saveStatus === "saved" && "已儲存在此裝置"}
+                        {saveStatus === "error" && "無法儲存，內容仍保留在此頁"}
+                        {saveStatus === "idle" && "輸入後會自動儲存"}
+                    </p>
+                </div>
+
+                <div className="min-h-0 flex-1 overflow-y-auto p-4">
+                    {mode === "edit" ? (
+                        <textarea
+                            value={note}
+                            onChange={(event) => onNoteChange(event.target.value)}
+                            placeholder={"# 今天的亮點\n\n- 看見了什麼？\n- 當下有什麼感受？\n- 想為這一天記住什麼？"}
+                            aria-label={`${day.city}旅遊筆記 Markdown 編輯器`}
+                            className="min-h-[52dvh] w-full resize-y rounded-2xl border border-[#b8d1d8] bg-white p-4 font-mono text-sm leading-7 text-[#294852] outline-none placeholder:text-[#91a4aa] focus:border-[#126b8a] focus:ring-2 focus:ring-[#126b8a]/20"
+                        />
+                    ) : hasNote ? (
+                        <article className="min-h-[52dvh] rounded-2xl border border-[#d6e3e6] bg-white p-5 text-sm leading-7 text-[#294852]">
+                            <ReactMarkdown
+                                remarkPlugins={[remarkGfm]}
+                                components={{
+                                    h1: ({ children }) => <h1 className="mb-4 text-2xl font-black text-[#17323b]">{children}</h1>,
+                                    h2: ({ children }) => <h2 className="mb-3 mt-6 text-xl font-black text-[#17323b]">{children}</h2>,
+                                    h3: ({ children }) => <h3 className="mb-2 mt-5 text-lg font-extrabold text-[#17323b]">{children}</h3>,
+                                    p: ({ children }) => <p className="my-3">{children}</p>,
+                                    ul: ({ children }) => <ul className="my-3 list-disc space-y-1 pl-6">{children}</ul>,
+                                    ol: ({ children }) => <ol className="my-3 list-decimal space-y-1 pl-6">{children}</ol>,
+                                    blockquote: ({ children }) => <blockquote className="my-4 border-l-4 border-[#8fc0cc] bg-[#eaf5f7] px-4 py-2 text-[#506a73]">{children}</blockquote>,
+                                    code: ({ children }) => <code className="rounded bg-[#e7eef0] px-1.5 py-0.5 font-mono text-xs text-[#17323b]">{children}</code>,
+                                    a: ({ children, href }) => <a href={href} target="_blank" rel="noopener noreferrer" className="font-bold text-[#126b8a] underline underline-offset-2">{children}</a>,
+                                    hr: () => <hr className="my-6 border-[#d6e3e6]" />,
+                                }}
+                            >
+                                {note}
+                            </ReactMarkdown>
+                        </article>
+                    ) : (
+                        <div className="flex min-h-[52dvh] flex-col items-center justify-center rounded-2xl border border-dashed border-[#b8d1d8] bg-white px-6 text-center">
+                            <NotebookPen className="size-8 text-[#8fc0cc]" />
+                            <p className="mt-3 font-extrabold text-[#294852]">還沒有可以預覽的內容</p>
+                            <p className="mt-1 text-sm text-[#607983]">切換到「編輯」開始記錄今天的旅程。</p>
+                        </div>
+                    )}
+                </div>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
 function DayItinerary({
     day,
     showPreparation,
     storageKey,
     preparationTitle,
+    note,
+    notesLoaded,
+    noteSaveStatus,
+    onNoteChange,
+    onNoteDialogClose,
 }: {
     day: ShimanamiDay;
     showPreparation: boolean;
     storageKey: string;
     preparationTitle: string;
+    note: string;
+    notesLoaded: boolean;
+    noteSaveStatus: NoteSaveStatus;
+    onNoteChange: (markdown: string) => void;
+    onNoteDialogClose: () => void;
 }) {
     const headingId = `${day.id}-heading`;
 
@@ -481,6 +645,14 @@ function DayItinerary({
                         )}
                     </div>
                 )}
+                <DayNoteDialog
+                    day={day}
+                    note={note}
+                    loaded={notesLoaded}
+                    saveStatus={noteSaveStatus}
+                    onNoteChange={onNoteChange}
+                    onClose={onNoteDialogClose}
+                />
             </section>
 
             {day.cycling && <CyclingProgress cycling={day.cycling} />}
@@ -557,6 +729,9 @@ export function ShimanamiTravelBook() {
     const [offline, setOffline] = React.useState(false);
     const [shareStatus, setShareStatus] = React.useState("");
     const [carouselHeight, setCarouselHeight] = React.useState<number>();
+    const [notes, setNotes] = React.useState<Record<string, string>>({});
+    const [notesLoaded, setNotesLoaded] = React.useState(false);
+    const [noteSaveStatuses, setNoteSaveStatuses] = React.useState<Record<string, NoteSaveStatus>>({});
     const [carouselRef, carouselApi] = useEmblaCarousel({
         align: "start",
         containScroll: "trimSnaps",
@@ -565,6 +740,114 @@ export function ShimanamiTravelBook() {
     });
     const dateStripRef = React.useRef<HTMLDivElement>(null);
     const shareStatusTimerRef = React.useRef<number | null>(null);
+    const noteSaveTimersRef = React.useRef(new Map<string, number>());
+    const pendingNotesRef = React.useRef(new Map<string, string>());
+    const noteRevisionsRef = React.useRef(new Map<string, number>());
+    const persistenceRequestedRef = React.useRef(false);
+
+    React.useEffect(() => {
+        let cancelled = false;
+
+        getTravelNotes(
+            SHIMANAMI_TRAVEL_BOOK.id,
+            days.map((day) => day.id),
+        )
+            .then((storedNotes) => {
+                if (cancelled) return;
+                setNotes(storedNotes);
+                setNoteSaveStatuses(
+                    Object.fromEntries(
+                        days.map((day) => [
+                            day.id,
+                            storedNotes[day.id]?.trim() ? "saved" : "idle",
+                        ]),
+                    ),
+                );
+            })
+            .catch(() => {
+                if (cancelled) return;
+                setNoteSaveStatuses(
+                    Object.fromEntries(days.map((day) => [day.id, "error"])),
+                );
+            })
+            .finally(() => {
+                if (!cancelled) setNotesLoaded(true);
+            });
+
+        return () => {
+            cancelled = true;
+        };
+    }, [days]);
+
+    const persistNote = React.useCallback(
+        async (dayId: string, markdown: string, revision: number) => {
+            try {
+                await saveTravelNote(SHIMANAMI_TRAVEL_BOOK.id, dayId, markdown);
+                if (noteRevisionsRef.current.get(dayId) === revision) {
+                    setNoteSaveStatuses((current) => ({ ...current, [dayId]: "saved" }));
+                }
+
+                if (!persistenceRequestedRef.current) {
+                    persistenceRequestedRef.current = true;
+                    void requestPersistentTravelStorage().catch(() => {
+                        // Persistence is a best-effort browser capability; the note itself is saved.
+                    });
+                }
+            } catch {
+                if (noteRevisionsRef.current.get(dayId) === revision) {
+                    setNoteSaveStatuses((current) => ({ ...current, [dayId]: "error" }));
+                }
+            }
+        },
+        [],
+    );
+
+    const flushNote = React.useCallback(
+        (dayId: string) => {
+            const timer = noteSaveTimersRef.current.get(dayId);
+            if (timer) window.clearTimeout(timer);
+            noteSaveTimersRef.current.delete(dayId);
+
+            const markdown = pendingNotesRef.current.get(dayId);
+            if (markdown === undefined) return;
+            pendingNotesRef.current.delete(dayId);
+            const revision = noteRevisionsRef.current.get(dayId) ?? 0;
+            void persistNote(dayId, markdown, revision);
+        },
+        [persistNote],
+    );
+
+    const updateNote = React.useCallback(
+        (dayId: string, markdown: string) => {
+            setNotes((current) => ({ ...current, [dayId]: markdown }));
+            setNoteSaveStatuses((current) => ({ ...current, [dayId]: "saving" }));
+            pendingNotesRef.current.set(dayId, markdown);
+            noteRevisionsRef.current.set(dayId, (noteRevisionsRef.current.get(dayId) ?? 0) + 1);
+
+            const currentTimer = noteSaveTimersRef.current.get(dayId);
+            if (currentTimer) window.clearTimeout(currentTimer);
+            noteSaveTimersRef.current.set(
+                dayId,
+                window.setTimeout(() => flushNote(dayId), 300),
+            );
+        },
+        [flushNote],
+    );
+
+    React.useEffect(() => {
+        const timers = noteSaveTimersRef.current;
+        const pending = pendingNotesRef.current;
+        const revisions = noteRevisionsRef.current;
+
+        return () => {
+            timers.forEach((timer) => window.clearTimeout(timer));
+            pending.forEach((markdown, dayId) => {
+                void persistNote(dayId, markdown, revisions.get(dayId) ?? 0);
+            });
+            timers.clear();
+            pending.clear();
+        };
+    }, [persistNote]);
 
     const refreshEffectiveDay = React.useCallback(() => {
         const nextIndex = getEffectiveDayIndex(days, new Date(), trip.timezone);
@@ -911,6 +1194,11 @@ export function ShimanamiTravelBook() {
                                     }
                                     storageKey={storageKey}
                                     preparationTitle={trip.preparationTitle}
+                                    note={notes[item.id] ?? ""}
+                                    notesLoaded={notesLoaded}
+                                    noteSaveStatus={noteSaveStatuses[item.id] ?? "idle"}
+                                    onNoteChange={(markdown) => updateNote(item.id, markdown)}
+                                    onNoteDialogClose={() => flushNote(item.id)}
                                 />
                             </div>
                         ))}
