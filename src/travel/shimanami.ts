@@ -1039,14 +1039,7 @@ export const SHIMANAMI_TRIP = {
                     type: "food",
                     priority: "required",
                     status: "to-confirm",
-                    description: "以住宿或瀨戶田港周邊為主。島上餐廳可能較早結束營業，抵達前先確認晚餐地點或預約。",
-                    links: [
-                        {
-                            label: "附近晚餐",
-                            url: map("瀬戸田 晩ごはん"),
-                            kind: "map",
-                        },
-                    ],
+                    description: "再查 tabelog，以住宿或瀨戶田港周邊為主。島上餐廳可能較早結束營業。",
                 },
                 {
                     id: "d4-sunset-walk",
@@ -1450,14 +1443,14 @@ export const SHIMANAMI_TRIP = {
             events: [
                 {
                     id: "d6-start",
-                    time: "08:30–09:00",
-                    title: "伯方島出發 → 大島",
+                    time: "08:30",
+                    title: "伯方島出發",
                     type: "cycling",
                     priority: "required",
                     status: "informational",
                     location: "HANAGURI／伯方島",
                     description: "早餐後檢查胎壓、煞車與行李固定，沿主線跨過伯方・大島大橋進入大島。過橋前依腿部疲勞、天氣、能見度與風勢決定大島二選一路線。",
-                    warning: "13:30 必須在今治完成還車；晚於 08:30 出發時只能選 Island Explorer，途中不增加其他支線。",
+                    warning: "預計 13:30 在今治完成還車；08:30 出發時間才充裕。",
                     links: [
                         {
                             label: "伯方・大島大橋",
@@ -1468,35 +1461,17 @@ export const SHIMANAMI_TRIP = {
                 },
                 {
                     id: "d6-oshima-route-choice",
-                    time: "09:00–10:45",
-                    title: "大島路線二選一",
+                    time: "09:00–10:00 (路程約 50 min)",
+                    title: "大島探險者路線到 (17km，小緩坡起伏)",
                     type: "cycling",
                     priority: "required",
-                    status: "to-confirm",
                     location: "大島",
-                    description: "當天依身體狀況選擇其中一條，不能同時走 Island Explorer 又爬龜老山。無論選哪一條，10:45 都要抵達吉海一帶，不能壓縮來島海峽大橋與還車時間。",
+                    description: "沿西海岸經過沙灘、漁港、造船廠與來島海峽大橋遠景。",
                     options: [
                         {
-                            id: "d6-route-island-explorer",
-                            title: "A｜西海岸 Island Explorer",
-                            description: "推薦預設方案。適合腿部已有疲勞、想減少長坡或希望穩定完騎時選擇；沿西海岸經過沙灘、漁港、造船廠與來島海峽大橋遠景。",
-                            links: [
-                                {
-                                    label: "路線介紹",
-                                    url: "https://shimanami-cycle.or.jp/go-shimanami/experience/75/",
-                                    kind: "official",
-                                },
-                                {
-                                    label: "吉海玫瑰公園",
-                                    url: map("よしうみバラ公園"),
-                                    kind: "map",
-                                },
-                            ],
-                        },
-                        {
                             id: "d6-route-kirosan",
-                            title: "B｜中央主線＋龜老山展望公園",
-                            description: "只在體力充足、晴天、能見度高且風勢可控時選擇。需要額外約 3 km 爬升至海拔約 300 m 的山頂；10:15 尚未開始下山時立即折返。",
+                            title: "龜老山展望公園 (3km，上山爬升 290m)",
+                            description: "體力還行、晴天、能見度高且風勢可控時選擇。需要約 3 km 爬升約 300 m，可能要抓 25-40 min；10:15 尚未開始下山時立即折返。",
                             links: [
                                 {
                                     label: "龜老山地圖",
@@ -1506,7 +1481,6 @@ export const SHIMANAMI_TRIP = {
                             ],
                         },
                     ],
-                    warning: "選擇 B 後若爬坡速度低於預期，不必勉強登頂；安全折返並準時前往吉海比完成景點重要。",
                 },
                 {
                     id: "d6-yoshiumi",
@@ -1534,7 +1508,7 @@ export const SHIMANAMI_TRIP = {
                     status: "informational",
                     location: "來島海峽大橋",
                     description: "預留 30–45 分鐘通過全線規模最大的跨海大橋。這一段最有完成感，可看到壯觀海流、船隻與島嶼交錯；在安全停靠處拍照，留時間感受最後一座橋。",
-                    warning: "橋面風強時降低速度、拉開車距並雙手握穩車把；不要為拍照突然停在通行線上。",
+                    warning: "注意橋面強風。",
                     links: [{ label: "開啟地圖", url: map("來島海峽大橋"), kind: "map" }],
                     highlight: {
                         src: "https://www.honda.co.jp/content/dam/site/www/outdoor/cq_img/trip/shimanami/day3/img_day03_01.jpg",
@@ -1555,6 +1529,23 @@ export const SHIMANAMI_TRIP = {
                     description: "下橋後沿藍線完成最後一段市區騎行。進入市區後注意路口、車流與行人，不因接近終點而放鬆安全判斷。",
                 },
                 {
+                    id: "d6-return",
+                    time: "13:30",
+                    title: "今治還車",
+                    type: "task",
+                    priority: "required",
+                    status: "confirmed",
+                    location: "今治駅前サイクリングターミナル",
+                    description: "依租車規定歸還單車與配件，確認個人物品、行李與還車手續都完成。簡單整理後直接準備前往松山。",
+                    links: [
+                        {
+                            label: "開啟還車地圖",
+                            url: "https://maps.app.goo.gl/eyJsaU54HZDFDpWLA",
+                            kind: "map",
+                        },
+                    ],
+                },
+                {
                     id: "d6-lunch",
                     time: "12:30–13:10",
                     title: "白樂天 今治本店：燒豬玉子飯",
@@ -1568,23 +1559,6 @@ export const SHIMANAMI_TRIP = {
                         {
                             label: "開啟餐廳地圖",
                             url: "https://maps.app.goo.gl/q5gMyJ5WC6ZDxgQE8",
-                            kind: "map",
-                        },
-                    ],
-                },
-                {
-                    id: "d6-return",
-                    time: "13:30",
-                    title: "今治還車",
-                    type: "task",
-                    priority: "required",
-                    status: "confirmed",
-                    location: "今治駅前サイクリングターミナル",
-                    description: "依租車規定歸還單車與配件，確認個人物品、行李與還車手續都完成。簡單整理後直接準備前往松山。",
-                    links: [
-                        {
-                            label: "開啟還車地圖",
-                            url: "https://maps.app.goo.gl/eyJsaU54HZDFDpWLA",
                             kind: "map",
                         },
                     ],
@@ -1679,13 +1653,6 @@ export const SHIMANAMI_TRIP = {
                     priority: "required",
                     status: "to-confirm",
                     description: "在道後商店街或道後やや附近吃晚餐，補充蛋白質、碳水與水分。避免選擇距離太遠的餐廳，把時間留給晚間泡湯。",
-                    links: [
-                        {
-                            label: "附近晚餐",
-                            url: map("道後温泉 晩ごはん"),
-                            kind: "map",
-                        },
-                    ],
                 },
                 {
                     id: "d6-onsen",

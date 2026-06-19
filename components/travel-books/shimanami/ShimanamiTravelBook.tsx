@@ -1127,6 +1127,9 @@ export function ShimanamiTravelBook() {
                             <span className="mt-0.5 block text-sm font-black">
                                 {formatMonthDay(item.date)}
                             </span>
+                            <span className="mt-0.5 block text-[10px] font-bold">
+                                {item.weekday}
+                            </span>
                             {index === effectiveIndex && (
                                 <span
                                     className="absolute -right-1 -top-1 size-3 rounded-full border-2 border-[#f7faf8] bg-[#f2c94c]"
