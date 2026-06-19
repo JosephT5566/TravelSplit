@@ -59,6 +59,12 @@ export interface ShimanamiDay {
     weekday: string;
     city: string;
     theme: string;
+    weather?: {
+        condition: string;
+        precipitationProbability: number;
+        highCelsius: number;
+        lowCelsius: number;
+    };
     cycling?: {
         label: string;
         route: string;
@@ -111,6 +117,12 @@ export const SHIMANAMI_TRIP = {
             weekday: "週四",
             city: "岡山",
             theme: "16:30 抵達，先安頓住宿再安排一段市區行程",
+            weather: {
+                condition: "曇",
+                precipitationProbability: 40,
+                highCelsius: 26,
+                lowCelsius: 21,
+            },
             note: "時間為含轉乘與步行的保守估算。第一晚以 Check-in、Montbell 與晚餐為主；咖啡不排入正式行程。",
             events: [
                 {
@@ -274,6 +286,12 @@ export const SHIMANAMI_TRIP = {
             weekday: "週五",
             city: "倉敷",
             theme: "從晨間咖啡走到黃昏運河，完整感受倉敷",
+            weather: {
+                condition: "曇一時雨",
+                precipitationProbability: 50,
+                highCelsius: 26,
+                lowCelsius: 21,
+            },
             note: "08:30 從岡山出發，主要行程集中在步行可達的美觀地區。17:30 搭 JR 返回岡山。",
             events: [
                 {
@@ -1120,7 +1138,7 @@ export const SHIMANAMI_TRIP = {
                     priority: "recommended",
                     status: "informational",
                     location: "道の駅 多々羅しまなみ公園",
-                    description: "今天第一個正式休息點。補水、上廁所、看海並讓雙腿恢復，不用急著離開；離開前再次確認午後天氣與飲水量。",
+                    description: "這裡是島波海道上設施最完善的「自行車綠洲」休息站之一，可以欣賞到多多良橋的壯麗景色，還有綠茵的草坪，是在溫暖晴朗的日子裡放鬆身心的絕佳去處。趣味十足的自行車停車架",
                     links: [
                         {
                             label: "開啟地圖",

@@ -324,6 +324,30 @@ function CyclingProgress({ cycling }: { cycling: NonNullable<ShimanamiDay["cycli
     );
 }
 
+function WeatherForecast({ weather }: { weather: NonNullable<ShimanamiDay["weather"]> }) {
+    return (
+        <section
+            className="flex h-full flex-col justify-between gap-3 rounded-2xl border border-[#c8dce1] bg-[#eef6f8] px-3.5 py-3 text-[#294852]"
+            aria-label={`天氣預報：${weather.condition}，降雨機率 ${weather.precipitationProbability}%，最高 ${weather.highCelsius} 度，最低 ${weather.lowCelsius} 度`}
+        >
+            <div className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-2">
+                <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-white text-[#126b8a] shadow-sm">
+                    <CloudRain className="size-[18px]" />
+                </span>
+                <p className="text-sm font-extrabold leading-snug text-right">{weather.condition}</p>
+            </div>
+            <div>
+                <p className="text-xs font-bold text-[#126b8a]">
+                    降雨 {weather.precipitationProbability}%
+                </p>
+                <p className="mt-0.5 font-mono text-sm font-black text-[#17323b]">
+                    {weather.highCelsius}° / {weather.lowCelsius}°
+                </p>
+            </div>
+        </section>
+    );
+}
+
 function Checklist({
     items,
     storageKey,
@@ -442,10 +466,20 @@ function DayItinerary({
                 <p className="mt-3 text-lg font-extrabold leading-snug text-[#294852]">
                     {day.theme}
                 </p>
-                {day.note && (
-                    <p className="mt-2 border-l-4 border-[#f2c94c] pl-3 text-sm leading-6 text-[#607983]">
-                        {day.note}
-                    </p>
+                {(day.weather || day.note) && (
+                    <div
+                        className={cn(
+                            "mt-3 grid gap-3",
+                            day.weather && day.note ? "grid-cols-[30%_minmax(0,1fr)]" : "grid-cols-1",
+                        )}
+                    >
+                        {day.weather && <WeatherForecast weather={day.weather} />}
+                        {day.note && (
+                            <div className="flex h-full items-center rounded-2xl border border-[#eadca7] border-l-[#f2c94c] bg-[#fffaf0] px-3.5 py-3">
+                                <p className="text-sm leading-6 text-[#607983]">{day.note}</p>
+                            </div>
+                        )}
+                    </div>
                 )}
             </section>
 
