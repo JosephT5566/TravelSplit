@@ -972,7 +972,7 @@ export const SHIMANAMI_TRIP = {
                     priority: "required",
                     status: "confirmed",
                     location: "耕三寺博物館",
-                    description: "先參觀耕三寺，再依剩餘時間前往未來心之丘。（營業時間：9:00 - 17:00，最後入場：閉館前 30 分）；若時間不足，只保留最想看的區域。",
+                    description: "先參觀耕三寺，再依剩餘時間前往未來心之丘。（營業時間：9:00 - 17:00，最後入場：閉館前 30 分）；若時間不足，只保留最想看的區域。或是可以延到隔天上午 9 點",
                     links: [
                         {
                             label: "開啟地圖",
@@ -1111,17 +1111,52 @@ export const SHIMANAMI_TRIP = {
                     priority: "required",
                     status: "informational",
                     location: "生口島",
-                    description: "沿島波海道藍線往多多羅大橋前進。剛出發先維持能交談的配速，讓雙腿熱開，不急著拉高速度。",
+                },
+                {
+                    id: "d5-park",
+                    time: "08:30 - 09:00",
+                    title: "潮音山公園",
+                    type: "cycling",
+                    priority: "optional",
+                    status: "informational",
+                    location: "生口島",
+                    description: "俯瞰瀨戶田港，可遠眺建於15世紀初的紅漆三重塔－興上寺。",
+                    links: [
+                        {
+                            label: "潮音山公園",
+                            url: "https://maps.app.goo.gl/ZeUzKh9iXjmLxshM7",
+                            kind: "map",
+                        },
+                    ],
+                    options: [
+                        {
+                            id: "d4-kosanji",
+                            title: "耕三寺與未來心之丘",
+                            description: "營業時間: 9:00 - 17:00，若前一天來不及參觀，也可以安排今天",
+                            links: [
+                                {
+                                    label: "開啟地圖",
+                                    url: "https://maps.app.goo.gl/BLmUrATZ2resS9Xb6",
+                                    kind: "map",
+                                },
+                                {
+                                    label: "官方網站",
+                                    url: "https://www.kousanji.or.jp/",
+                                    kind: "official",
+                                },
+                            ],
+                        }
+                    ]
                 },
                 {
                     id: "d5-tatara-bridge",
-                    time: "09:00–09:30",
-                    title: "多多羅大橋停留",
+                    time: "09:00–09:40 （路程約 20 min）",
+                    title: "瀨戶田 → 多多羅大橋 （7 km，平緩）",
                     type: "activity",
-                    priority: "recommended",
+                    priority: "required",
                     status: "informational",
                     location: "多多羅大橋",
-                    description: "停留約 20–30 分鐘看橋下海面、往來船隻與島嶼層次。橋面有風時停穩再拍照，不要占用自行車通行動線。",
+                    description: "停留約 20–30 分鐘看橋下海面、往來船隻與島嶼層次。",
                     links: [
                         {
                             label: "開啟地圖",
@@ -1132,10 +1167,10 @@ export const SHIMANAMI_TRIP = {
                 },
                 {
                     id: "d5-tatara-park",
-                    time: "09:30–10:20",
+                    time: "09:40–10:20",
                     title: "多多羅しまなみ公園",
                     type: "activity",
-                    priority: "recommended",
+                    priority: "required",
                     status: "informational",
                     location: "道の駅 多々羅しまなみ公園",
                     description: "這裡是島波海道上設施最完善的「自行車綠洲」休息站之一，可以欣賞到多多良橋的壯麗景色，還有綠茵的草坪，是在溫暖晴朗的日子裡放鬆身心的絕佳去處。趣味十足的自行車停車架",
@@ -1146,11 +1181,25 @@ export const SHIMANAMI_TRIP = {
                             kind: "map",
                         },
                     ],
+                    options: [
+                        {
+                            id: "d5-wakka-cafe",
+                            title: "Wakka Cafe",
+                            description: "想喝咖啡可以考慮",
+                            links: [
+                                {
+                                    label: "查看地圖",
+                                    url: "https://maps.app.goo.gl/xbpLeDU57PkWZfRm7",
+                                    kind: "map",
+                                },
+                            ],
+                        }
+                    ],
                 },
                 {
                     id: "d5-omishima-south",
-                    time: "10:30–11:00",
-                    title: "大三島南岸慢騎",
+                    time: "10:20–11:00 （路程約 20 min）",
+                    title: "多多羅しまなみ公園 → 大山祇神社 (6 km，小爬坡)",
                     type: "cycling",
                     priority: "required",
                     status: "informational",
@@ -1162,7 +1211,7 @@ export const SHIMANAMI_TRIP = {
                     time: "11:00–12:15",
                     title: "大山祇神社",
                     type: "activity",
-                    priority: "recommended",
+                    priority: "required",
                     status: "informational",
                     location: "大山祇神社",
                     description: "停放單車後慢慢走進神社境內，參拜本殿並感受古木與森林包圍的空間。預留約 75 分鐘，不需要用趕景點的方式參觀。",
@@ -1178,32 +1227,31 @@ export const SHIMANAMI_TRIP = {
                 {
                     id: "d5-lunch",
                     time: "12:30–13:30",
-                    title: "大三島午餐二選一",
+                    title: "大三島午餐",
                     type: "food",
                     priority: "required",
-                    status: "to-confirm",
                     description: "依當日營業、餐點供應與移動方向選擇。不要為指定店家長時間等待，13:30 左右需準備往伯方島方向前進。",
                     options: [
                         {
-                            id: "d5-lunch-limone",
-                            title: "Omishima Limone",
-                            description: "以大三島柑橘與檸檬產品為特色，適合安排較輕盈的午間停留；先確認當日是否供應可作午餐的餐點。",
+                            id: "d5-lunch-yoshikawa",
+                            title: "Yoshikawa",
+                            description: "定食、丼飯與咖啡甜點，位於大三島港附近。",
                             links: [
                                 {
                                     label: "查看地圖",
-                                    url: map("大三島リモーネ"),
+                                    url: map("大三島 Yoshikawa ランチ"),
                                     kind: "map",
                                 },
                             ],
                         },
                         {
-                            id: "d5-lunch-yoshikawa",
-                            title: "Yoshikawa",
-                            description: "想吃較完整午餐時優先考慮，出發前確認週一營業時間與是否需要候位。",
+                            id: "d5-lunch-2",
+                            title: "うみまちバル アメリ",
+                            description: "義大利麵、燉飯與咖啡甜點，位於大三島港附近，店內氛圍舒適。",
                             links: [
                                 {
                                     label: "查看地圖",
-                                    url: map("大三島 Yoshikawa ランチ"),
+                                    url: "https://maps.app.goo.gl/BGNPc9nfN2gk6x1S6",
                                     kind: "map",
                                 },
                             ],
@@ -1234,24 +1282,65 @@ export const SHIMANAMI_TRIP = {
                 },
                 {
                     id: "d5-hakata-arrival",
-                    time: "13:30–15:00",
-                    title: "大三島海岸 → 伯方島",
+                    time: "13:30–15:00 (路程約 45-60 min)",
+                    title: "大三島南岸 → 伯方島 → HANAGURI Check-in (15 km，高低起伏)",
                     type: "cycling",
                     priority: "required",
                     status: "informational",
                     location: "大三島橋／伯方島",
-                    description: "午餐後沿大三島海岸往大三島橋前進，再跨橋進入伯方島。利用博物館休館空出的時間放慢配速，途中可短暫停車看海與補水。",
-                    warning: "15:00 尚未進入伯方島時，縮短冰淇淋停留並直接前往住宿。",
+                    description: "午餐後沿大三島南岸往大三島橋前進，再跨橋進入伯方島，經過旅館先 check in。",
+                    links: [
+                        {
+                            label: "路徑圖",
+                            url: directions(
+                                "Seafood Restaurant Yoshikawa, 5714-15 Omishimacho Miyaura, Imabari, Ehime 794-1304日本",
+                                "HANAGURI, 日本〒794-2303 Ehime, Imabari, Hakatacho Ikata, 甲1817-4",
+                                ["大三島サイクリングコース 南回り, 日本〒794-1306 Ehime, Imabari, Omishimacho Nonoe, 7979",
+                                "ohmishima Limone, 瀬戸-2342 上浦町 Imabari, Ehime 794-1404日本"],
+                            ),
+                            kind: "map"
+                        }
+                    ],
+                    options: [
+                        {
+                            id: "d5-limone",
+                            title: "Omishima Limone",
+                            description: "選物小店，以大三島柑橘與檸檬產品為特色，適合安排較輕盈的午間停留。",
+                            links: [
+                                {
+                                    label: "查看地圖",
+                                    url: map("大三島リモーネ"),
+                                    kind: "map",
+                                },
+                            ],
+                        },
+                    ],
+                },
+                {
+                    id: "d5-hotel",
+                    time: "15:40",
+                    title: "HANAGURI Check-in",
+                    type: "lodging",
+                    priority: "required",
+                    status: "confirmed",
+                    location: "HANAGURI",
+                    links: [
+                        {
+                            label: "開啟住宿地圖",
+                            url: "https://maps.app.goo.gl/uLRRpWanX2Vm1Tdd7",
+                            kind: "map",
+                        },
+                    ],
                 },
                 {
                     id: "d5-salt-ice-cream",
-                    time: "15:00–15:40",
-                    title: "伯方鹽冰淇淋",
+                    time: "15:00–15:40 (路程約 6 min)",
+                    title: "HANAGURI → 伯方鹽冰淇淋 (2km，平緩)",
                     type: "food",
                     priority: "required",
                     status: "confirmed",
                     location: "伯方島",
-                    description: "用帶鹹味的冰淇淋作為今日騎行獎勵。營業時間: 10:00 - 17:00",
+                    description: "鹹味香草冰淇淋作。營業時間: 10:00 - 17:00",
                     links: [
                         {
                             label: "道の駅 伯方S・Cパーク",
@@ -1262,8 +1351,8 @@ export const SHIMANAMI_TRIP = {
                 },
                 {
                     id: "d5-hakata-coast",
-                    time: "15:40–16:30",
-                    title: "Patisserie T’s Cafe Tamaya",
+                    time: "15:40–16:30  (路程約 10 min)",
+                    title: "道の駅 伯方 → Patisserie T’s Cafe Tamaya (3km，平緩)",
                     type: "cycling",
                     priority: "optional",
                     status: "informational",
@@ -1278,35 +1367,49 @@ export const SHIMANAMI_TRIP = {
                     ],
                 },
                 {
-                    id: "d5-hotel",
-                    time: "16:30–17:00",
-                    title: "HANAGURI Check-in",
-                    type: "lodging",
-                    priority: "required",
-                    status: "confirmed",
-                    location: "HANAGURI",
-                    description: "抵達後先停放單車、辦理入住並整理衣物與充電設備。確認隔日早餐、飲水及單車夜間停放位置。",
-                    links: [
-                        {
-                            label: "開啟住宿地圖",
-                            url: "https://maps.app.goo.gl/uLRRpWanX2Vm1Tdd7",
-                            kind: "map",
-                        },
-                    ],
-                },
-                {
                     id: "d5-dinner",
                     time: "18:00–19:00",
                     title: "伯方島晚餐",
                     type: "food",
                     priority: "required",
-                    status: "to-confirm",
+                    status: "confirmed",
                     description: "以 HANAGURI 或步行可達的店家為主，避免入住後再次騎遠路。島上晚餐選擇與營業時間有限，建議事前向住宿確認或預約。",
-                    links: [
+                    options: [
                         {
-                            label: "住宿附近晚餐",
-                            url: map("HANAGURI 伯方島 レストラン"),
-                            kind: "map",
+                            id: "d5-dinner-1",
+                            title: "たんぽぽ",
+                            description: "大阪燒",
+                            links: [
+                                {
+                                    label: "查看地圖",
+                                    url: "https://maps.app.goo.gl/GUaKC3t1tmYVp67S8",
+                                    kind: "map",
+                                },
+                            ],
+                        },
+                        {
+                            id: "d5-dinner-2",
+                            title: "さんわ 伯方島本店",
+                            description: "拉麵",
+                            links: [
+                                {
+                                    label: "查看地圖",
+                                    url: "https://maps.app.goo.gl/uDihwDZMPdR6QUJn6",
+                                    kind: "map",
+                                },
+                            ],
+                        },
+                        {
+                            id: "d5-dinner-3",
+                            title: "魚常梅が花",
+                            description: "壽司",
+                            links: [
+                                {
+                                    label: "查看地圖",
+                                    url: "https://maps.app.goo.gl/17sJo7LR28sPrFx5A",
+                                    kind: "map",
+                                },
+                            ],
                         },
                     ],
                 },
