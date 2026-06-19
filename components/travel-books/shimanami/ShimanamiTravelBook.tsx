@@ -82,18 +82,25 @@ const PRIORITY_LABEL = {
 function EventCard({ event }: { event: ShimanamiEvent }) {
     const Icon = EVENT_ICON[event.type];
     const isOptional = event.priority === "optional";
+    const isCompact = event.compact === true;
 
     return (
         <article
             className={cn(
-                "relative rounded-[1.35rem] border bg-white p-4 shadow-[0_10px_28px_rgba(19,50,59,0.06)]",
+                "relative rounded-[1.35rem] border bg-white shadow-[0_10px_28px_rgba(19,50,59,0.06)]",
+                isCompact ? "p-3" : "p-4",
                 isOptional ? "border-dashed border-[#9cb9c2] bg-[#f8fbfb]" : "border-[#d6e3e6]",
                 event.status === "cancelled" && "opacity-55",
             )}
         >
             <div className="flex items-start gap-3">
-                <div className="mt-0.5 flex size-10 shrink-0 items-center justify-center rounded-full bg-[#d9eef3] text-[#126b8a]">
-                    <Icon className="size-[18px]" />
+                <div
+                    className={cn(
+                        "mt-0.5 flex shrink-0 items-center justify-center rounded-full bg-[#d9eef3] text-[#126b8a]",
+                        isCompact ? "size-8" : "size-10",
+                    )}
+                >
+                    <Icon className={isCompact ? "size-4" : "size-[18px]"} />
                 </div>
                 <div className="min-w-0 flex-1">
                     <div className="mb-1 flex flex-wrap items-center gap-2">
@@ -125,7 +132,12 @@ function EventCard({ event }: { event: ShimanamiEvent }) {
                             </span>
                         )}
                     </div>
-                    <h3 className="text-[17px] font-extrabold leading-snug text-[#17323b]">
+                    <h3
+                        className={cn(
+                            "font-extrabold leading-snug text-[#17323b]",
+                            isCompact ? "text-[15px]" : "text-[17px]",
+                        )}
+                    >
                         {event.title}
                     </h3>
                     {event.location && (
@@ -135,7 +147,14 @@ function EventCard({ event }: { event: ShimanamiEvent }) {
                         </p>
                     )}
                     {event.description && (
-                        <p className="mt-2 text-sm leading-6 text-[#506a73]">{event.description}</p>
+                        <p
+                            className={cn(
+                                "text-[#506a73]",
+                                isCompact ? "mt-1.5 text-xs leading-5" : "mt-2 text-sm leading-6",
+                            )}
+                        >
+                            {event.description}
+                        </p>
                     )}
                     {event.options && (
                         <div className="mt-3 space-y-2" aria-label={`${event.title}選項`}>
@@ -195,7 +214,10 @@ function EventCard({ event }: { event: ShimanamiEvent }) {
                                     key={link.url}
                                     asChild
                                     variant="outline"
-                                    className="h-10 rounded-full border-[#b8d1d8] bg-white px-3 text-xs font-bold text-[#126b8a] hover:bg-[#eaf5f7]"
+                                    className={cn(
+                                        "rounded-full border-[#b8d1d8] bg-white px-3 text-xs font-bold text-[#126b8a] hover:bg-[#eaf5f7]",
+                                        isCompact ? "h-8" : "h-10",
+                                    )}
                                 >
                                     <a href={link.url} target="_blank" rel="noopener noreferrer">
                                         {link.kind === "map" ? (
