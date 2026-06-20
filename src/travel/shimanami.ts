@@ -60,19 +60,22 @@ export interface ShimanamiDay {
     city: string;
     theme: string;
     weather?: {
+        location: string;
         condition: string;
         precipitationProbability: number;
-        highCelsius: number;
-        lowCelsius: number;
+        morningCelsius: string;
+        nightCelsius: string;
+        link?: string;
     };
     cycling?: {
         label: string;
         route: string;
+        routeImage?: {
+            src: string;
+            alt: string;
+        };
         distance: string;
         rideWindow: string;
-        progress: number;
-        startLabel: string;
-        endLabel: string;
     };
     note?: string;
     events: ShimanamiEvent[];
@@ -118,12 +121,14 @@ export const SHIMANAMI_TRIP = {
             city: "岡山",
             theme: "16:30 抵達，先安頓住宿再安排一段市區行程",
             weather: {
-                condition: "曇",
-                precipitationProbability: 40,
-                highCelsius: 26,
-                lowCelsius: 21,
+                location: "岡山/岡山市",
+                condition: "多雲有雨",
+                precipitationProbability: 50,
+                morningCelsius: "26°",
+                nightCelsius: "21°",
+                link: "https://www.jma.go.jp/bosai/#pattern=forecast&area_type=class20s&area_code=3310000"
             },
-            note: "時間為含轉乘與步行的保守估算。第一晚以 Check-in、Montbell 與晚餐為主；咖啡不排入正式行程。",
+            note: "時間為含轉乘與步行的保守估算。第一晚以 Check-in、Montbell 與晚餐為主。",
             events: [
                 {
                     id: "d1-flight",
@@ -192,9 +197,8 @@ export const SHIMANAMI_TRIP = {
                     title: "Montbell",
                     type: "activity",
                     priority: "recommended",
-                    status: "to-confirm",
                     location: "岡山市中心",
-                    description: "從住宿前往約 20–25 分鐘，保留約 30–35 分鐘購物。出發前先確認當日營業時間；若 18:40 尚未完成 Check-in，改到其他日期。",
+                    description: "從住宿前往約 20–25 分鐘，保留約 30–35 分鐘購物。20:00 打烊。買雨傘、T-shirt、鴨舌帽、背包，其他...",
                     links: [
                         {
                             label: "開啟地圖",
@@ -203,41 +207,6 @@ export const SHIMANAMI_TRIP = {
                         },
                     ],
                 },
-                // {
-                //     id: "d1-coffee",
-                //     time: "本日不安排",
-                //     title: "咖啡備選清單",
-                //     type: "food",
-                //     priority: "optional",
-                //     status: "informational",
-                //     description: "16:30 才抵達，第一天不特別趕咖啡店。保留以下兩間，改在其他岡山市區空檔擇一前往。",
-                //     options: [
-                //         {
-                //             id: "d1-coffee-en",
-                //             title: "en. 珈琲焙煎所",
-                //             description: "以自家烘焙咖啡為主，適合短暫休息再繼續逛街。",
-                //             links: [
-                //                 {
-                //                     label: "查看 en.",
-                //                     url: "https://maps.app.goo.gl/m259JvtWsUzyMjgb7",
-                //                     kind: "map",
-                //                 },
-                //             ],
-                //         },
-                //         {
-                //             id: "d1-coffee-empire",
-                //             title: "EMPIRE COFFEE ROASTERS",
-                //             description: "另一個咖啡選項，出發前確認當日營業時間。",
-                //             links: [
-                //                 {
-                //                     label: "查看 EMPIRE",
-                //                     url: "https://maps.app.goo.gl/VKhpL8y5ULdMk2Uz5",
-                //                     kind: "map",
-                //                 },
-                //             ],
-                //         },
-                //     ],
-                // },
                 {
                     id: "d1-omotecho",
                     time: "19:40–21:00",
@@ -287,10 +256,12 @@ export const SHIMANAMI_TRIP = {
             city: "倉敷",
             theme: "從晨間咖啡走到黃昏運河，完整感受倉敷",
             weather: {
-                condition: "曇一時雨",
+                location: "岡山/岡山市",
+                condition: "多雲有雨",
                 precipitationProbability: 50,
-                highCelsius: 26,
-                lowCelsius: 21,
+                morningCelsius: "26°",
+                nightCelsius: "21°",
+                link: "https://www.jma.go.jp/bosai/#pattern=forecast&area_type=class20s&area_code=3310000"
             },
             note: "08:30 從岡山出發，主要行程集中在步行可達的美觀地區。17:30 搭 JR 返回岡山。",
             events: [
@@ -508,7 +479,15 @@ export const SHIMANAMI_TRIP = {
             weekday: "週六",
             city: "岡山 → 吉備津 → 尾道",
             theme: "神社晨遊、與弟弟會合與騎行前最後補給",
-            note: "18:00 前往尾道的列車是今日硬性截止時間。下午在岡山完成行李整理，16:30 與阿強會合後集中採買。",
+            weather: {
+                location: "廣島/尾道",
+                condition: "多雲有雨",
+                precipitationProbability: 50,
+                morningCelsius: "26°",
+                nightCelsius: "22°",
+                link: "https://www.jma.go.jp/bosai/#pattern=forecast&area_type=class20s&area_code=3420500",
+            },
+            note: "阿強抵達日。上午去吉備津神社，下午在岡山完成行李整理，16:30 左右與阿強會合，18:00 前要搭前往尾道的列車。",
             events: [
                 {
                     id: "d3-breakfast",
@@ -717,15 +696,19 @@ export const SHIMANAMI_TRIP = {
             city: "尾道 → 瀨戶田",
             theme: "第一段藍線：跨過向島與因島",
             cycling: {
-                label: "SHIMANAMI RIDE",
-                route: "尾道 → 岩子島 → 因島水軍城・土生港 → 生口島・瀨戶田",
-                distance: "約 58–65 km（含岩子島與因島南部支線）",
-                rideWindow: "09:00 渡船 · 18:00 Check-in",
-                progress: 34,
-                startLabel: "尾道",
-                endLabel: "今治",
+                label: "SHIMANAMI RIDE 1/3",
+                route: "尾道 → 向島/岩子島 → 因島 → 生口島・瀨戶田",
+                distance: "約 45 km（含岩子島與因島南部）",
+                rideWindow: `9:00 渡船到向島
+                11:30 進入因島
+                15:00 進入生口島
+                17:30 抵達住宿`,
+                routeImage: {
+                    src: "https://cdn.josephtseng-tw.com/travel-split/2026-shimanami/day1-route.jpg",
+                    alt: "Day1 route",
+                },
             },
-            note: "今天包含岩子島與因島南部兩段支線，里程明顯增加。通過因島大橋後依序前往因島水軍城、大山神社，再到土生港午餐；萬田發酵週日休園，耕三寺則因南繞行程無法在閉館前參觀。17:30 左右抵達住宿。",
+            note: "進入向島後會再轉到岩子島走走。通過因島大橋後可以挑戰看看高見山展望台，再依序前往因島水軍城、再到土生港午餐，與大山神社。最後進到生口島就能放鬆點，吃冰、check in、沙灘散步。",
             events: [
                 {
                     id: "d4-breakfast",
@@ -1076,15 +1059,18 @@ export const SHIMANAMI_TRIP = {
             city: "瀨戶田 → 伯方島",
             theme: "島與橋的正中央，留力比里程重要",
             cycling: {
-                label: "SHIMANAMI RIDE",
+                label: "SHIMANAMI RIDE 2/3",
                 route: "生口島 → 大三島 → 伯方島",
-                distance: "約 40–50 km",
-                rideWindow: "08:30 出發 · 16:30 抵達",
-                progress: 67,
-                startLabel: "尾道",
-                endLabel: "今治",
+                distance: "約 33 km",
+                rideWindow: `08:30 出發
+                9:40 進入大三島
+                15:30 進入伯方島，並抵達住宿`,
+                routeImage: {
+                    src: "https://cdn.josephtseng-tw.com/travel-split/2026-shimanami/day2-route.jpg",
+                    alt: "Day2 route",
+                }
             },
-            note: "今天不追里程，以橋景、神社與海岸風景為主。Tokoro Museum Omishima 週一休館，保留為想去但無法成行的紀錄；空出的時間改為放慢大三島至伯方島的騎行節奏，16:30 左右抵達 HANAGURI。",
+            note: "今天以橋景、神社與海岸風景為主。空出的時間改為放慢大三島至伯方島的騎行節奏，時間放多一點在神社還有大三島南岸，提早 check in 後，再繼續往南玩，吃吃喝喝並尋找晚餐",
             events: [
                 {
                     id: "d5-breakfast",
@@ -1431,15 +1417,19 @@ export const SHIMANAMI_TRIP = {
             city: "伯方島 → 今治 → 道後",
             theme: "跨過來島海峽，完成藍線",
             cycling: {
-                label: "SHIMANAMI RIDE",
-                route: "伯方島 → 大島路線二選一 → 來島海峽大橋 → 今治",
-                distance: "約 45–50 km（依大島路線選擇）",
-                rideWindow: "08:30 出發 · 13:30 還車",
-                progress: 100,
-                startLabel: "尾道",
-                endLabel: "今治",
+                label: "SHIMANAMI RIDE 3/3",
+                route: "伯方島 → 大島 → 來島海峽大橋 → 今治",
+                distance: "約 38 km",
+                rideWindow: `8:30 伯方島出發
+                9:00 進入大島
+                13:00 來島海峽大橋
+                13:30 抵達今治還車`,
+                routeImage: {
+                    src: "https://cdn.josephtseng-tw.com/travel-split/2026-shimanami/day3-route.jpg",
+                    alt: "Day3 route",
+                }
             },
-            note: "今天完成島波海道並轉往道後。進入大島後只能二選一：體力普通或想穩定完騎時走西海岸 Island Explorer；體力充足、天氣與能見度良好時走中央主線加龜老山。兩條路線都必須在 10:45 前抵達吉海一帶，13:30 還車是硬性截止時間。",
+            note: "今天完成島波海道並轉往道後。進入大島走西海岸 Island Explorer；體力充足、天氣與能見度良好時走中央主線加龜老山，時間抓比較寬鬆，13:00 抵達來島大橋即可。抓在 13:30 左右還車然後吃午餐，中途可以準備一些食物。",
             events: [
                 {
                     id: "d6-start",
@@ -1461,7 +1451,7 @@ export const SHIMANAMI_TRIP = {
                 },
                 {
                     id: "d6-oshima-route-choice",
-                    time: "09:00–10:00 (路程約 50 min)",
+                    time: "09:00–12:00 (路程約 50 min，抓寬鬆騎)",
                     title: "大島探險者路線到 (17km，小緩坡起伏)",
                     type: "cycling",
                     priority: "required",
@@ -1484,7 +1474,7 @@ export const SHIMANAMI_TRIP = {
                 },
                 {
                     id: "d6-yoshiumi",
-                    time: "10:45–11:00",
+                    time: "12:00–12:15",
                     title: "道之駅 よしうみいきいき館",
                     type: "activity",
                     priority: "recommended",
@@ -1501,7 +1491,7 @@ export const SHIMANAMI_TRIP = {
                 },
                 {
                     id: "d6-bridge",
-                    time: "11:00–11:45",
+                    time: "12:15–13:00",
                     title: "來島海峽大橋完騎",
                     type: "cycling",
                     priority: "required",
@@ -1521,12 +1511,12 @@ export const SHIMANAMI_TRIP = {
                 },
                 {
                     id: "d6-imabari-arrival",
-                    time: "11:45–12:25",
-                    title: "來島海峽大橋 → 今治市區",
+                    time: "13:00–13:30 (路程約 30 min)",
+                    title: "來島海峽大橋 → 今治市區 (10km，平緩)",
                     type: "cycling",
                     priority: "required",
                     status: "informational",
-                    description: "下橋後沿藍線完成最後一段市區騎行。進入市區後注意路口、車流與行人，不因接近終點而放鬆安全判斷。",
+                    description: "下橋後沿藍線完成最後一段市區騎行。進入市區後注意路口、車流與行人。",
                 },
                 {
                     id: "d6-return",
@@ -1693,7 +1683,7 @@ export const SHIMANAMI_TRIP = {
             weekday: "週三",
             city: "道後・松山 → 岡山",
             theme: "溫泉城收尾，傍晚回到岡山",
-            note: "今天從道後一路走到松山市中心，17:00 左右的しおかぜ是硬性時限。建議事前劃位並確認實際班次、末班車、月台與抵達岡山時間；下午景點依天氣與腿部狀況擇一。",
+            note: "今天從道後一路逛到松山市中心，17:00 左右要搭到しおかぜ往岡山。",
             events: [
                 {
                     id: "d7-breakfast",
@@ -1968,7 +1958,7 @@ export const SHIMANAMI_TRIP = {
             weekday: "週四",
             city: "岡山 → 回家",
             theme: "庭園與咖啡收尾，從容前往機場",
-            note: "最後一天的硬性截止點是 14:00 回飯店取行李、14:30 前往岡山站西口。後樂園為上午主行程，岡山城與奉還町依體力和時間彈性取捨。",
+            note: "後樂園為上午主行程，岡山城與奉還町依狀況取捨。14:00 要回飯店取行李、14:30 前往岡山站西口。",
             events: [
                 {
                     id: "d8-breakfast",

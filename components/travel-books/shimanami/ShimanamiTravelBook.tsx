@@ -308,6 +308,16 @@ function CyclingProgress({ cycling }: { cycling: NonNullable<ShimanamiDay["cycli
                 </span>
             </div>
             <p className="mt-3 text-xl font-black leading-snug">{cycling.route}</p>
+            {cycling.routeImage && (
+                <img
+                    src={cycling.routeImage.src}
+                    alt={cycling.routeImage.alt}
+                    loading="lazy"
+                    decoding="async"
+                    className="mt-4 aspect-[16/9] w-full rounded-2xl object-cover"
+                />
+            )}
+            
             <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
                 <div>
                     <p className="text-xs text-[#a9c7d0]">預計距離</p>
@@ -315,19 +325,7 @@ function CyclingProgress({ cycling }: { cycling: NonNullable<ShimanamiDay["cycli
                 </div>
                 <div>
                     <p className="text-xs text-[#a9c7d0]">安全時段</p>
-                    <p className="mt-1 font-bold">{cycling.rideWindow}</p>
-                </div>
-            </div>
-            <div className="mt-5" aria-label={`三日騎行進度 ${cycling.progress}%`}>
-                <div className="mb-2 flex justify-between text-[10px] font-bold tracking-wider text-[#a9c7d0]">
-                    <span>{cycling.startLabel}</span>
-                    <span>{cycling.endLabel}</span>
-                </div>
-                <div className="h-2 rounded-full bg-white/15">
-                    <div
-                        className="h-full rounded-full bg-[#f2c94c] transition-[width] duration-500 motion-reduce:transition-none"
-                        style={{ width: `${cycling.progress}%` }}
-                    />
+                    <p className="mt-1 whitespace-pre-line font-bold">{cycling.rideWindow}</p>
                 </div>
             </div>
         </section>
@@ -335,11 +333,18 @@ function CyclingProgress({ cycling }: { cycling: NonNullable<ShimanamiDay["cycli
 }
 
 function WeatherForecast({ weather }: { weather: NonNullable<ShimanamiDay["weather"]> }) {
-    return (
-        <section
-            className="flex h-full flex-col justify-between gap-3 rounded-2xl border border-[#c8dce1] bg-[#eef6f8] px-3.5 py-3 text-[#294852]"
-            aria-label={`天氣預報：${weather.condition}，降雨機率 ${weather.precipitationProbability}%，最高 ${weather.highCelsius} 度，最低 ${weather.lowCelsius} 度`}
-        >
+    const ariaLabel = `天氣預報：${weather.condition}，降雨機率 ${weather.precipitationProbability}%，最高 ${weather.morningCelsius} 度，最低 ${weather.nightCelsius} 度`;
+    const className = "relative flex h-full flex-col justify-between gap-3 rounded-2xl border border-[#c8dce1] bg-[#eef6f8] px-3.5 py-3 text-[#294852]";
+    const content = (
+        <>
+            <span className="text-xs font-extrabold tracking-[0.16em] text-[#17323b]">
+                {weather.location}
+            </span>
+            {weather.link && (
+                <span className="absolute right-2 top-2 flex size-5 items-center justify-center rounded-full bg-white text-[#126b8a] shadow-sm">
+                    <ExternalLink className="size-3" aria-hidden="true" />
+                </span>
+            )}
             <div className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-2">
                 <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-white text-[#126b8a] shadow-sm">
                     <CloudRain className="size-[18px]" />
@@ -350,10 +355,33 @@ function WeatherForecast({ weather }: { weather: NonNullable<ShimanamiDay["weath
                 <p className="text-xs font-bold text-[#126b8a]">
                     降雨 {weather.precipitationProbability}%
                 </p>
-                <p className="mt-0.5 font-mono text-sm font-black text-[#17323b]">
-                    {weather.highCelsius}° / {weather.lowCelsius}°
+                <p className="mt-0.5 font-mono text-xs font-black text-[#17323b]">
+                    上午: {weather.morningCelsius}
+                </p>
+                <p className="font-mono text-xs font-black text-[#17323b]">
+                    下午: {weather.nightCelsius}
                 </p>
             </div>
+        </>
+    );
+
+    if (weather.link) {
+        return (
+            <a
+                href={weather.link}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={`${className} cursor-pointer no-underline transition hover:border-[#126b8a] hover:bg-white hover:shadow-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#126b8a]`}
+                aria-label={ariaLabel}
+            >
+                {content}
+            </a>
+        );
+    }
+
+    return (
+        <section className={className} aria-label={ariaLabel}>
+            {content}
         </section>
     );
 }
@@ -476,21 +504,21 @@ function DayNoteDialog({
                     variant="outline"
                     disabled={!loaded}
                     className={cn(
-                        "mt-4 h-11 w-full justify-start rounded-2xl border-[#b8d1d8] bg-white px-4 font-bold text-[#294852] hover:bg-[#eaf5f7] hover:text-[#126b8a]",
+                        "h-11 w-full justify-start rounded-2xl border-[#b8d1d8] bg-white px-4 font-bold text-[#294852] hover:bg-[#eaf5f7] hover:text-[#126b8a]",
                         hasNote && "border-[#8fc0cc] bg-[#eaf5f7] text-[#126b8a]",
                         saveStatus === "error" && "border-[#efc1bb] bg-[#fff8f6] text-[#9b3f36]",
                     )}
                 >
                     <NotebookPen className="size-4" />
                     {!loaded
-                        ? "正在載入今日筆記…"
+                        ? "正在載入筆記…"
                         : hasNote
                           ? saveStatus === "error"
                               ? "編輯今日筆記 · 儲存失敗"
                               : saveStatus === "saving"
-                                ? "編輯今日筆記 · 儲存中"
-                                : "編輯今日筆記 · 已儲存"
-                          : "撰寫今日筆記"}
+                                ? "編輯筆記 · 儲存中"
+                                : "編輯筆記"
+                          : "新增筆記"}
                 </Button>
             </DialogTrigger>
             <DialogContent className="flex max-h-[calc(100dvh-2rem)] flex-col gap-0 overflow-hidden bg-[#f7faf8] p-0 sm:max-w-xl">
@@ -645,14 +673,6 @@ function DayItinerary({
                         )}
                     </div>
                 )}
-                <DayNoteDialog
-                    day={day}
-                    note={note}
-                    loaded={notesLoaded}
-                    saveStatus={noteSaveStatus}
-                    onNoteChange={onNoteChange}
-                    onClose={onNoteDialogClose}
-                />
             </section>
 
             {day.cycling && <CyclingProgress cycling={day.cycling} />}
@@ -663,6 +683,15 @@ function DayItinerary({
                     title={preparationTitle}
                 />
             )}
+
+            <DayNoteDialog
+                day={day}
+                note={note}
+                loaded={notesLoaded}
+                saveStatus={noteSaveStatus}
+                onNoteChange={onNoteChange}
+                onClose={onNoteDialogClose}
+            />
 
             <section className="relative space-y-4 pl-8" aria-label={`${day.city} 行程時間線`}>
                 <div
