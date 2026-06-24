@@ -34,6 +34,7 @@ export interface ShimanamiEvent {
     description?: string;
     priority?: "required" | "recommended" | "optional";
     status?: ShimanamiStatus;
+    compact?: boolean; // smaller size
     links?: ShimanamiLink[];
     warning?: string;
     options?: {
@@ -58,14 +59,23 @@ export interface ShimanamiDay {
     weekday: string;
     city: string;
     theme: string;
+    weather?: {
+        location: string;
+        condition: string;
+        precipitationProbability: number;
+        morningCelsius: string;
+        nightCelsius: string;
+        link?: string;
+    };
     cycling?: {
         label: string;
         route: string;
+        routeImage?: {
+            src: string;
+            alt: string;
+        };
         distance: string;
         rideWindow: string;
-        progress: number;
-        startLabel: string;
-        endLabel: string;
     };
     note?: string;
     events: ShimanamiEvent[];
@@ -110,7 +120,15 @@ export const SHIMANAMI_TRIP = {
             weekday: "週四",
             city: "岡山",
             theme: "16:30 抵達，先安頓住宿再安排一段市區行程",
-            note: "時間為含轉乘與步行的保守估算。第一晚以 Check-in、Montbell 與晚餐為主；咖啡不排入正式行程。",
+            weather: {
+                location: "岡山/岡山市",
+                condition: "多雲有雨",
+                precipitationProbability: 50,
+                morningCelsius: "26°",
+                nightCelsius: "21°",
+                link: "https://www.jma.go.jp/bosai/#pattern=forecast&area_type=class20s&area_code=3310000"
+            },
+            note: "時間為含轉乘與步行的保守估算。第一晚以 Check-in、Montbell 與晚餐為主。",
             events: [
                 {
                     id: "d1-flight",
@@ -179,9 +197,8 @@ export const SHIMANAMI_TRIP = {
                     title: "Montbell",
                     type: "activity",
                     priority: "recommended",
-                    status: "to-confirm",
                     location: "岡山市中心",
-                    description: "從住宿前往約 20–25 分鐘，保留約 30–35 分鐘購物。出發前先確認當日營業時間；若 18:40 尚未完成 Check-in，改到其他日期。",
+                    description: "從住宿前往約 20–25 分鐘，保留約 30–35 分鐘購物。20:00 打烊。買雨傘、T-shirt、鴨舌帽、背包，其他...",
                     links: [
                         {
                             label: "開啟地圖",
@@ -190,41 +207,6 @@ export const SHIMANAMI_TRIP = {
                         },
                     ],
                 },
-                // {
-                //     id: "d1-coffee",
-                //     time: "本日不安排",
-                //     title: "咖啡備選清單",
-                //     type: "food",
-                //     priority: "optional",
-                //     status: "informational",
-                //     description: "16:30 才抵達，第一天不特別趕咖啡店。保留以下兩間，改在其他岡山市區空檔擇一前往。",
-                //     options: [
-                //         {
-                //             id: "d1-coffee-en",
-                //             title: "en. 珈琲焙煎所",
-                //             description: "以自家烘焙咖啡為主，適合短暫休息再繼續逛街。",
-                //             links: [
-                //                 {
-                //                     label: "查看 en.",
-                //                     url: "https://maps.app.goo.gl/m259JvtWsUzyMjgb7",
-                //                     kind: "map",
-                //                 },
-                //             ],
-                //         },
-                //         {
-                //             id: "d1-coffee-empire",
-                //             title: "EMPIRE COFFEE ROASTERS",
-                //             description: "另一個咖啡選項，出發前確認當日營業時間。",
-                //             links: [
-                //                 {
-                //                     label: "查看 EMPIRE",
-                //                     url: "https://maps.app.goo.gl/VKhpL8y5ULdMk2Uz5",
-                //                     kind: "map",
-                //                 },
-                //             ],
-                //         },
-                //     ],
-                // },
                 {
                     id: "d1-omotecho",
                     time: "19:40–21:00",
@@ -273,6 +255,14 @@ export const SHIMANAMI_TRIP = {
             weekday: "週五",
             city: "倉敷",
             theme: "從晨間咖啡走到黃昏運河，完整感受倉敷",
+            weather: {
+                location: "岡山/岡山市",
+                condition: "多雲有雨",
+                precipitationProbability: 50,
+                morningCelsius: "26°",
+                nightCelsius: "21°",
+                link: "https://www.jma.go.jp/bosai/#pattern=forecast&area_type=class20s&area_code=3310000"
+            },
             note: "08:30 從岡山出發，主要行程集中在步行可達的美觀地區。17:30 搭 JR 返回岡山。",
             events: [
                 {
@@ -488,8 +478,16 @@ export const SHIMANAMI_TRIP = {
             dayLabel: "D3",
             weekday: "週六",
             city: "岡山 → 吉備津 → 尾道",
-            theme: "神社晨遊、會合與騎行前最後補給",
-            note: "18:00 前往尾道的列車是今日硬性截止時間。下午在岡山完成行李整理，16:30 與阿強會合後集中採買。",
+            theme: "神社晨遊、與弟弟會合與騎行前最後補給",
+            weather: {
+                location: "廣島/尾道",
+                condition: "多雲有雨",
+                precipitationProbability: 50,
+                morningCelsius: "26°",
+                nightCelsius: "22°",
+                link: "https://www.jma.go.jp/bosai/#pattern=forecast&area_type=class20s&area_code=3420500",
+            },
+            note: "阿強抵達日。上午去吉備津神社，下午在岡山完成行李整理，16:30 左右與阿強會合，18:00 前要搭前往尾道的列車。",
             events: [
                 {
                     id: "d3-breakfast",
@@ -698,15 +696,19 @@ export const SHIMANAMI_TRIP = {
             city: "尾道 → 瀨戶田",
             theme: "第一段藍線：跨過向島與因島",
             cycling: {
-                label: "SHIMANAMI RIDE",
-                route: "尾道 → 向島 → 因島 → 生口島・瀨戶田",
-                distance: "約 35–40 km",
-                rideWindow: "09:00 渡船 · 18:00 Check-in",
-                progress: 34,
-                startLabel: "尾道",
-                endLabel: "今治",
+                label: "SHIMANAMI RIDE 1/3",
+                route: "尾道 → 向島/岩子島 → 因島 → 生口島・瀨戶田",
+                distance: "約 45 km（含岩子島與因島南部）",
+                rideWindow: `9:00 渡船到向島
+                11:30 進入因島
+                15:00 進入生口島
+                17:30 抵達住宿`,
+                routeImage: {
+                    src: "https://cdn.josephtseng-tw.com/travel-split/2026-shimanami/day1-route.jpg",
+                    alt: "Day1 route",
+                },
             },
-            note: "第一天以熟悉車況與穩定配速為主。16:00 後景點須依實際開館與最後入場時間調整，18:00 前抵達住宿。",
+            note: "進入向島後會再轉到岩子島走走。通過因島大橋後可以挑戰看看高見山展望台，再依序前往因島水軍城、再到土生港午餐，與大山神社。最後進到生口島就能放鬆點，吃冰、check in、沙灘散步。",
             events: [
                 {
                     id: "d4-breakfast",
@@ -743,18 +745,18 @@ export const SHIMANAMI_TRIP = {
                     type: "transport",
                     priority: "required",
                     status: "to-confirm",
-                    description: "牽車搭乘渡船前往向島，抵達後沿島波海道藍線開始騎行。",
-                    links: [{ label: "開啟地圖", url: map("尾道渡船 向島"), kind: "map" }],
+                    description: "牽車搭乘渡船前往向島，抵達後沿島波海道藍線開始騎行。船班蠻密集的，約10分鐘一班，單次 100 yen，時間 3 - 5 min",
+                    links: [{ label: "相關文章", url: "https://vocus.cc/article/69f08eaefd89780001e4eef1", kind: "official" }],
                 },
                 {
                     id: "d4-mukaishima",
-                    time: "09:15–10:15",
-                    title: "向島海岸慢騎",
+                    time: "09:15–9:50 (抓 25 min)",
+                    title: "向島 → 岩子島支線 (7 km，平緩)",
                     type: "cycling",
                     priority: "required",
                     status: "informational",
-                    location: "向島",
-                    description: "沿海岸與藍線以輕鬆速度前進，利用第一小時熟悉車況、隊伍間距與補水節奏。",
+                    location: "向島・向島大橋・岩子島",
+                    description: "先沿向島西側前進，再經向島大橋進入岩子島。這段離開島波海道主線，保持輕鬆配速並留意一般道路車流。",
                     highlight: {
                         src: "https://www.japan-guide.com/g19/3478_12.jpg",
                         alt: "島波海道自行車道沿著瀨戶內海跨越島嶼",
@@ -764,14 +766,31 @@ export const SHIMANAMI_TRIP = {
                     },
                 },
                 {
+                    id: "d4-iwashijima-torii",
+                    time: "9:50–10:20",
+                    title: "岩子島 厳島神社 鳥居",
+                    type: "activity",
+                    priority: "recommended",
+                    status: "informational",
+                    location: "岩子島厳島神社",
+                    description: "停車後步行到海邊鳥居參拜、拍照，預留約 25 分鐘。鳥居景觀會隨潮位改變；離開後原路返回向島並接回主線。",
+                    links: [
+                        {
+                            label: "開啟地圖",
+                            url: "https://maps.app.goo.gl/TBDEBkeQJafkNMtD6",
+                            kind: "map",
+                        },
+                    ],
+                },
+                {
                     id: "d4-innoshima-bridge",
-                    time: "10:15–10:45",
-                    title: "因島大橋入口展望與補水",
+                    time: "10:20–10:40 (抓 20 min)",
+                    title: "岩子島 → 因島大橋入口／補水 (6 km，小爬升)",
                     type: "activity",
                     priority: "recommended",
                     status: "informational",
                     location: "因島大橋入口",
-                    description: "在上橋前短暫休息、拍照並補水。確認風勢與體力後再進入橋面爬升。",
+                    description: "從岩子島返回向島並接回島波海道藍線；在上橋前短暫休息、補水，確認風勢與體力後再進入橋面爬升。",
                     links: [
                         {
                             label: "因島大橋地圖",
@@ -779,64 +798,130 @@ export const SHIMANAMI_TRIP = {
                             kind: "map",
                         },
                     ],
+                    options: [
+                        {
+                            id: "d4-takami-view",
+                            title: "岩子島嚴島神社 → 高見山展望台",
+                            description: "評估要不要去展望，8km，爬升 280 m，約 25 分鐘。若體力與時間允許，建議上去看海景與因島大橋全景。",
+                            links: [
+                                {
+                                    label: "附近休息點",
+                                    url: map("因島大橋 休息"),
+                                    kind: "map",
+                                },
+                                {
+                                    label: "路線",
+                                    url: directions("Iwashijima Itsukushima Shrine Torii, 1944 Mukaishimacho Iwashijima, Onomichi, Hiroshima 722-0072日本", "高見山展望台 日本〒722-0071 Hiroshima, Onomichi, Mukaishimacho Tachibana"),
+                                    kind: "map",
+                                }
+                            ],
+                        },
+                    ],
+                    warning: "11:30 之前需離開因島大橋",
                 },
                 {
-                    id: "d4-innoshima",
-                    time: "10:45–12:00",
-                    title: "因島騎行",
+                    id: "d4-innoshima-castle-transfer",
+                    time: "11:30–12:00 （路程約 20 min）",
+                    title: "因島大橋 → 因島水軍城  (6km，平緩)",
                     type: "cycling",
                     priority: "required",
                     status: "informational",
                     location: "因島",
-                    description: "通過因島大橋後沿主線前進。保持能交談的配速，午餐前不要為追速度耗盡體力。",
+                    description: "通過因島大橋後離開前往生口橋的最短主線，騎往島內的因島水軍城。保持能交談的配速，為午後前往土生港及折返生口橋保留體力。",
                 },
                 {
-                    id: "d4-lunch",
-                    time: "12:00–13:00",
-                    title: "因島午餐",
-                    type: "food",
-                    priority: "required",
-                    status: "to-confirm",
-                    description: "選擇容易消化、能補充碳水與鹽分的餐點，同時補滿飲水。避免排隊過久壓縮下午行程。",
-                    links: [
-                        {
-                            label: "附近午餐",
-                            url: map("因島 ランチ"),
-                            kind: "map",
-                        },
-                    ],
-                },
-                {
-                    id: "d4-manda",
-                    time: "13:00–14:00",
-                    title: "萬田發酵",
+                    id: "d4-innoshima-suigun-castle",
+                    time: "12:00–12:40",
+                    title: "因島水軍城",
                     type: "activity",
                     priority: "recommended",
-                    status: "to-confirm",
-                    location: "萬田發酵 HAKKO PARK",
-                    description: "安排約一小時參觀與休息。出發前確認當日開放資訊；進度落後時縮短停留，優先確保安全抵達瀨戶田。",
+                    status: "informational",
+                    location: "因島水軍城",
+                    description: "停車後參觀村上海賊相關展示與城內展望空間，預留約 40 分鐘。館內通常 09:00–17:00 開放、週四休館；當天仍以現場公告為準。",
                     links: [
                         {
                             label: "開啟地圖",
-                            url: map("万田発酵 HAKKO PARK"),
+                            url: map("因島水軍城"),
                             kind: "map",
                         },
                         {
-                            label: "官方網站",
-                            url: "https://www.hakkopark.com/",
+                            label: "官方資訊",
+                            url: "https://www.city.onomichi.hiroshima.jp/soshiki/38/1042.html",
                             kind: "official",
                         },
                     ],
                 },
                 {
+                    id: "d4-manda",
+                    time: "Pass",
+                    title: "萬田發酵（週日休園）",
+                    type: "activity",
+                    priority: "optional",
+                    status: "cancelled",
+                    compact: true,
+                    location: "萬田發酵 HAKKO PARK",
+                    links: [
+                        {
+                            label: "開啟地圖",
+                            url: "https://maps.app.goo.gl/aZgwtVX8NsA3KPqP9",
+                            kind: "map",
+                        },
+                        {
+                            label: "官方網站",
+                            url: "https://mandahakkopark.com/index.html",
+                            kind: "official",
+                        },
+                    ],
+                },
+                {
+                    id: "d4-lunch",
+                    time: "12:40–13:10 （路程約 30 min）",
+                    title: "因島水軍城 → 土生港周邊午餐 (6km，小坡上下)",
+                    type: "food",
+                    priority: "required",
+                    status: "to-confirm",
+                    location: "土生港／土生商店街",
+                    description: "在附近吃因島燒，並稍作休息",
+                    links: [
+                        {
+                            label: "上田お好み焼",
+                            url: "https://maps.app.goo.gl/rFSNABgomo6LfyZQ8",
+                            kind: "map",
+                        },
+                    ],
+                },
+                {
+                    id: "d4-oyama-shrine",
+                    time: "14:30–14:40",
+                    title: "土生港 → 大山神社",
+                    type: "cycling",
+                    priority: "required",
+                    status: "informational",
+                    location: "因島中部 → 土生町",
+                    description: "大山神社・自転車神社，到因島最古老的神社參拜。預留約 30 分鐘；可以購買御守或御朱印，御朱印帳很可愛。",
+                    links: [
+                        {
+                            label: "開啟地圖",
+                            url: map("大山神社 因島 自転車神社"),
+                            kind: "map",
+                        },
+                        {
+                            label: "官方網站",
+                            url: "https://ooyamajinja.net/",
+                            kind: "official",
+                        },
+                    ],
+                    warning: "15:00 要離開神社前往生口橋",
+                },
+                {
                     id: "d4-ikuchi-bridge",
-                    time: "14:00–15:00",
-                    title: "因島 → 生口橋 → 生口島",
+                    time: "15:00–15:40 （路程約 30 min）",
+                    title: "大山神社 → 生口橋 → 生口島・瀨戶田冰淇淋 (約 10 km，過橋坡)",
                     type: "cycling",
                     priority: "required",
                     status: "informational",
                     location: "生口橋",
-                    description: "離開因島後爬升至生口橋，過橋進入生口島。橋前主動補水，橋面遇強風時降低速度並拉開距離。",
+                    description: "從因島南部沿西岸北上返回生口橋，過橋後繼續騎往瀨戶田。這是午後最長的必要移動段；橋前主動補水，遇強風時降低速度並拉開距離。",
                     links: [
                         {
                             label: "生口橋地圖",
@@ -847,13 +932,13 @@ export const SHIMANAMI_TRIP = {
                 },
                 {
                     id: "d4-setoda-cafe",
-                    time: "15:00–16:00",
-                    title: "瀨戶田咖啡與甜點",
+                    time: "15:40",
+                    title: "Dolce Ice Cream",
                     type: "food",
-                    priority: "recommended",
+                    priority: "required",
                     status: "informational",
                     location: "瀨戶田商店街",
-                    description: "用咖啡、檸檬甜點或冰品恢復體力，並確認耕三寺最後入場時間。若已接近關館，休息後直接前往景點。",
+                    description: "抵達瀨戶田後以咖啡、檸檬甜點或冰品快速恢復體力。最多停留 30 分鐘；進度落後或店家排隊時直接前往住宿。",
                     links: [
                         {
                             label: "附近咖啡甜點",
@@ -864,18 +949,17 @@ export const SHIMANAMI_TRIP = {
                 },
                 {
                     id: "d4-kosanji",
-                    time: "16:00–18:00",
+                    time: "16:00 - 17:00",
                     title: "耕三寺與未來心之丘",
                     type: "activity",
-                    priority: "recommended",
-                    status: "to-confirm",
+                    priority: "required",
+                    status: "confirmed",
                     location: "耕三寺博物館",
-                    description: "先參觀耕三寺，再依剩餘時間前往未來心之丘。此時段可能接近最後入場或閉館，務必事前確認；時間不足時只保留一處。",
-                    warning: "17:30 前離開景點並前往住宿，不因拍照延誤 Check-in 或進入夜騎。",
+                    description: "先參觀耕三寺，再依剩餘時間前往未來心之丘。（營業時間：9:00 - 17:00，最後入場：閉館前 30 分）；若時間不足，只保留最想看的區域。或是可以延到隔天上午 9 點",
                     links: [
                         {
                             label: "開啟地圖",
-                            url: map("耕三寺 未来心の丘"),
+                            url: "https://maps.app.goo.gl/BLmUrATZ2resS9Xb6",
                             kind: "map",
                         },
                         {
@@ -887,7 +971,7 @@ export const SHIMANAMI_TRIP = {
                 },
                 {
                     id: "d4-hotel",
-                    time: "18:00",
+                    time: "17:30",
                     title: "ボナプール楽生苑 Check-in",
                     type: "lodging",
                     priority: "required",
@@ -910,20 +994,35 @@ export const SHIMANAMI_TRIP = {
                     },
                 },
                 {
+                    id: "d4-setoda-beach",
+                    time: "17:30–17:45 （路程約 15 min）",
+                    title: "ボナプール楽生苑 → 瀨戶田 Sunset beach（約 4 km，平緩）",
+                    type: "cycling",
+                    priority: "optional",
+                    description: "體力還行的話，瀨戶田日落海灘被評為「日本88個最佳海灘」之一",
+                    links: [
+                        {
+                            label: "瀨戶田日落海灘",
+                            url: map("瀬戸田サンセットビーチ"),
+                            kind: "map",
+                        },
+                    ],
+                    highlight: {
+                        src: "https://s3.ap-northeast-1.amazonaws.com/production.guidoor.jp/images/IIyzn0S1kxLupwy5jt16SqW9a6vYnW935GSXJjsI.jpeg",
+                        alt: "瀨戶田日落海灘",
+                        sourceUrl: "https://www.gltjp.com/zh-hant/article/item/20108/#zh-14-191",
+                        sourceLabel: "尾道該怎麼玩",
+                        placeholderName: "瀨戶田日落海灘",
+                    },
+                },
+                {
                     id: "d4-dinner",
                     time: "18:30–19:30",
                     title: "瀨戶田晚餐",
                     type: "food",
                     priority: "required",
                     status: "to-confirm",
-                    description: "以住宿或瀨戶田港周邊為主。島上餐廳可能較早結束營業，抵達前先確認晚餐地點或預約。",
-                    links: [
-                        {
-                            label: "附近晚餐",
-                            url: map("瀬戸田 晩ごはん"),
-                            kind: "map",
-                        },
-                    ],
+                    description: "再查 tabelog，以住宿或瀨戶田港周邊為主。島上餐廳可能較早結束營業。",
                 },
                 {
                     id: "d4-sunset-walk",
@@ -945,8 +1044,10 @@ export const SHIMANAMI_TRIP = {
             ],
             contingencies: [
                 "雨勢或強風不適合騎乘時，先向租車與住宿方確認取消、延後或替代交通。",
-                "13:00 後進度落後時先取消萬田發酵；15:30 尚未抵達瀨戶田時取消咖啡與耕三寺，直接前往住宿。",
-                "耕三寺已停止入場時不等待，改在瀨戶田休息並提早 Check-in。",
+                "10:15 尚未抵達岩子島鳥居時縮短拍照停留；體力或天候不佳時原路返回向島，不繞行岩子島一周。",
+                "12:00 尚未抵達因島水軍城時縮短參觀；13:20 尚未抵達大山神社時只快速參拜，不購物或等待御朱印。",
+                "土生港午餐排隊超過 15 分鐘時改吃可快速供餐的店家或便利商店補給，15:00 必須開始往生口橋移動。",
+                "16:30 尚未抵達瀨戶田時取消咖啡甜點，直接前往住宿。",
                 "若已無法在天黑前抵達，停止騎行並尋找渡船或計程車等安全替代。",
             ],
         },
@@ -958,15 +1059,18 @@ export const SHIMANAMI_TRIP = {
             city: "瀨戶田 → 伯方島",
             theme: "島與橋的正中央，留力比里程重要",
             cycling: {
-                label: "SHIMANAMI RIDE",
+                label: "SHIMANAMI RIDE 2/3",
                 route: "生口島 → 大三島 → 伯方島",
-                distance: "約 40–50 km",
-                rideWindow: "08:30 出發 · 17:00 抵達",
-                progress: 67,
-                startLabel: "尾道",
-                endLabel: "今治",
+                distance: "約 33 km",
+                rideWindow: `08:30 出發
+                9:40 進入大三島
+                15:30 進入伯方島，並抵達住宿`,
+                routeImage: {
+                    src: "https://cdn.josephtseng-tw.com/travel-split/2026-shimanami/day2-route.jpg",
+                    alt: "Day2 route",
+                }
             },
-            note: "今天不追里程，以橋景、神社與建築空間為主。大三島支線較長，午餐與博物館營業時間須事前確認；17:00 抵達 HANAGURI 後不再騎遠路。",
+            note: "今天以橋景、神社與海岸風景為主。空出的時間改為放慢大三島至伯方島的騎行節奏，時間放多一點在神社還有大三島南岸，提早 check in 後，再繼續往南玩，吃吃喝喝並尋找晚餐",
             events: [
                 {
                     id: "d5-breakfast",
@@ -986,17 +1090,52 @@ export const SHIMANAMI_TRIP = {
                     priority: "required",
                     status: "informational",
                     location: "生口島",
-                    description: "沿島波海道藍線往多多羅大橋前進。剛出發先維持能交談的配速，讓雙腿熱開，不急著拉高速度。",
+                },
+                {
+                    id: "d5-park",
+                    time: "08:30 - 09:00",
+                    title: "潮音山公園",
+                    type: "cycling",
+                    priority: "optional",
+                    status: "informational",
+                    location: "生口島",
+                    description: "俯瞰瀨戶田港，可遠眺建於15世紀初的紅漆三重塔－興上寺。",
+                    links: [
+                        {
+                            label: "潮音山公園",
+                            url: "https://maps.app.goo.gl/ZeUzKh9iXjmLxshM7",
+                            kind: "map",
+                        },
+                    ],
+                    options: [
+                        {
+                            id: "d4-kosanji",
+                            title: "耕三寺與未來心之丘",
+                            description: "營業時間: 9:00 - 17:00，若前一天來不及參觀，也可以安排今天",
+                            links: [
+                                {
+                                    label: "開啟地圖",
+                                    url: "https://maps.app.goo.gl/BLmUrATZ2resS9Xb6",
+                                    kind: "map",
+                                },
+                                {
+                                    label: "官方網站",
+                                    url: "https://www.kousanji.or.jp/",
+                                    kind: "official",
+                                },
+                            ],
+                        }
+                    ]
                 },
                 {
                     id: "d5-tatara-bridge",
-                    time: "09:00–09:30",
-                    title: "多多羅大橋停留",
+                    time: "09:00–09:40 （路程約 20 min）",
+                    title: "瀨戶田 → 多多羅大橋 （7 km，平緩）",
                     type: "activity",
-                    priority: "recommended",
+                    priority: "required",
                     status: "informational",
                     location: "多多羅大橋",
-                    description: "停留約 20–30 分鐘看橋下海面、往來船隻與島嶼層次。橋面有風時停穩再拍照，不要占用自行車通行動線。",
+                    description: "停留約 20–30 分鐘看橋下海面、往來船隻與島嶼層次。",
                     links: [
                         {
                             label: "開啟地圖",
@@ -1007,13 +1146,13 @@ export const SHIMANAMI_TRIP = {
                 },
                 {
                     id: "d5-tatara-park",
-                    time: "09:30–10:20",
+                    time: "09:40–10:20",
                     title: "多多羅しまなみ公園",
                     type: "activity",
-                    priority: "recommended",
+                    priority: "required",
                     status: "informational",
                     location: "道の駅 多々羅しまなみ公園",
-                    description: "今天第一個正式休息點。補水、上廁所、看海並讓雙腿恢復，不用急著離開；離開前再次確認午後天氣與飲水量。",
+                    description: "這裡是島波海道上設施最完善的「自行車綠洲」休息站之一，可以欣賞到多多良橋的壯麗景色，還有綠茵的草坪，是在溫暖晴朗的日子裡放鬆身心的絕佳去處。趣味十足的自行車停車架",
                     links: [
                         {
                             label: "開啟地圖",
@@ -1021,23 +1160,37 @@ export const SHIMANAMI_TRIP = {
                             kind: "map",
                         },
                     ],
+                    options: [
+                        {
+                            id: "d5-wakka-cafe",
+                            title: "Wakka Cafe",
+                            description: "想喝咖啡可以考慮",
+                            links: [
+                                {
+                                    label: "查看地圖",
+                                    url: "https://maps.app.goo.gl/xbpLeDU57PkWZfRm7",
+                                    kind: "map",
+                                },
+                            ],
+                        }
+                    ],
                 },
                 {
                     id: "d5-omishima-south",
-                    time: "10:30–11:00",
-                    title: "大三島南岸慢騎",
+                    time: "10:20–11:00 （路程約 20 min）",
+                    title: "多多羅しまなみ公園 → 大山祇神社 (6 km，小爬坡)",
                     type: "cycling",
                     priority: "required",
                     status: "informational",
                     location: "大三島南岸",
-                    description: "離開多多羅後沿南岸穩定前進，欣賞海岸、聚落與果園風景。這段以節奏順暢為主，為下午博物館與前往伯方島保留體力。",
+                    description: "離開多多羅後沿南岸穩定前進，欣賞海岸、聚落與果園風景。這段以節奏順暢為主，為大山祇神社與午後前往伯方島保留體力。",
                 },
                 {
                     id: "d5-shrine",
                     time: "11:00–12:15",
                     title: "大山祇神社",
                     type: "activity",
-                    priority: "recommended",
+                    priority: "required",
                     status: "informational",
                     location: "大山祇神社",
                     description: "停放單車後慢慢走進神社境內，參拜本殿並感受古木與森林包圍的空間。預留約 75 分鐘，不需要用趕景點的方式參觀。",
@@ -1053,28 +1206,15 @@ export const SHIMANAMI_TRIP = {
                 {
                     id: "d5-lunch",
                     time: "12:30–13:30",
-                    title: "大三島午餐二選一",
+                    title: "大三島午餐",
                     type: "food",
                     priority: "required",
-                    status: "to-confirm",
-                    description: "依當日營業、餐點供應與移動方向選擇。不要為指定店家長時間等待，13:30 左右需準備前往 Tokoro Museum Omishima。",
+                    description: "依當日營業、餐點供應與移動方向選擇。不要為指定店家長時間等待，13:30 左右需準備往伯方島方向前進。",
                     options: [
-                        {
-                            id: "d5-lunch-limone",
-                            title: "Omishima Limone",
-                            description: "以大三島柑橘與檸檬產品為特色，適合安排較輕盈的午間停留；先確認當日是否供應可作午餐的餐點。",
-                            links: [
-                                {
-                                    label: "查看地圖",
-                                    url: map("大三島リモーネ"),
-                                    kind: "map",
-                                },
-                            ],
-                        },
                         {
                             id: "d5-lunch-yoshikawa",
                             title: "Yoshikawa",
-                            description: "想吃較完整午餐時優先考慮，出發前確認週一營業時間與是否需要候位。",
+                            description: "定食、丼飯與咖啡甜點，位於大三島港附近。",
                             links: [
                                 {
                                     label: "查看地圖",
@@ -1083,67 +1223,124 @@ export const SHIMANAMI_TRIP = {
                                 },
                             ],
                         },
+                        {
+                            id: "d5-lunch-2",
+                            title: "うみまちバル アメリ",
+                            description: "義大利麵、燉飯與咖啡甜點，位於大三島港附近，店內氛圍舒適。",
+                            links: [
+                                {
+                                    label: "查看地圖",
+                                    url: "https://maps.app.goo.gl/BGNPc9nfN2gk6x1S6",
+                                    kind: "map",
+                                },
+                            ],
+                        },
                     ],
                 },
                 {
                     id: "d5-tokoro-museum",
-                    time: "14:00–15:30",
-                    title: "Tokoro Museum Omishima",
+                    time: "Pass",
+                    title: "Tokoro Museum Omishima（週一休館）",
                     type: "activity",
-                    priority: "recommended",
-                    status: "to-confirm",
+                    status: "cancelled",
+                    compact: true,
                     location: "ところミュージアム大三島",
-                    description: "慢慢看作品、建築與面向瀨戶內海的空間，不要趕行程。若喜歡建築和空間設計，完整保留 90 分鐘很合理。",
-                    warning: "出發前確認週一是否開館、最後入館時間與單車停放位置；若休館則提早前往伯方島。",
+                    description: "6/29（週一）休館",
                     links: [
                         {
                             label: "開啟地圖",
                             url: map("ところミュージアム大三島"),
                             kind: "map",
                         },
+                        {
+                            label: "官網",
+                            url: "https://www.city.imabari.ehime.jp/museum/tokoro/",
+                            kind: "official",
+                        },
                     ],
                 },
                 {
                     id: "d5-hakata-arrival",
-                    time: "15:30–16:00",
-                    title: "大三島 → 伯方島",
+                    time: "13:30–15:00 (路程約 45-60 min)",
+                    title: "大三島南岸 → 伯方島 → HANAGURI Check-in (15 km，高低起伏)",
                     type: "cycling",
                     priority: "required",
                     status: "informational",
                     location: "大三島橋／伯方島",
-                    description: "離開博物館後往伯方島前進，過橋時留意側風與狹窄路段。抵達後先休息補水，再安排冰淇淋。",
-                    warning: "若 15:30 尚未離開博物館，縮短冰淇淋停留並直接前往住宿。",
-                },
-                {
-                    id: "d5-salt-ice-cream",
-                    time: "16:00–16:30",
-                    title: "伯方鹽冰淇淋",
-                    type: "food",
-                    priority: "recommended",
-                    status: "to-confirm",
-                    location: "伯方島",
-                    description: "用帶鹹味的冰淇淋作為今日騎行獎勵，也順便補充水分與鹽分。依店家營業時間與住宿方向選擇最近的店。",
+                    description: "午餐後沿大三島南岸往大三島橋前進，再跨橋進入伯方島，經過旅館先 check in。",
                     links: [
                         {
-                            label: "搜尋鹽冰淇淋",
-                            url: map("伯方島 塩ソフトクリーム"),
-                            kind: "map",
+                            label: "路徑圖",
+                            url: directions(
+                                "Seafood Restaurant Yoshikawa, 5714-15 Omishimacho Miyaura, Imabari, Ehime 794-1304日本",
+                                "HANAGURI, 日本〒794-2303 Ehime, Imabari, Hakatacho Ikata, 甲1817-4",
+                                ["大三島サイクリングコース 南回り, 日本〒794-1306 Ehime, Imabari, Omishimacho Nonoe, 7979",
+                                "ohmishima Limone, 瀬戸-2342 上浦町 Imabari, Ehime 794-1404日本"],
+                            ),
+                            kind: "map"
+                        }
+                    ],
+                    options: [
+                        {
+                            id: "d5-limone",
+                            title: "Omishima Limone",
+                            description: "選物小店，以大三島柑橘與檸檬產品為特色，適合安排較輕盈的午間停留。",
+                            links: [
+                                {
+                                    label: "查看地圖",
+                                    url: map("大三島リモーネ"),
+                                    kind: "map",
+                                },
+                            ],
                         },
                     ],
                 },
                 {
                     id: "d5-hotel",
-                    time: "17:00",
+                    time: "15:40",
                     title: "HANAGURI Check-in",
                     type: "lodging",
                     priority: "required",
                     status: "confirmed",
                     location: "HANAGURI",
-                    description: "抵達後先停放單車、辦理入住並整理衣物與充電設備。確認隔日早餐、飲水及單車夜間停放位置。",
                     links: [
                         {
                             label: "開啟住宿地圖",
                             url: "https://maps.app.goo.gl/uLRRpWanX2Vm1Tdd7",
+                            kind: "map",
+                        },
+                    ],
+                },
+                {
+                    id: "d5-salt-ice-cream",
+                    time: "15:00–15:40 (路程約 6 min)",
+                    title: "HANAGURI → 伯方鹽冰淇淋 (2km，平緩)",
+                    type: "food",
+                    priority: "required",
+                    status: "confirmed",
+                    location: "伯方島",
+                    description: "鹹味香草冰淇淋作。營業時間: 10:00 - 17:00",
+                    links: [
+                        {
+                            label: "道の駅 伯方S・Cパーク",
+                            url: "https://maps.app.goo.gl/ipFehZDMQ8r66szp9",
+                            kind: "map",
+                        },
+                    ],
+                },
+                {
+                    id: "d5-hakata-coast",
+                    time: "15:40–16:30  (路程約 10 min)",
+                    title: "道の駅 伯方 → Patisserie T’s Cafe Tamaya (3km，平緩)",
+                    type: "cycling",
+                    priority: "optional",
+                    status: "informational",
+                    location: "伯方島",
+                    description: "吃完冰淇淋還有時間的話後往西前行，到 Cafe Tamaya 喝杯咖啡吃甜點，看海景",
+                    links: [
+                        {
+                            label: "Patisserie T’s Cafe Tamaya",
+                            url: "https://maps.app.goo.gl/RcnwC4mTedL57jtT8",
                             kind: "map",
                         },
                     ],
@@ -1154,13 +1351,44 @@ export const SHIMANAMI_TRIP = {
                     title: "伯方島晚餐",
                     type: "food",
                     priority: "required",
-                    status: "to-confirm",
+                    status: "confirmed",
                     description: "以 HANAGURI 或步行可達的店家為主，避免入住後再次騎遠路。島上晚餐選擇與營業時間有限，建議事前向住宿確認或預約。",
-                    links: [
+                    options: [
                         {
-                            label: "住宿附近晚餐",
-                            url: map("HANAGURI 伯方島 レストラン"),
-                            kind: "map",
+                            id: "d5-dinner-1",
+                            title: "たんぽぽ",
+                            description: "大阪燒",
+                            links: [
+                                {
+                                    label: "查看地圖",
+                                    url: "https://maps.app.goo.gl/GUaKC3t1tmYVp67S8",
+                                    kind: "map",
+                                },
+                            ],
+                        },
+                        {
+                            id: "d5-dinner-2",
+                            title: "さんわ 伯方島本店",
+                            description: "拉麵",
+                            links: [
+                                {
+                                    label: "查看地圖",
+                                    url: "https://maps.app.goo.gl/uDihwDZMPdR6QUJn6",
+                                    kind: "map",
+                                },
+                            ],
+                        },
+                        {
+                            id: "d5-dinner-3",
+                            title: "魚常梅が花",
+                            description: "壽司",
+                            links: [
+                                {
+                                    label: "查看地圖",
+                                    url: "https://maps.app.goo.gl/17sJo7LR28sPrFx5A",
+                                    kind: "map",
+                                },
+                            ],
                         },
                     ],
                 },
@@ -1176,9 +1404,8 @@ export const SHIMANAMI_TRIP = {
                 },
             ],
             contingencies: [
-                "Tokoro Museum 週一休館或未開放時，午餐後直接往伯方島，將多出的時間留給海岸休息與提早 Check-in。",
-                "13:30 前未吃完午餐時縮短博物館停留；15:30 前仍未離館則取消伯方鹽冰淇淋，直接前往 HANAGURI。",
-                "疲勞、炎熱或逆風明顯時，縮短大山祇神社與博物館停留，不再增加大三島支線。",
+                "13:30 前未吃完午餐時，減少大三島海岸停留；15:00 尚未進入伯方島則取消伯方鹽冰淇淋，直接前往 HANAGURI。",
+                "疲勞、炎熱或逆風明顯時，縮短大山祇神社停留，不再增加大三島或伯方島支線。",
                 "雨勢增強時在多多羅しまなみ公園或有商店的聚落先停留，確認後續交通與住宿聯絡方式再移動。",
             ],
         },
@@ -1190,15 +1417,19 @@ export const SHIMANAMI_TRIP = {
             city: "伯方島 → 今治 → 道後",
             theme: "跨過來島海峽，完成藍線",
             cycling: {
-                label: "SHIMANAMI RIDE",
+                label: "SHIMANAMI RIDE 3/3",
                 route: "伯方島 → 大島 → 來島海峽大橋 → 今治",
-                distance: "約 40–45 km",
-                rideWindow: "08:30 出發 · 13:30 還車",
-                progress: 100,
-                startLabel: "尾道",
-                endLabel: "今治",
+                distance: "約 38 km",
+                rideWindow: `8:30 伯方島出發
+                9:00 進入大島
+                13:00 來島海峽大橋
+                13:30 抵達今治還車`,
+                routeImage: {
+                    src: "https://cdn.josephtseng-tw.com/travel-split/2026-shimanami/day3-route.jpg",
+                    alt: "Day3 route",
+                }
             },
-            note: "今天完成島波海道並轉往道後。13:30 還車是主要截止時間；龜老山展望公園只適合晴天、能見度高、風不大且進度明顯領先時前往，否則保留體力給來島海峽大橋。",
+            note: "今天完成島波海道並轉往道後。進入大島走西海岸 Island Explorer；體力充足、天氣與能見度良好時走中央主線加龜老山，時間抓比較寬鬆，13:00 抵達來島大橋即可。抓在 13:30 左右還車然後吃午餐，中途可以準備一些食物。",
             events: [
                 {
                     id: "d6-start",
@@ -1208,8 +1439,8 @@ export const SHIMANAMI_TRIP = {
                     priority: "required",
                     status: "informational",
                     location: "HANAGURI／伯方島",
-                    description: "早餐後檢查胎壓、煞車與行李固定，沿主線跨過伯方・大島大橋進入大島。前段保持穩定配速，為大橋引道與可能的逆風保留體力。",
-                    warning: "13:30 必須在今治完成還車；若晚於 08:30 出發，直接取消龜老山支線。",
+                    description: "早餐後檢查胎壓、煞車與行李固定，沿主線跨過伯方・大島大橋進入大島。過橋前依腿部疲勞、天氣、能見度與風勢決定大島二選一路線。",
+                    warning: "預計 13:30 在今治完成還車；08:30 出發時間才充裕。",
                     links: [
                         {
                             label: "伯方・大島大橋",
@@ -1219,14 +1450,37 @@ export const SHIMANAMI_TRIP = {
                     ],
                 },
                 {
+                    id: "d6-oshima-route-choice",
+                    time: "09:00–12:00 (路程約 50 min，抓寬鬆騎)",
+                    title: "大島探險者路線到 (17km，小緩坡起伏)",
+                    type: "cycling",
+                    priority: "required",
+                    location: "大島",
+                    description: "沿西海岸經過沙灘、漁港、造船廠與來島海峽大橋遠景。",
+                    options: [
+                        {
+                            id: "d6-route-kirosan",
+                            title: "龜老山展望公園 (3km，上山爬升 290m)",
+                            description: "體力還行、晴天、能見度高且風勢可控時選擇。需要約 3 km 爬升約 300 m，可能要抓 25-40 min；10:15 尚未開始下山時立即折返。",
+                            links: [
+                                {
+                                    label: "龜老山地圖",
+                                    url: "https://maps.app.goo.gl/BjbByxCahmeLpNVRA",
+                                    kind: "map",
+                                },
+                            ],
+                        },
+                    ],
+                },
+                {
                     id: "d6-yoshiumi",
-                    time: "09:45–10:30",
+                    time: "12:00–12:15",
                     title: "道之駅 よしうみいきいき館",
                     type: "activity",
                     priority: "recommended",
                     status: "informational",
                     location: "道の駅 よしうみいきいき館",
-                    description: "在進入來島海峽大橋前正式休息，補水、上廁所並確認橋面風勢。可從港邊先看大橋全景，但不要因購物或用餐拖延上橋時間。",
+                    description: "完成所選大島路線後，在進入來島海峽大橋前快速補水、上廁所並確認橋面風勢。可從港邊看大橋全景，但不要因購物或用餐拖延上橋時間。",
                     links: [
                         {
                             label: "開啟地圖",
@@ -1236,33 +1490,15 @@ export const SHIMANAMI_TRIP = {
                     ],
                 },
                 {
-                    id: "d6-kirosan",
-                    time: "晴天且進度領先",
-                    title: "龜老山展望公園",
-                    type: "cycling",
-                    priority: "optional",
-                    status: "informational",
-                    location: "亀老山展望公園",
-                    description: "只有晴天、能見度高且風不大時才值得繞行。山頂可俯瞰來島海峽大橋、急流與瀨戶內海島嶼，景觀非常完整。",
-                    warning: "需要額外爬坡並增加約 1–1.5 小時。",
-                    links: [
-                        {
-                            label: "開啟地圖",
-                            url: "https://maps.app.goo.gl/BjbByxCahmeLpNVRA",
-                            kind: "map",
-                        },
-                    ],
-                },
-                {
                     id: "d6-bridge",
-                    time: "10:45–11:30",
+                    time: "12:15–13:00",
                     title: "來島海峽大橋完騎",
                     type: "cycling",
                     priority: "required",
                     status: "informational",
                     location: "來島海峽大橋",
                     description: "預留 30–45 分鐘通過全線規模最大的跨海大橋。這一段最有完成感，可看到壯觀海流、船隻與島嶼交錯；在安全停靠處拍照，留時間感受最後一座橋。",
-                    warning: "橋面風強時降低速度、拉開車距並雙手握穩車把；不要為拍照突然停在通行線上。",
+                    warning: "注意橋面強風。",
                     links: [{ label: "開啟地圖", url: map("來島海峽大橋"), kind: "map" }],
                     highlight: {
                         src: "https://www.honda.co.jp/content/dam/site/www/outdoor/cq_img/trip/shimanami/day3/img_day03_01.jpg",
@@ -1275,30 +1511,12 @@ export const SHIMANAMI_TRIP = {
                 },
                 {
                     id: "d6-imabari-arrival",
-                    time: "11:30–12:20",
-                    title: "來島海峽大橋 → 今治市區",
+                    time: "13:00–13:30 (路程約 30 min)",
+                    title: "來島海峽大橋 → 今治市區 (10km，平緩)",
                     type: "cycling",
                     priority: "required",
                     status: "informational",
-                    description: "下橋後沿藍線完成最後一段市區騎行。進入市區後注意路口、車流與行人，不因接近終點而放鬆安全判斷。",
-                },
-                {
-                    id: "d6-lunch",
-                    time: "12:30–13:15",
-                    title: "白樂天 今治本店：燒豬玉子飯",
-                    type: "food",
-                    priority: "recommended",
-                    status: "to-confirm",
-                    location: "白樂天 今治本店",
-                    description: "到白樂天品嚐今治名物燒豬玉子飯，為完成島波海道慶祝。餐廳距離還車點仍需預留移動時間，12:30 尚未入座時改找能快速用餐的店家。",
-                    warning: "13:15 前離店前往還車；熱門店排隊過長時不要等待。",
-                    links: [
-                        {
-                            label: "開啟餐廳地圖",
-                            url: "https://maps.app.goo.gl/q5gMyJ5WC6ZDxgQE8",
-                            kind: "map",
-                        },
-                    ],
+                    description: "下橋後沿藍線完成最後一段市區騎行。進入市區後注意路口、車流與行人。",
                 },
                 {
                     id: "d6-return",
@@ -1318,6 +1536,24 @@ export const SHIMANAMI_TRIP = {
                     ],
                 },
                 {
+                    id: "d6-lunch",
+                    time: "12:30–13:10",
+                    title: "白樂天 今治本店：燒豬玉子飯",
+                    type: "food",
+                    priority: "recommended",
+                    status: "to-confirm",
+                    location: "白樂天 今治本店",
+                    description: "到白樂天品嚐今治名物燒豬玉子飯，為完成島波海道慶祝。餐廳距離還車點仍需預留移動時間，12:30 尚未入座時改找能快速用餐的店家。",
+                    warning: "13:10 前離店前往還車；熱門店排隊過長時不要等待。",
+                    links: [
+                        {
+                            label: "開啟餐廳地圖",
+                            url: "https://maps.app.goo.gl/q5gMyJ5WC6ZDxgQE8",
+                            kind: "map",
+                        },
+                    ],
+                },
+                {
                     id: "d6-transfer",
                     time: "14:30 起",
                     title: "今治 → 道後溫泉交通二選一",
@@ -1332,13 +1568,8 @@ export const SHIMANAMI_TRIP = {
                             description: "搭 JR 前往松山，再轉乘市內電車或其他交通到道後溫泉。適合希望較早抵達、保留 16:00 左右 Check-in 的安排。",
                             links: [
                                 {
-                                    label: "今治站",
-                                    url: map("今治駅"),
-                                    kind: "map",
-                                },
-                                {
-                                    label: "道後溫泉站",
-                                    url: map("道後温泉駅"),
+                                    label: "路線地圖",
+                                    url: directions("今治車站", "道後やや"),
                                     kind: "map",
                                 },
                             ],
@@ -1352,6 +1583,11 @@ export const SHIMANAMI_TRIP = {
                                     label: "官方時刻表",
                                     url: "https://www.setouchibus.co.jp/timetable/timetable/",
                                     kind: "official",
+                                },
+                                {
+                                    label: "路線地圖",
+                                    url: directions("今治車站", "道後やや"),
+                                    kind: "map",
                                 },
                             ],
                         },
@@ -1407,24 +1643,22 @@ export const SHIMANAMI_TRIP = {
                     priority: "required",
                     status: "to-confirm",
                     description: "在道後商店街或道後やや附近吃晚餐，補充蛋白質、碳水與水分。避免選擇距離太遠的餐廳，把時間留給晚間泡湯。",
-                    links: [
-                        {
-                            label: "附近晚餐",
-                            url: map("道後温泉 晩ごはん"),
-                            kind: "map",
-                        },
-                    ],
                 },
                 {
                     id: "d6-onsen",
                     time: "21:00",
                     title: "溫泉放鬆",
                     type: "activity",
-                    priority: "recommended",
-                    status: "to-confirm",
+                    priority: "required",
+                    status: "confirmed",
                     location: "道後溫泉",
-                    description: "從道後やや步行前往道後溫泉本館或附近公共浴場，慢慢泡湯舒緩腿部疲勞。先補水，避免空腹、飲酒後或過度疲勞時長時間泡湯。",
+                    description: "整修五年半，在 2024/7/11 全面重新開放。溫泉本館營業時間，神の湯：06:00 – 23:00",
                     links: [
+                        {
+                            label: "道後溫泉本館",
+                            url: "https://maps.app.goo.gl/s5cc6v87Z129ZLzb9",
+                            kind: "map",
+                        },
                         {
                             label: "道後溫泉本館",
                             url: "https://dogo.jp/en/honkan.php",
@@ -1434,8 +1668,9 @@ export const SHIMANAMI_TRIP = {
                 },
             ],
             contingencies: [
-                "龜老山展望公園會增加約 1–1.5 小時；沒有提早出發、能見度不佳、風大或腿部疲勞時直接取消。",
-                "10:45 尚未準備進入來島海峽大橋時，縮短吉海休息並取消所有支線，確保 13:30 還車。",
+                "Island Explorer 與龜老山只能二選一；出發晚、腿部疲勞、炎熱、逆風或能見度差時選 Island Explorer。",
+                "選龜老山時，10:15 尚未開始下山就立即折返；不要為登頂延誤後續行程。",
+                "10:45 尚未抵達吉海一帶時，取消道之駅停留並直接前往來島海峽大橋，確保 13:30 還車。",
                 "午餐候位超過 15 分鐘時改吃快速餐點，燒豬玉子飯可留作備選，不延誤還車與 14:30 前往松山。",
                 "強風或豪雨時不要勉強通過長橋，先在安全地點聯絡租車方，詢問替代交通或延後還車安排。",
                 "抵達道後較晚時先 Check-in，縮短商店街散步；晚餐與 21:00 溫泉優先。",
@@ -1448,7 +1683,7 @@ export const SHIMANAMI_TRIP = {
             weekday: "週三",
             city: "道後・松山 → 岡山",
             theme: "溫泉城收尾，傍晚回到岡山",
-            note: "今天從道後一路走到松山市中心，17:00 左右的しおかぜ是硬性時限。建議事前劃位並確認實際班次、末班車、月台與抵達岡山時間；下午景點依天氣與腿部狀況擇一。",
+            note: "今天從道後一路逛到松山市中心，17:00 左右要搭到しおかぜ往岡山。",
             events: [
                 {
                     id: "d7-breakfast",
@@ -1500,7 +1735,7 @@ export const SHIMANAMI_TRIP = {
                     time: "09:30–10:15",
                     title: "伊佐爾波神社",
                     type: "activity",
-                    priority: "recommended",
+                    priority: "required",
                     status: "informational",
                     location: "伊佐爾波神社",
                     description: "從鮮紅色樓門與長石階進入神社，慢慢參拜並欣賞鮮明的社殿建築。連續騎行後若雙腿疲勞，石階不要勉強趕速度。",
@@ -1517,8 +1752,7 @@ export const SHIMANAMI_TRIP = {
                     time: "10:30–11:30",
                     title: "道後溫泉本館",
                     type: "activity",
-                    priority: "required",
-                    status: "to-confirm",
+                    priority: "optional",
                     location: "道後溫泉本館",
                     description: "近距離欣賞本館外觀與歷史空間，依預約、候位與當日營運狀況決定是否再次入浴。若只參觀外觀，可把多出的時間留給咖啡。",
                     links: [
@@ -1540,9 +1774,9 @@ export const SHIMANAMI_TRIP = {
                     title: "白鷺珈琲",
                     type: "food",
                     priority: "optional",
-                    status: "to-confirm",
+                    status: "confirmed",
                     location: "道後溫泉",
-                    description: "本館參觀順利且時間充足時加入，喝杯咖啡、稍作休息並整理上午採買。若候位較久或午餐已餓，直接取消。",
+                    description: "本館參觀順利且時間充足時加入，喝杯咖啡、稍作休息並整理上午採買。若候位較久或午餐已餓，直接取消。營業時間：每日 09:00 – 18:00",
                     links: [
                         {
                             label: "開啟地圖",
@@ -1724,7 +1958,7 @@ export const SHIMANAMI_TRIP = {
             weekday: "週四",
             city: "岡山 → 回家",
             theme: "庭園與咖啡收尾，從容前往機場",
-            note: "最後一天的硬性截止點是 14:00 回飯店取行李、14:30 前往岡山站西口。後樂園為上午主行程，岡山城與奉還町依體力和時間彈性取捨。",
+            note: "後樂園為上午主行程，岡山城與奉還町依狀況取捨。14:00 要回飯店取行李、14:30 前往岡山站西口。",
             events: [
                 {
                     id: "d8-breakfast",
@@ -1759,9 +1993,8 @@ export const SHIMANAMI_TRIP = {
                     title: "岡山後樂園",
                     type: "activity",
                     priority: "required",
-                    status: "to-confirm",
                     location: "岡山後樂園",
-                    description: "沿池泉、草地與借景慢慢散步，從園內欣賞岡山城與旭川景色。上午相對涼爽，優先完成主要庭園路線，不必每條支線都走。",
+                    description: "開放：7:00 - 17:45。沿池泉、草地與借景慢慢散步，從園內欣賞岡山城與旭川景色。上午相對涼爽，優先完成主要庭園路線，不必每條支線都走。",
                     links: [
                         {
                             label: "開啟地圖",
@@ -1775,7 +2008,7 @@ export const SHIMANAMI_TRIP = {
                         },
                     ],
                     highlight: {
-                        src: "https://okayama-korakuen.jp/english/assets/images/top/main_slide01.jpg",
+                        src: "https://static.gltjp.com/glt/data/article/21000/20351/20230731_152229_2c82a461_w1920.webp",
                         alt: "岡山後樂園的池泉、草地與岡山城借景",
                         sourceUrl: "https://okayama-korakuen.jp/",
                         sourceLabel: "岡山後樂園",
@@ -1788,9 +2021,8 @@ export const SHIMANAMI_TRIP = {
                     title: "岡山城",
                     type: "activity",
                     priority: "optional",
-                    status: "to-confirm",
                     location: "岡山城",
-                    description: "從後樂園跨過月見橋前往岡山城。時間與體力充足時入館參觀；若天氣炎熱、下雨或後樂園停留較久，只看外觀並直接前往午餐。",
+                    description: "天守閣開放：9:00 - 17:30。從後樂園跨過月見橋前往岡山城。時間與體力充足時入館參觀；若天氣炎熱、下雨或後樂園停留較久，只看外觀並直接前往午餐。",
                     warning: "11:50 前離開，避免壓縮午餐與回飯店取行李時間。",
                     links: [
                         {
@@ -1804,6 +2036,13 @@ export const SHIMANAMI_TRIP = {
                             kind: "official",
                         },
                     ],
+                    highlight: {
+                        src: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSip5KHq4lMNiXeC2abqZ5s9R8jqmw8b-n1uw&s",
+                        alt: "岡山後樂園的池泉、草地與岡山城借景",
+                        sourceUrl: "https://okayama-castle.jp/home-tw/",
+                        sourceLabel: "岡山城",
+                        placeholderName: "岡山城",
+                    },
                 },
                 {
                     id: "d8-lunch",
