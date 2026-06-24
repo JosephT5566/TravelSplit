@@ -13,7 +13,9 @@ import {
     ChevronLeft,
     ChevronRight,
     CircleHelp,
+    Cloud,
     CloudRain,
+    CloudSun,
     ExternalLink,
     FileText,
     Flag,
@@ -72,6 +74,13 @@ const EVENT_ICON: Record<ShimanamiEventType, React.ComponentType<{ className?: s
     cycling: Bike,
     task: Check,
     reminder: ShieldAlert,
+};
+
+const WEATHER_ICON_BY_CONDITION: Record<string, React.ComponentType<{ className?: string }>> = {
+    "多雲有雨": CloudRain,
+    "陰天": Cloud,
+    "陰天時晴": CloudSun,
+    "陰天時雨": CloudRain,
 };
 
 const STATUS_LABEL = {
@@ -333,6 +342,7 @@ function CyclingProgress({ cycling }: { cycling: NonNullable<ShimanamiDay["cycli
 }
 
 function WeatherForecast({ weather }: { weather: NonNullable<ShimanamiDay["weather"]> }) {
+    const WeatherIcon = WEATHER_ICON_BY_CONDITION[weather.condition] ?? CloudRain;
     const ariaLabel = `天氣預報：${weather.condition}，降雨機率 ${weather.precipitationProbability}%，最高 ${weather.morningCelsius} 度，最低 ${weather.nightCelsius} 度`;
     const className = "relative flex h-full flex-col justify-between gap-3 rounded-2xl border border-[#c8dce1] bg-[#eef6f8] px-3.5 py-3 text-[#294852]";
     const content = (
@@ -347,7 +357,7 @@ function WeatherForecast({ weather }: { weather: NonNullable<ShimanamiDay["weath
             )}
             <div className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-2">
                 <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-white text-[#126b8a] shadow-sm">
-                    <CloudRain className="size-[18px]" />
+                    <WeatherIcon className="size-[18px]" />
                 </span>
                 <p className="text-sm font-extrabold leading-snug text-right">{weather.condition}</p>
             </div>

@@ -695,6 +695,14 @@ export const SHIMANAMI_TRIP = {
             weekday: "週日",
             city: "尾道 → 瀨戶田",
             theme: "第一段藍線：跨過向島與因島",
+            weather: {
+                location: "廣島/尾道",
+                condition: "陰天",
+                precipitationProbability: 40,
+                morningCelsius: "28°",
+                nightCelsius: "22°",
+                link: "https://www.jma.go.jp/bosai/#pattern=forecast&area_type=class20s&area_code=3420500",
+            },
             cycling: {
                 label: "SHIMANAMI RIDE 1/3",
                 route: "尾道 → 向島/岩子島 → 因島 → 生口島・瀨戶田",
@@ -1058,6 +1066,14 @@ export const SHIMANAMI_TRIP = {
             weekday: "週一",
             city: "瀨戶田 → 伯方島",
             theme: "島與橋的正中央，留力比里程重要",
+            weather: {
+                location: "廣島/尾道",
+                condition: "陰天時晴",
+                precipitationProbability: 30,
+                morningCelsius: "30°",
+                nightCelsius: "22°",
+                link: "https://www.jma.go.jp/bosai/#pattern=forecast&area_type=class20s&area_code=3420500",
+            },
             cycling: {
                 label: "SHIMANAMI RIDE 2/3",
                 route: "生口島 → 大三島 → 伯方島",
@@ -1416,6 +1432,14 @@ export const SHIMANAMI_TRIP = {
             weekday: "週二",
             city: "伯方島 → 今治 → 道後",
             theme: "跨過來島海峽，完成藍線",
+            weather: {
+                location: "愛媛/今治",
+                condition: "陰天",
+                precipitationProbability: 40,
+                morningCelsius: "27°",
+                nightCelsius: "21°",
+                link: "https://www.jma.go.jp/bosai/#pattern=forecast&area_type=class20s&area_code=3820200",
+            },
             cycling: {
                 label: "SHIMANAMI RIDE 3/3",
                 route: "伯方島 → 大島 → 來島海峽大橋 → 今治",
@@ -1683,6 +1707,14 @@ export const SHIMANAMI_TRIP = {
             weekday: "週三",
             city: "道後・松山 → 岡山",
             theme: "溫泉城收尾，傍晚回到岡山",
+            weather: {
+                location: "愛媛/今治",
+                condition: "陰天時雨",
+                precipitationProbability: 50,
+                morningCelsius: "26°",
+                nightCelsius: "21°",
+                link: "https://www.jma.go.jp/bosai/#pattern=forecast&area_type=class20s&area_code=3820200",
+            },
             note: "今天從道後一路逛到松山市中心，17:00 左右要搭到しおかぜ往岡山。",
             events: [
                 {
