@@ -4,7 +4,7 @@ import {
     SheetConfig,
     User,
     RawExpense,
-    AddExpenseResponse,
+    ExpenseWriteResult,
     DeleteExpenseResponse,
 } from "../src/types";
 import logger from "@/src/utils/logger";
@@ -69,23 +69,42 @@ async function refreshToken() {
 async function apiFetch(
     url: string,
     options: RequestInit = {},
-    hasRetried = false,
+    {
+        hasRetried = false,
+        canReplayWrite,
+    }: {
+        hasRetried?: boolean;
+        canReplayWrite?: () => boolean;
+    } = {},
 ): Promise<Response> {
     try {
         const response = await fetch(url, options);
 
-        if (!(await isUnauthorizedResponse(response))) {
+        // A server error with an auth-looking payload may follow an applied write.
+        const isDenied = canReplayWrite
+            ? response.status === 401 || response.status === 403
+            : await isUnauthorizedResponse(response);
+        if (!isDenied || hasRetried) {
             return response;
         }
 
-        if (hasRetried) {
-            return response;
-        }
+        const retry = () => {
+            if (options.signal?.aborted || (canReplayWrite && !canReplayWrite())) {
+                return response;
+            }
+            return apiFetch(url, options, { hasRetried: true, canReplayWrite });
+        };
 
         if (isRefreshing) {
             return new Promise<void>((resolve, reject) => {
                 failedQueue.push({ resolve, reject });
-            }).then(() => apiFetch(url, options, true));
+            }).then(
+                retry,
+                (error) => {
+                    if (canReplayWrite) return response;
+                    throw error;
+                },
+            );
         }
 
         isRefreshing = true;
@@ -93,9 +112,10 @@ async function apiFetch(
         try {
             await refreshToken();
             processQueue();
-            return apiFetch(url, options, true);
+            return retry();
         } catch (refreshError) {
             processQueue(refreshError);
+            if (canReplayWrite) return response;
             if (typeof window !== "undefined") {
                 window.location.href = "/";
             }
@@ -134,6 +154,27 @@ async function processGcfResponse<T>(response: Response): Promise<T> {
     }
 }
 
+async function readExpenseWriteResult(
+    response: Response,
+): Promise<ExpenseWriteResult> {
+    if (response.status === 401 || response.status === 403) {
+        return "rejected";
+    }
+
+    const result: unknown = await response.json();
+    if (typeof result !== "object" || result === null || !("success" in result)) {
+        return "unknown";
+    }
+    if (response.ok && result.success === true) return "saved";
+    if (
+        (response.ok || response.status === 400 || response.status === 422) &&
+        result.success === false
+    ) {
+        return "rejected";
+    }
+    return "unknown";
+}
+
 // Special handler for /me which might not be wrapped in the GCF response format
 async function processUserResponse(response: Response): Promise<User> {
     if (!response.ok) {
@@ -159,8 +200,7 @@ const getGcfUrl = (path: string, sheetId = getSelectedSheetId()) => {
     return url.toString();
 };
 
-// Maps raw expense data to the Expense type - EXPORTED for use in dataFetcher.ts
-export function mapRawExpenseToExpense(
+function mapRawExpenseToExpense(
     raw: RawExpense,
     currentUserEmail: string,
     users: Record<string, string>,
@@ -228,32 +268,62 @@ export const api = {
         return sheetConfig;
     },
 
-    async addExpense(expense: AddExpenseRequest): Promise<AddExpenseResponse> {
-        logger.log("🚀 addExpense called with: ", expense);
-        const url = getGcfUrl("/add");
+    async addExpense(
+        expense: AddExpenseRequest,
+        sheetId: string,
+        canReplayWrite: () => boolean,
+    ): Promise<ExpenseWriteResult> {
+        let url: string;
+        try {
+            url = getGcfUrl("/add", sheetId);
+        } catch (error) {
+            logger.error("Could not construct the add expense URL.", error);
+            return "rejected";
+        }
 
-        const response = await apiFetch(url, {
-            method: "POST",
-            credentials: "include",
-            body: JSON.stringify({ payload: expense }),
-            headers: {
-                "Content-Type": "application/json",
-            },
+        const controller = new AbortController();
+        let timeout: ReturnType<typeof setTimeout> | undefined;
+        const deadline = new Promise<ExpenseWriteResult>((resolve) => {
+            timeout = setTimeout(() => {
+                resolve("unknown");
+                controller.abort();
+            }, 20_000);
         });
-        return processGcfResponse<AddExpenseResponse>(response);
+        try {
+            const writeResult = apiFetch(
+                url,
+                {
+                    method: "POST",
+                    credentials: "include",
+                    redirect: "error",
+                    signal: controller.signal,
+                    body: JSON.stringify({ payload: expense }),
+                    headers: { "Content-Type": "application/json" },
+                },
+                { canReplayWrite },
+            ).then(readExpenseWriteResult);
+            return await Promise.race([writeResult, deadline]);
+        } catch {
+            return "unknown";
+        } finally {
+            clearTimeout(timeout);
+        }
     },
 
     async getExpenses(
         userEmail: string,
         users: Record<string, string>,
+        sheetId: string,
+        signal: AbortSignal,
     ): Promise<Expense[]> {
         logger.log("🚀 getExpenses called for: ", userEmail);
-        const url = new URL(getGcfUrl("/data"));
+        const url = new URL(getGcfUrl("/data", sheetId));
         url.searchParams.append("email", userEmail);
 
         const response = await apiFetch(url.toString(), {
             method: "GET",
             credentials: "include",
+            signal,
         });
 
         // The API now returns a raw format that needs conversion.
