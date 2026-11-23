@@ -71,6 +71,10 @@ Multiple sheets are configured through `NEXT_PUBLIC_SHEET_ID`.
 
 Expenses and config should always resolve through the selected sheet unless a specific sheet override is passed.
 
+## Expense Entry
+
+The add-expense form uses the selected split mode to validate each expense before calling `POST /add`. Specified shares are compared to the total as decimal amounts in the entry currency before exchange-rate conversion. The form shows differences below the share inputs. Attempting to save an invalid split focuses its message and preserves the draft.
+
 ## Data Fetching and Persistence
 
 - `services/queryClient.ts` owns the TanStack Query client.

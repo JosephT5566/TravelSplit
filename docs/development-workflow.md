@@ -54,7 +54,11 @@ The [PR build check](../.github/workflows/build-check.yml) builds the root-path 
 
 ## Tests and Lint
 
-There is no dedicated test or lint command in `package.json` yet.
+There is no dedicated test or lint command in `package.json` yet. Run the expense split regression tests with Node.js 22.18 or newer:
+
+```bash
+node --test tests/expense-splits.test.mts
+```
 
 When adding tests, start with the smallest setup compatible with Next App Router and React 18. Prioritize behavior at these boundaries:
 
@@ -74,6 +78,7 @@ For app shell or expense changes:
 - Verify signed-in state with one configured sheet.
 - Verify signed-in state with multiple configured sheets.
 - Verify expense list refresh and add/edit dialog behavior.
+- For add-expense split changes, check exact decimal shares, under- and over-allocation, an empty equal split, and recovery after switching modes. At 390px, verify keyboard focus and error visibility, then check the synthetic API records zero writes for an invalid split and one write for a corrected split.
 
 For travel-book changes:
 
