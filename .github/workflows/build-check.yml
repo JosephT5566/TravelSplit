@@ -38,3 +38,11 @@ jobs:
           NEXT_PUBLIC_SHEET_ID: ${{ vars.NEXT_PUBLIC_SHEET_ID || 'build-check-sheet-id' }}
           BASE_PATH: ""
         run: npm run build
+
+      - name: Verify static export
+        run: |
+          test -s out/index.html
+          test -s out/404.html
+          test -s out/manifest.webmanifest
+          test -s out/sw.js
+          test -d out/_next/static

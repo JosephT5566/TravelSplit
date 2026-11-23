@@ -1,5 +1,7 @@
 # Development Workflow Memory
 
+For issue specs, UI design approval, and PR review, see [Agent workflow](agent-workflow.md).
+
 ## Setup
 
 Install dependencies:
@@ -48,6 +50,8 @@ npm run build
 
 Use this as the default verification command for TypeScript, routing, and production/static-export compatibility.
 
+The [PR build check](../.github/workflows/build-check.yml) builds the root-path export and checks the generated HTML, PWA files, and Next.js assets in `out/`.
+
 ## Tests and Lint
 
 There is no dedicated test or lint command in `package.json` yet.
@@ -61,6 +65,8 @@ When adding tests, start with the smallest setup compatible with Next App Router
 - Offline rendering of static itinerary content.
 
 ## Manual QA
+
+Use the [verify skill](../.agents/skills/verify/SKILL.md) for a synthetic build and the public travel-book browser smoke check.
 
 For app shell or expense changes:
 
@@ -90,6 +96,8 @@ The frontend is intended for static export to GitHub Pages, with Cloudflare mana
 
 - Cloudflare Worker: OAuth login, refresh, logout, cookie management.
 - Google Cloud Function: authenticated resource server for Google Sheets.
+
+The [Pages workflow](../.github/workflows/deploy.yml) builds at the domain root, adds `out/.nojekyll`, and uploads `out/` to Pages.
 
 Do not add server-only Next runtime assumptions unless deployment is intentionally changed.
 
