@@ -1,12 +1,13 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useLayoutEffect, useRef } from "react";
 import {
     Expense,
     SheetConfig,
     AddExpenseRequest,
-    AddExpenseResponse,
+    ExpenseWriteResult,
     DeleteExpenseResponse,
 } from "../src/types";
-import { api, mapRawExpenseToExpense } from "./api";
+import { api } from "./api";
 import { useAuthState } from "../src/stores/AuthStore";
 import { useConfig } from "../src/stores/ConfigStore";
 import { EXPENSES_KEY, SHEET_CONFIG_KEY } from "./cacheKeys";
@@ -39,11 +40,16 @@ export const useExpensesQuery = () => {
 
     return useQuery<Expense[], Error>({
         queryKey: [EXPENSES_KEY, selectedSheetId, user?.email],
-        queryFn: () => {
-            if (!user?.email || !sheetConfig?.users) {
+        queryFn: ({ signal }) => {
+            if (!selectedSheetId || !user?.email || !sheetConfig?.users) {
                 return Promise.resolve([]);
             }
-            return api.getExpenses(user.email, sheetConfig.users);
+            return api.getExpenses(
+                user.email,
+                sheetConfig.users,
+                selectedSheetId,
+                signal,
+            );
         },
         enabled:
             isSignedIn &&
@@ -54,39 +60,34 @@ export const useExpensesQuery = () => {
     });
 };
 
-export const useAddExpense = () => {
+export const useAddExpense = (sheetId: string, userEmail: string) => {
     const queryClient = useQueryClient();
-    const { user } = useAuthState();
-    const { sheetConfig } = useConfig();
+    const isActive = useRef(false);
+    useLayoutEffect(() => {
+        isActive.current = true;
+        return () => {
+            isActive.current = false;
+        };
+    }, []);
 
-    return useMutation<AddExpenseResponse, Error, AddExpenseRequest>({
-        mutationFn: (newExpense) => api.addExpense(newExpense),
-        onSuccess: (data) => {
-            if (!sheetConfig?.users) {
-                queryClient.invalidateQueries({
-                    queryKey: [
-                        EXPENSES_KEY,
-                        getActiveSheetIdOrNull(),
-                        user?.email,
-                    ],
-                });
-                return;
-            }
-            const addedExpense = mapRawExpenseToExpense(
-                data.newRecord,
-                user?.email || "",
-                sheetConfig.users
-            );
+    return useMutation<ExpenseWriteResult, Error, AddExpenseRequest>({
+        mutationFn: (expense) =>
+            api.addExpense(expense, sheetId, () =>
+                isActive.current && getActiveSheetIdOrNull() === sheetId,
+            ),
+        networkMode: "always",
+        retry: false,
+        onSuccess: (result) => {
+            if (result !== "saved") return;
 
-            queryClient.setQueryData<Expense[]>(
-                [EXPENSES_KEY, getActiveSheetIdOrNull(), user?.email],
-                (old) => {
-                    if (!Array.isArray(old)) {
-                        return [addedExpense];
-                    }
-                    return [...old, addedExpense];
-                }
-            );
+            // /data is authoritative for which expenses this user can see.
+            const filter = {
+                queryKey: [EXPENSES_KEY, sheetId, userEmail],
+                exact: true,
+            };
+            void queryClient.cancelQueries(filter)
+                .then(() => queryClient.invalidateQueries(filter))
+                .catch((error) => logger.error("Could not refresh saved expenses.", error));
         },
     });
 };

@@ -27,12 +27,7 @@ export interface RawExpense {
     [key: string]: string | number | null; // For dynamic user columns and other potential fields
 }
 
-export type AddExpenseResponse = {
-    timestamp: string; // The timestamp of the operation
-    operatorName: string;
-    newRecord: RawExpense; // The raw expense object that was added
-    isOperatorInvolved: boolean;
-};
+export type ExpenseWriteResult = "saved" | "rejected" | "unknown";
 
 export type DeleteExpenseResponse = {
     message: string;

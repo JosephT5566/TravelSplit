@@ -1,7 +1,7 @@
 import React, { useEffect, useId, useRef, useState } from "react";
 import classNames from "classnames";
 import { isEmpty } from "lodash";
-import { AddExpenseRequest } from "../src/types";
+import { AddExpenseRequest, ExpenseWriteResult } from "../src/types";
 import { format } from "date-fns";
 import {
     X,
@@ -13,16 +13,17 @@ import {
     Loader2,
     type LucideIcon,
 } from "lucide-react";
-import { useAuthState } from "../src/stores/AuthStore";
 import { useConfig } from "../src/stores/ConfigStore";
 import { DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { useAddExpense } from "../services/dataFetcher";
 import logger from "@/src/utils/logger";
 import { evaluateExpenseSplit } from "@/src/utils/expenseSplits";
 
 interface Props {
     onCancel: () => void;
+    onSave: (expense: AddExpenseRequest) => void;
+    submitState: ExpenseWriteResult | "idle" | "saving";
+    userEmail: string;
     isDialogOpen: boolean;
     selectedDate: Date;
 }
@@ -54,19 +55,13 @@ const InputGroup = ({
 
 export const ExpenseForm: React.FC<Props> = ({
     onCancel,
+    onSave,
+    submitState,
+    userEmail,
     isDialogOpen,
     selectedDate,
 }) => {
-    const { user } = useAuthState();
-    const currentUser = user;
-    if (!currentUser) {
-        return null;
-    }
-
     const { sheetConfig: config } = useConfig();
-    if (!config) {
-        return null;
-    }
     const { categories, currencies, users } = config;
 
     const [date, setDate] = useState(format(selectedDate, "yyyy-MM-dd"));
@@ -75,7 +70,7 @@ export const ExpenseForm: React.FC<Props> = ({
         currencies[currency],
     );
     const [category, setCategory] = useState("");
-    const [payer, setPayer] = useState(currentUser.email);
+    const [payer, setPayer] = useState(userEmail);
     const [itemName, setItemName] = useState("");
     const [amount, setAmount] = useState<string>("");
 
@@ -96,7 +91,7 @@ export const ExpenseForm: React.FC<Props> = ({
         exchangeRate,
         method:
             payType === "myself"
-                ? { kind: "myself", email: currentUser.email }
+                ? { kind: "myself", email: userEmail }
                 : splitMode === "equally"
                   ? { kind: "equally", participants: selectedUsers }
                   : { kind: "specific", amounts: specificSplits },
@@ -124,8 +119,16 @@ export const ExpenseForm: React.FC<Props> = ({
         }
     }, [splitErrorAttempt]);
 
-    const { mutateAsync: addExpenseMutation, isPending: isAddingExpense } =
-        useAddExpense();
+    const isAddingExpense = submitState === "saving";
+    const isWriteUnknown = submitState === "unknown";
+    const submitErrorRef = useRef<HTMLParagraphElement>(null);
+
+    useEffect(() => {
+        if (submitState === "rejected" || submitState === "unknown") {
+            submitErrorRef.current?.focus({ preventScroll: true });
+            submitErrorRef.current?.scrollIntoView({ block: "center" });
+        }
+    }, [submitState]);
 
     useEffect(() => {
         if (isDialogOpen) {
@@ -137,7 +140,7 @@ export const ExpenseForm: React.FC<Props> = ({
             setCurrency("TWD");
             setExchangeRate(currencies["TWD"]);
             setCategory("");
-            setPayer(currentUser.email);
+            setPayer(userEmail);
             setItemName("");
             setAmount("");
             setPayType("myself");
@@ -146,11 +149,11 @@ export const ExpenseForm: React.FC<Props> = ({
             setSpecificSplits({});
             setSplitErrorAttempt(null);
         }
-    }, [isDialogOpen, selectedDate, currencies, currentUser.email]);
+    }, [isDialogOpen, selectedDate, currencies, userEmail]);
 
-    const handleSubmit = async (e: React.FormEvent) => {
+    const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        if (isAddingExpense) return;
+        if (isAddingExpense || isWriteUnknown) return;
 
         // Reset errors
         setAmountError(null);
@@ -199,10 +202,7 @@ export const ExpenseForm: React.FC<Props> = ({
             splitsJson: split.splits,
         };
 
-        logger.log("Submitting expense data:", expenseData);
-
-        await addExpenseMutation(expenseData);
-        onCancel();
+        onSave(expenseData);
     };
 
     return (
@@ -211,7 +211,10 @@ export const ExpenseForm: React.FC<Props> = ({
                 onSubmit={handleSubmit}
                 className="flex-1 flex flex-col bg-surface"
             >
-                <div className="flex-1 overflow-y-auto max-w-2xl custom-scrollbar">
+                <fieldset
+                    disabled={isAddingExpense}
+                    className="min-w-0 flex-1 overflow-y-auto max-w-2xl custom-scrollbar"
+                >
                     {/* Main Amount Input */}
                     <div className="px-6 pt-2 pb-6 sm:py-8">
                         <div className="rounded-2xl border border-border/70 bg-background/60 px-4 py-5 sm:px-6 sm:py-7 shadow-inner">
@@ -575,9 +578,29 @@ export const ExpenseForm: React.FC<Props> = ({
                             )}
                         </InputGroup>
                     </div>
-                </div>
+                </fieldset>
+                <p role="status" className="sr-only">
+                    {isAddingExpense ? "正在儲存支出" : ""}
+                </p>
+                <p
+                    ref={submitErrorRef}
+                    role="alert"
+                    tabIndex={-1}
+                    className="mb-3 rounded-sm text-sm text-red-700 empty:sr-only focus:outline-2 focus:outline-offset-2 focus:outline-current forest:text-red-200"
+                >
+                    {isWriteUnknown
+                        ? "暫時無法確認是否已儲存。請先查看這個旅程的紀錄，再決定是否重新新增。"
+                        : submitState === "rejected"
+                          ? "儲存失敗，請再試一次"
+                          : ""}
+                </p>
                 <DialogFooter>
-                    <Button type="button" variant="destructive" onClick={onCancel}>
+                    <Button
+                        type="button"
+                        variant="destructive"
+                        onClick={onCancel}
+                        disabled={isAddingExpense}
+                    >
                         Cancel
                     </Button>
                     <Button
@@ -586,7 +609,8 @@ export const ExpenseForm: React.FC<Props> = ({
                             !!amountError ||
                             !!itemNameError ||
                             !!categoryError ||
-                            isAddingExpense
+                            isAddingExpense ||
+                            isWriteUnknown
                         }
                     >
                         {isAddingExpense ? (

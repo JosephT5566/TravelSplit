@@ -48,6 +48,7 @@ The actual ID token is expected to be protected by an HTTP-only cookie and is no
 
 - `getGcfUrl(path, sheetId)` appends the selected `sheetId` query parameter.
 - `apiFetch` retries once after 401/403 or known unauthorized error codes.
+- `POST /add` only replays after a 401/403 and successful token refresh, while the original form's account and sheet are still active.
 - Token refresh is queued so concurrent failed requests share one refresh attempt.
 - GCF responses usually use `{ success, data, error }`; `/me` may return a user object directly.
 - `credentials: "include"` is important because auth cookies are part of the request model.
@@ -80,6 +81,8 @@ The add-expense form uses the selected split mode to validate each expense befor
 - `services/queryClient.ts` owns the TanStack Query client.
 - `services/persister.ts` wires query persistence into IndexedDB.
 - `services/dataFetcher.ts` contains query hooks for config and expenses.
+- Confirmed `POST /add` responses close the form and invalidate the expense query for the submitting sheet and account. The list and summary use `GET /data` to determine which rows the account can see. The write response's `newRecord` is optional for this flow.
+- A rejected write keeps the draft and allows another submission. An unreadable response, a 20-second write deadline, or another unconfirmed write keeps the draft and disables Save until the form is closed. The form asks the user to check the trip records before adding the expense again.
 - `src/stores/ExpensesStore.tsx` exposes normalized expense state plus refresh status.
 - `src/stores/ConfigStore.tsx` merges default TWD currency config with sheet config and persists app-level display config.
 
