@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useId, useRef, useState } from "react";
 import classNames from "classnames";
 import { isEmpty } from "lodash";
 import { AddExpenseRequest } from "../src/types";
@@ -19,88 +19,13 @@ import { DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { useAddExpense } from "../services/dataFetcher";
 import logger from "@/src/utils/logger";
+import { evaluateExpenseSplit } from "@/src/utils/expenseSplits";
 
 interface Props {
     onCancel: () => void;
     isDialogOpen: boolean;
     selectedDate: Date;
 }
-
-const calculateCleanedSplits = ({
-    amount,
-    exchangeRate,
-    payType,
-    currentUserEmail,
-    selectedUsers,
-    splitMode,
-    specificSplits,
-}: {
-    amount: string;
-    exchangeRate: number;
-    payType: string;
-    currentUserEmail: string;
-    selectedUsers: string[];
-    splitMode: string;
-    specificSplits: Record<string, string>;
-}): Record<string, number> => {
-    const numAmount = Number(amount);
-    const totalAmountInBase = numAmount * exchangeRate;
-    let splits: Record<string, number> = {};
-
-    if (payType === "myself") {
-        // If paying for myself, the total amount goes to the current user
-        splits = { [currentUserEmail]: Number(totalAmountInBase.toFixed(3)) };
-    } else if (payType === "others") {
-        if (splitMode === "equally") {
-            const participants = selectedUsers;
-            if (participants.length === 0) {
-                throw new Error(
-                    "Please select at least one participant for equal split.",
-                );
-            }
-            const totalInCents = Math.round(totalAmountInBase * 100);
-            const splitInCents = Math.floor(totalInCents / participants.length);
-            const remainderCents =
-                totalInCents - splitInCents * participants.length;
-
-            participants.forEach((participant, index) => {
-                splits[participant] =
-                    (splitInCents + (index < remainderCents ? 1 : 0)) / 100;
-            });
-        } else if (splitMode === "specific") {
-            const specifiedValues = Object.values(specificSplits).map(
-                (v) => Number(v) || 0,
-            );
-            const sumOfSplits = specifiedValues.reduce((a, b) => a + b, 0);
-
-            if (Math.abs(sumOfSplits - numAmount) > 0.01) {
-                throw new Error(
-                    `Sum of splits (${sumOfSplits.toFixed(2)}) must equal total amount (${numAmount.toFixed(2)}).`,
-                );
-            }
-
-            for (const user in specificSplits) {
-                const valueInBase =
-                    Math.round(
-                        Number(specificSplits[user]) * exchangeRate * 100,
-                    ) / 100;
-                if (!isNaN(valueInBase) && valueInBase > 0) {
-                    splits[user] = valueInBase;
-                }
-            }
-        }
-    }
-
-    if (
-        Object.keys(splits).length === 0 &&
-        numAmount > 0 &&
-        payType === "others"
-    ) {
-        throw new Error("Please configure how to split the expense.");
-    }
-
-    return splits;
-};
 
 const InputGroup = ({
     icon: Icon,
@@ -162,13 +87,42 @@ export const ExpenseForm: React.FC<Props> = ({
     const [specificSplits, setSpecificSplits] = useState<
         Record<string, string>
     >({});
-    const [splitSum, setSplitSum] = useState<number>(0);
 
-    // New error states
     const [amountError, setAmountError] = useState<string | null>(null);
     const [itemNameError, setItemNameError] = useState<string | null>(null);
     const [categoryError, setCategoryError] = useState<string | null>(null);
-    const [splitError, setSplitError] = useState<string | null>(null);
+    const split = evaluateExpenseSplit({
+        amount,
+        exchangeRate,
+        method:
+            payType === "myself"
+                ? { kind: "myself", email: currentUser.email }
+                : splitMode === "equally"
+                  ? { kind: "equally", participants: selectedUsers }
+                  : { kind: "specific", amounts: specificSplits },
+    });
+    const [splitErrorAttempt, setSplitErrorAttempt] = useState<{
+        kind: typeof split.kind;
+    } | null>(null);
+    const splitErrorRef = useRef<HTMLParagraphElement>(null);
+    const splitErrorId = useId();
+
+    let splitError = "";
+    if (split.kind === "mismatch") {
+        splitError = `${split.direction === "under" ? "還差" : "超出"} ${currency} ${split.difference}`;
+    } else if (split.kind === splitErrorAttempt?.kind) {
+        if (split.kind === "no-participants") {
+            splitError = "請至少選擇一位分攤者";
+        } else if (split.kind === "invalid-splits") {
+            splitError = "請確認分攤金額與匯率";
+        }
+    }
+
+    useEffect(() => {
+        if (splitErrorAttempt) {
+            splitErrorRef.current?.focus();
+        }
+    }, [splitErrorAttempt]);
 
     const { mutateAsync: addExpenseMutation, isPending: isAddingExpense } =
         useAddExpense();
@@ -190,31 +144,22 @@ export const ExpenseForm: React.FC<Props> = ({
             setSelectedUsers([]);
             setSplitMode("equally");
             setSpecificSplits({});
+            setSplitErrorAttempt(null);
         }
     }, [isDialogOpen, selectedDate, currencies, currentUser.email]);
 
-    useEffect(() => {
-        const total = Object.values(specificSplits).reduce(
-            (acc, curr) => acc + (Number(curr) || 0),
-            0,
-        );
-        setSplitSum(total);
-    }, [specificSplits]);
-
     const handleSubmit = async (e: React.FormEvent) => {
-        if (e) {
-            e.preventDefault();
-        }
+        e.preventDefault();
+        if (isAddingExpense) return;
 
         // Reset errors
         setAmountError(null);
         setItemNameError(null);
         setCategoryError(null);
-        setSplitError(null);
 
         let isValid = true;
 
-        if (isEmpty(amount) || Number(amount) <= 0) {
+        if (split.kind === "incomplete") {
             logger.log("Invalid amount:", amount);
             setAmountError("Amount must be a positive number.");
             isValid = false;
@@ -230,26 +175,15 @@ export const ExpenseForm: React.FC<Props> = ({
             isValid = false;
         }
 
-        if (splitSum > 0 && splitSum > Number(amount)) {
-            isValid = false; // Prevent submission if split error exists
+        if (
+            split.kind === "mismatch" ||
+            split.kind === "no-participants" ||
+            split.kind === "invalid-splits"
+        ) {
+            setSplitErrorAttempt({ kind: split.kind });
         }
 
-        if (!isValid) {
-            return;
-        }
-
-        // todo: we need to handle the throw error
-        const cleanedSplits = calculateCleanedSplits({
-            amount,
-            exchangeRate,
-            payType,
-            currentUserEmail: currentUser.email,
-            selectedUsers,
-            splitMode,
-            specificSplits,
-        });
-
-        if (isEmpty(cleanedSplits)) {
+        if (!isValid || split.kind !== "valid") {
             return;
         }
 
@@ -262,7 +196,7 @@ export const ExpenseForm: React.FC<Props> = ({
             currency,
             payer,
             exchangeRate,
-            splitsJson: cleanedSplits,
+            splitsJson: split.splits,
         };
 
         logger.log("Submitting expense data:", expenseData);
@@ -451,6 +385,7 @@ export const ExpenseForm: React.FC<Props> = ({
                                         onChange={() => {
                                             setPayType("myself");
                                             setSelectedUsers([]);
+                                            setSplitErrorAttempt(null);
                                         }}
                                     />
                                     Myself
@@ -478,9 +413,10 @@ export const ExpenseForm: React.FC<Props> = ({
                                                 checked={
                                                     splitMode === "equally"
                                                 }
-                                                onChange={() =>
-                                                    setSplitMode("equally")
-                                                }
+                                                onChange={() => {
+                                                    setSplitMode("equally");
+                                                    setSplitErrorAttempt(null);
+                                                }}
                                             />{" "}
                                             平分
                                         </label>
@@ -492,9 +428,10 @@ export const ExpenseForm: React.FC<Props> = ({
                                                 checked={
                                                     splitMode === "specific"
                                                 }
-                                                onChange={() =>
-                                                    setSplitMode("specific")
-                                                }
+                                                onChange={() => {
+                                                    setSplitMode("specific");
+                                                    setSplitErrorAttempt(null);
+                                                }}
                                             />{" "}
                                             指定金額
                                         </label>
@@ -503,7 +440,14 @@ export const ExpenseForm: React.FC<Props> = ({
                                         Select participants:
                                     </p>
                                     {splitMode === "equally" && (
-                                        <div className="flex flex-wrap gap-2">
+                                        <div
+                                            className="flex flex-wrap gap-2"
+                                            role="group"
+                                            aria-label="平分參與者"
+                                            aria-describedby={
+                                                splitError ? splitErrorId : undefined
+                                            }
+                                        >
                                             {Object.entries(users).map(
                                                 ([email, name]) => (
                                                     <label
@@ -516,6 +460,7 @@ export const ExpenseForm: React.FC<Props> = ({
                                                                 email,
                                                             )}
                                                             onChange={(e) => {
+                                                                setSplitErrorAttempt(null);
                                                                 if (
                                                                     e.target
                                                                         .checked
@@ -552,7 +497,14 @@ export const ExpenseForm: React.FC<Props> = ({
                                     )}
 
                                     {splitMode === "specific" && (
-                                        <div className="space-y-2">
+                                        <div
+                                            className="space-y-2"
+                                            role="group"
+                                            aria-label="指定分攤金額"
+                                            aria-describedby={
+                                                splitError ? splitErrorId : undefined
+                                            }
+                                        >
                                             {Object.entries(users).map(
                                                 ([email, name]) => (
                                                     <div
@@ -571,6 +523,7 @@ export const ExpenseForm: React.FC<Props> = ({
                                                                 inputMode="decimal"
                                                                 className="w-24 p-1 border rounded bg-background text-right"
                                                                 placeholder="0"
+                                                                aria-label={`${name}的分攤金額`}
                                                                 value={
                                                                     specificSplits[
                                                                         email
@@ -602,26 +555,22 @@ export const ExpenseForm: React.FC<Props> = ({
                                                     </div>
                                                 ),
                                             )}
-                                            {splitSum > 0 && (
-                                                <>
-                                                    <span className="text-text-muted text-sm mt-2">
-                                                        {`總和：${splitSum}`}
-                                                    </span>
-                                                    {splitSum >
-                                                        Number(amount) && (
-                                                        <span className="text-red-500 text-sm mt-2 ml-2">
-                                                            {`（大於總金額）`}
-                                                        </span>
-                                                    )}
-                                                </>
-                                            )}
-                                            {splitError && (
-                                                <p className="text-red-500 text-sm mt-2">
-                                                    {splitError}
+                                            {split.summary !== null && (
+                                                <p className="text-text-muted text-sm">
+                                                    總和：{split.summary}
                                                 </p>
                                             )}
                                         </div>
                                     )}
+                                    <p
+                                        id={splitErrorId}
+                                        ref={splitErrorRef}
+                                        aria-live="polite"
+                                        tabIndex={splitError ? -1 : undefined}
+                                        className="w-fit rounded-sm text-sm text-red-700 empty:sr-only focus:outline-2 focus:outline-offset-2 focus:outline-current forest:text-red-200"
+                                    >
+                                        {splitError}
+                                    </p>
                                 </div>
                             )}
                         </InputGroup>
@@ -634,8 +583,6 @@ export const ExpenseForm: React.FC<Props> = ({
                     <Button
                         type="submit"
                         disabled={
-                            splitSum > Number(amount) ||
-                            !!splitError ||
                             !!amountError ||
                             !!itemNameError ||
                             !!categoryError ||
