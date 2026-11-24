@@ -69,3 +69,14 @@ test("switching away from an overallocated specified split allows equal splittin
         { kind: "valid", summary: null, splits: { a: 0.16, b: 0.15 } },
     );
 });
+
+test("a single beneficiary receives the full amount at the existing conversion precision", () => {
+    assert.deepEqual(
+        evaluateExpenseSplit({
+            amount: "10.51",
+            exchangeRate: 0.317,
+            method: { kind: "single", email: "companion@example.test" },
+        }),
+        { kind: "valid", summary: null, splits: { "companion@example.test": 3.332 } },
+    );
+});

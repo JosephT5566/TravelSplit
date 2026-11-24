@@ -1,5 +1,5 @@
 type SplitMethod =
-    | { kind: "myself"; email: string }
+    | { kind: "single"; email: string }
     | { kind: "equally"; participants: string[] }
     | { kind: "specific"; amounts: Record<string, string> };
 
@@ -49,7 +49,7 @@ export function evaluateExpenseSplit({
     }
 
     const baseAmount = Number(amount) * exchangeRate;
-    if (method.kind === "myself") {
+    if (method.kind === "single") {
         return {
             kind: "valid",
             summary: null,

@@ -74,7 +74,9 @@ Expenses and config should always resolve through the selected sheet unless a sp
 
 ## Expense Entry
 
-The add-expense form uses the selected split mode to validate each expense before calling `POST /add`. Specified shares are compared to the total as decimal amounts in the entry currency before exchange-rate conversion. The form shows differences below the share inputs. Attempting to save an invalid split focuses its message and preserves the draft.
+The add-expense form models the payer and the split separately. Single-person splits follow the payer until the user chooses a specific traveler. The equal and specified splits retain their inputs while the user switches modes within a draft. Only the active mode supplies the preview and the `splitsJson` payload for `POST /add`.
+
+The summary displays the entry currency. Specified shares are compared to the total in that currency before exchange-rate conversion. The form shows differences below the share inputs. Attempting to save an invalid split focuses its message and preserves the draft. On mobile, the summary and actions stay at the bottom of the dialog when the on-screen keyboard is closed and scroll with the fields when it opens.
 
 ## Data Fetching and Persistence
 
