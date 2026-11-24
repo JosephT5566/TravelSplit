@@ -3,6 +3,7 @@ import { Expense } from "../src/types";
 import { Loader2, Trash2 } from "lucide-react";
 import { useAuthState } from "../src/stores/AuthStore";
 import { useDeleteExpense } from "../services/dataFetcher";
+import { useToast } from "@/components/ui/toast";
 
 interface ExpenseListItemProps {
     expense: Expense;
@@ -14,6 +15,7 @@ export const ExpenseListItem: React.FC<ExpenseListItemProps> = ({
     onOpenExpenseForm,
 }) => {
     const { user } = useAuthState();
+    const showToast = useToast();
 
     const { mutateAsync: deleteExpenseMutation, isPending: isDeletingExpense } =
         useDeleteExpense();
@@ -52,17 +54,28 @@ export const ExpenseListItem: React.FC<ExpenseListItemProps> = ({
 
                 <div className="flex gap-3 justify-end mt-2 opacity-50 hover:opacity-100 transition-opacity">
                     <button
-                        onClick={(e) => {
+                        onClick={async (e) => {
                             e.stopPropagation();
+                            if (isDeletingExpense) return;
                             if (!expense.timestamp) {
+                                showToast({
+                                    kind: "warning",
+                                    message: "此筆支出缺少時間戳記，無法刪除。請重新整理後確認。",
+                                });
                                 return;
                             }
-                            if (confirm("真的要刪嗎？")) {
-                                deleteExpenseMutation(expense.timestamp);
+                            if (!confirm("真的要刪嗎？")) return;
+
+                            try {
+                                await deleteExpenseMutation(expense.timestamp);
+                                showToast({ kind: "success", message: "已刪除支出" });
+                            } catch {
+                                showToast({ kind: "error", message: "無法刪除支出，請重試。" });
                             }
                         }}
-                        className="flex gap-1 text-text-muted hover:text-red-500"
-                        disabled={isDeletingExpense}
+                        className="flex gap-1 text-text-muted hover:text-red-500 aria-disabled:cursor-wait aria-disabled:opacity-50"
+                        aria-disabled={isDeletingExpense}
+                        aria-label="刪除支出"
                     >
                         {isDeletingExpense && (
                             <Loader2 className="animate-spin" size={16} />

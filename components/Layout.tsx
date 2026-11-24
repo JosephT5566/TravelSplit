@@ -9,6 +9,8 @@ import { useExpenses } from "../src/stores/ExpensesStore";
 import { useUI } from "../src/stores/UIStore";
 import { AppHeader } from "./AppHeader";
 import { SideDrawer } from "./SideDrawer";
+import { ToastProvider, ToastViewport } from "@/components/ui/toast";
+import { useSelectedSheetId } from "@/src/hooks/useSelectedSheetId";
 
 interface LayoutProps {
     children: React.ReactNode;
@@ -19,13 +21,14 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
     const { user } = useAuthState();
     const { apiState } = useExpenses();
     const { openDrawer } = useUI();
+    const sheetId = useSelectedSheetId();
 
     if (!user) {
         return <>{children}</>;
     }
 
     return (
-        <>
+        <ToastProvider key={JSON.stringify([sheetId, user.email])}>
             <SideDrawer />
             <AppHeader user={user} onAccountClick={openDrawer} />
 
@@ -40,7 +43,8 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
             </div>
 
             {/* Bottom Nav */}
-            <nav className="fixed bottom-0 left-0 right-0 bg-surface border-t border-border flex justify-around p-3 z-30 transition-colors pb-safe">
+            <nav className="fixed bottom-0 left-0 right-0 bg-surface border-t border-border flex justify-around p-3 z-30 transition-colors pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+                <ToastViewport />
                 <Link
                     href="/"
                     className={`flex flex-col items-center transition-colors ${
@@ -75,6 +79,6 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
                     <span className="text-xs mt-1">Plan</span>
                 </Link>
             </nav>
-        </>
+        </ToastProvider>
     );
 };

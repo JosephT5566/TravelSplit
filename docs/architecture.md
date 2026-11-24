@@ -84,7 +84,8 @@ The summary displays the entry currency. Specified shares are compared to the to
 - `services/persister.ts` wires query persistence into IndexedDB.
 - `services/dataFetcher.ts` contains query hooks for config and expenses.
 - Confirmed `POST /add` responses close the form and invalidate the expense query for the submitting sheet and account. The list and summary use `GET /data` to determine which rows the account can see. The write response's `newRecord` is optional for this flow.
-- A rejected write keeps the draft and allows another submission. An unreadable response, a 20-second write deadline, or another unconfirmed write keeps the draft and disables Save until the form is closed. The form asks the user to check the trip records before adding the expense again.
+- Confirmed adds and deletes show a success toast in the signed-in layout. A rejected add shows an error above the dialog actions, keeps the draft, and allows another submission. An unreadable response, a 20-second write deadline, or another unconfirmed add shows a warning in the dialog and blocks Save until the form closes. The warning asks the user to check the trip records before adding the expense again.
+- A failed delete shows an error toast and keeps the row. A row without a timestamp shows a warning and sends no delete request.
 - `src/stores/ExpensesStore.tsx` exposes normalized expense state plus refresh status.
 - `src/stores/ConfigStore.tsx` merges default TWD currency config with sheet config and persists app-level display config.
 
