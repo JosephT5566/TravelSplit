@@ -3,6 +3,12 @@ type SplitMethod =
     | { kind: "equally"; participants: string[] }
     | { kind: "specific"; amounts: Record<string, string> };
 
+export type ExpenseCalculation = {
+    amount: string;
+    exchangeRate: string;
+    method: SplitMethod;
+};
+
 type SplitResult = {
     summary: string | null;
 } & (
@@ -34,13 +40,39 @@ function formatDecimal(units: bigint, scale: number) {
     return `${digits.slice(0, -scale)}.${fraction}`;
 }
 
+function allocateCents(totalCents: bigint, weights: [string, bigint][]) {
+    const totalWeight = weights.reduce((sum, [, weight]) => sum + weight, 0n);
+    const allocations = weights.map(([email, weight]) => {
+        const numerator = totalCents * weight;
+        return {
+            email,
+            cents: numerator / totalWeight,
+            remainder: numerator % totalWeight,
+        };
+    });
+
+    allocations.sort((a, b) => {
+        if (a.remainder !== b.remainder) return a.remainder > b.remainder ? -1 : 1;
+        return a.email < b.email ? -1 : a.email > b.email ? 1 : 0;
+    });
+
+    const allocated = allocations.reduce((sum, share) => sum + share.cents, 0n);
+    const remainderCents = Number(totalCents - allocated);
+    return Object.fromEntries(
+        allocations.map(({ email, cents }, index) => [
+            email,
+            (Number(cents) + (index < remainderCents ? 1 : 0)) / 100,
+        ]),
+    );
+}
+
 export function evaluateExpenseSplit({
     amount,
     exchangeRate,
     method,
 }: {
     amount: string;
-    exchangeRate: number;
+    exchangeRate: number | string;
     method: SplitMethod;
 }): SplitResult {
     const total = readDecimal(amount);
@@ -48,12 +80,27 @@ export function evaluateExpenseSplit({
         return { kind: "incomplete", summary: null };
     }
 
-    const baseAmount = Number(amount) * exchangeRate;
+    const rate = readDecimal(String(exchangeRate));
+    if (!rate || rate.units === 0n) {
+        return { kind: "invalid-splits", summary: null };
+    }
+
+    const product = total.units * rate.units;
+    const centsScale = total.scale + rate.scale - 2;
+    const divisor = 10n ** BigInt(Math.max(centsScale, 0));
+    const totalCents =
+        centsScale > 0
+            ? (product + divisor / 2n) / divisor
+            : product * 10n ** BigInt(-centsScale);
+    if (totalCents > BigInt(Number.MAX_SAFE_INTEGER)) {
+        return { kind: "invalid-splits", summary: null };
+    }
+
     if (method.kind === "single") {
         return {
             kind: "valid",
             summary: null,
-            splits: { [method.email]: Number(baseAmount.toFixed(3)) },
+            splits: allocateCents(totalCents, [[method.email, 1n]]),
         };
     }
 
@@ -61,35 +108,29 @@ export function evaluateExpenseSplit({
         if (method.participants.length === 0) {
             return { kind: "no-participants", summary: null };
         }
+        if (new Set(method.participants).size !== method.participants.length) {
+            return { kind: "invalid-splits", summary: null };
+        }
 
-        const totalInCents = Math.round(baseAmount * 100);
-        const participantCount = method.participants.length;
-        const splitInCents = Math.floor(totalInCents / participantCount);
-        const remainderCents = totalInCents - splitInCents * participantCount;
-        return {
-            kind: "valid",
-            summary: null,
-            splits: Object.fromEntries(
-                method.participants.map((participant, index) => [
-                    participant,
-                    (splitInCents + (index < remainderCents ? 1 : 0)) / 100,
-                ]),
-            ),
-        };
+        const weights = method.participants.map((email): [string, bigint] => [email, 1n]);
+        return { kind: "valid", summary: null, splits: allocateCents(totalCents, weights) };
     }
 
-    const values = Object.values(method.amounts).map(
-        (value) => readDecimal(value || "0"),
+    const values = Object.entries(method.amounts).map(
+        ([email, value]) => ({ email, amount: readDecimal(value || "0") }),
     );
     const scale = values.reduce(
-        (largest, value) => Math.max(largest, value?.scale ?? 0),
+        (largest, value) => Math.max(largest, value.amount?.scale ?? 0),
         Math.max(2, total.scale),
     );
     const totalUnits = total.units * 10n ** BigInt(scale - total.scale);
     let splitUnits = 0n;
-    for (const value of values) {
-        if (!value) return { kind: "invalid-splits", summary: null };
-        splitUnits += value.units * 10n ** BigInt(scale - value.scale);
+    const weights: [string, bigint][] = [];
+    for (const { email, amount } of values) {
+        if (!amount) return { kind: "invalid-splits", summary: null };
+        const units = amount.units * 10n ** BigInt(scale - amount.scale);
+        if (units > 0n) weights.push([email, units]);
+        splitUnits += units;
     }
 
     const summary = formatDecimal(splitUnits, scale);
@@ -104,12 +145,5 @@ export function evaluateExpenseSplit({
         };
     }
 
-    const splits: Record<string, number> = {};
-    for (const [user, value] of Object.entries(method.amounts)) {
-        const baseShare = Math.round(Number(value) * exchangeRate * 100) / 100;
-        if (Number.isFinite(baseShare) && baseShare > 0) splits[user] = baseShare;
-    }
-    return Object.keys(splits).length
-        ? { kind: "valid", summary, splits }
-        : { kind: "invalid-splits", summary };
+    return { kind: "valid", summary, splits: allocateCents(totalCents, weights) };
 }

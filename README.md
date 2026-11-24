@@ -30,6 +30,11 @@ We used to utilize Google Sheets for travel accounting, including expense splitt
     11. `<user2>` (Split amount for user 2)
     12. ... (Add columns for all users)
 
+For formula-backed expenses, add `台幣總額`, `分攤差額`, and
+`分攤設定` to every expense tab. After the formula-capable API and app are
+deployed, edit a new expense's existing `匯率` cell on the payer's tab to
+recalculate shares across member tabs.
+
 ## Repository Configuration
 
 ### GitHub (Variables)

@@ -1,3 +1,5 @@
+import type { ExpenseCalculation } from "./utils/expenseSplits";
+
 export type Expense = {
     timestamp: string;
     date: string;
@@ -18,11 +20,11 @@ export interface RawExpense {
     "星期": string;
     "類別": string;
     "品項": string;
-    "金額": string;
+    "金額": string | number;
     "貨幣": string;
-    "匯率": string;
+    "匯率": string | number;
     "付款人": string;
-    "個人小記": string;
+    "個人小記": string | number;
     "已結算": string;
     [key: string]: string | number | null; // For dynamic user columns and other potential fields
 }
@@ -37,7 +39,9 @@ export type DeleteExpenseResponse = {
 
 export type ExpensesResponse = AppScriptResponse<Expense[]>;
 
-export type AddExpenseRequest = Omit<Expense, "timestamp">;
+export type AddExpenseRequest = Omit<Expense, "timestamp"> & {
+    calculation: ExpenseCalculation;
+};
 
 export type EditExpenseRequest = Omit<Expense, "splitsJson"> & {
     splitsJson: string;
