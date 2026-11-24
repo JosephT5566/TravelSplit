@@ -6,6 +6,7 @@ import { ExpenseBarChart } from "../../components/Charts";
 import { useExpenses } from "../../src/stores/ExpensesStore";
 import { useConfig } from "../../src/stores/ConfigStore";
 import { useAuthState } from "../../src/stores/AuthStore";
+import { calculateSettlements } from "@/src/utils/settlements";
 
 const SummaryPage: React.FC = () => {
     const { expenses, apiState, refreshExpenses } = useExpenses();
@@ -20,61 +21,17 @@ const SummaryPage: React.FC = () => {
         return acc + Number(curr.splitsJson?.[user.email]);
     }, 0);
 
-    const balances = useMemo(() => {
-        if (!user || !sheetConfig?.users) {
-            return {};
-        }
-
-        const emailToName = sheetConfig.users;
-        const nameToEmail: { [name: string]: string } = Object.fromEntries(
-            Object.entries(emailToName).map(([email, name]) => [name, email])
-        );
-        // console.log("expenses:", expenses);
-
-        const userBalances: {
-            [email: string]: { balance: number; formula: string[] };
-        } = {};
-
-        for (const otherUserEmail of Object.keys(emailToName)) {
-            // Create a new entry for the user
-            if (otherUserEmail !== user.email) {
-                userBalances[otherUserEmail] = { balance: 0, formula: [] };
-            }
-        }
-
-        expenses.forEach((expense) => {
-            const { payer, splitsJson } = expense;
-            if (!splitsJson) {
-                return;
-            }
-
-            const payerEmail = nameToEmail[payer];
-
-            if (!payerEmail) {
-                return;
-            }
-
-            Object.entries(splitsJson).forEach(([email, cost]) => {
-                if (email !== user.email) {
-                    const costNum = Number(cost);
-                    userBalances[email].balance += costNum;
-                    userBalances[email].formula.push(`${costNum}`);
-                }
-            });
-        });
-
-        return userBalances;
-    }, [expenses, user, sheetConfig]);
-
     const settlements = useMemo(() => {
-        return Object.entries(balances).map(
-            ([email, { balance, formula }]) => ({
-                email,
-                balance,
-                formula,
-            })
-        );
-    }, [balances]);
+        if (!user || !sheetConfig?.users) {
+            return [];
+        }
+
+        return calculateSettlements({
+            expenses,
+            currentUserEmail: user.email,
+            users: sheetConfig.users,
+        });
+    }, [expenses, user, sheetConfig]);
 
     return (
         <div className="space-y-6 p-4 animate-in fade-in duration-500">
@@ -147,7 +104,7 @@ const SummaryPage: React.FC = () => {
                                             </span>
                                         </div>
                                         <span className="font-bold text-red-500">
-                                            {baseCurrency} {balance.toFixed(2)}
+                                            {baseCurrency} {Math.abs(balance).toFixed(2)}
                                         </span>
                                     </div>
                                 );

@@ -24,6 +24,7 @@ export function ExpensesProvider({ children }: { children: React.ReactNode }) {
     const {
         data: expenses,
         isFetching,
+        isEnabled,
         error,
         refetch,
     } = useExpensesQuery();
@@ -38,8 +39,10 @@ export function ExpensesProvider({ children }: { children: React.ReactNode }) {
     );
 
     const refreshExpenses = useCallback(async () => {
-        await refetch();
-    }, [refetch]);
+        if (isEnabled) {
+            await refetch();
+        }
+    }, [isEnabled, refetch]);
 
     const value = useMemo(
         () => ({
