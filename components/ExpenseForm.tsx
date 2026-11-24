@@ -26,28 +26,44 @@ interface Props {
     userEmail: string;
     isDialogOpen: boolean;
     selectedDate: Date;
+    keyboardOpen: boolean;
 }
+
+const splitModes = [
+    { kind: "single", label: "單人全額" },
+    { kind: "equally", label: "多人平分" },
+    { kind: "specific", label: "指定金額" },
+] as const;
 
 const InputGroup = ({
     icon: Icon,
     label,
     children,
     required,
+    htmlFor,
 }: {
     icon: LucideIcon;
     label: string;
     required?: boolean;
+    htmlFor?: string;
     children: React.ReactNode;
 }) => (
     <div className="flex gap-4 items-start py-3 border-b border-border last:border-0">
         <div className="mt-3 text-text-muted">
             <Icon size={20} />
         </div>
-        <div className="flex-1">
-            <label className="block text-xs font-medium text-text-muted mb-1">
-                {label}
-                {required && <span className="text-error ml-1">*</span>}
-            </label>
+        <div className="min-w-0 flex-1">
+            {htmlFor ? (
+                <label htmlFor={htmlFor} className="mb-1 block text-xs font-medium text-text-muted">
+                    {label}
+                    {required && <span className="ml-1 text-error" aria-hidden="true">*</span>}
+                </label>
+            ) : (
+                <p className="mb-1 text-xs font-medium text-text-muted">
+                    {label}
+                    {required && <span className="ml-1 text-error" aria-hidden="true">*</span>}
+                </p>
+            )}
             {children}
         </div>
     </div>
@@ -60,6 +76,7 @@ export const ExpenseForm: React.FC<Props> = ({
     userEmail,
     isDialogOpen,
     selectedDate,
+    keyboardOpen,
 }) => {
     const { sheetConfig: config } = useConfig();
     const { categories, currencies, users } = config;
@@ -74,11 +91,9 @@ export const ExpenseForm: React.FC<Props> = ({
     const [itemName, setItemName] = useState("");
     const [amount, setAmount] = useState<string>("");
 
-    const [payType, setPayType] = useState<"myself" | "others">("myself");
+    const [splitMode, setSplitMode] = useState<(typeof splitModes)[number]["kind"]>("single");
+    const [singleRecipient, setSingleRecipient] = useState<string | null>(null);
     const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
-    const [splitMode, setSplitMode] = useState<"equally" | "specific">(
-        "equally",
-    );
     const [specificSplits, setSpecificSplits] = useState<
         Record<string, string>
     >({});
@@ -86,12 +101,17 @@ export const ExpenseForm: React.FC<Props> = ({
     const [amountError, setAmountError] = useState<string | null>(null);
     const [itemNameError, setItemNameError] = useState<string | null>(null);
     const [categoryError, setCategoryError] = useState<string | null>(null);
+    const fieldId = useId();
+    const memberEntries = Object.entries(users);
+    const nameFor = (email: string) =>
+        users[email] || (email === userEmail ? "我" : email.split("@")[0]);
+    const recipient = singleRecipient ?? payer;
     const split = evaluateExpenseSplit({
         amount,
         exchangeRate,
         method:
-            payType === "myself"
-                ? { kind: "myself", email: userEmail }
+            splitMode === "single"
+                ? { kind: "single", email: recipient }
                 : splitMode === "equally"
                   ? { kind: "equally", participants: selectedUsers }
                   : { kind: "specific", amounts: specificSplits },
@@ -100,17 +120,35 @@ export const ExpenseForm: React.FC<Props> = ({
         kind: typeof split.kind;
     } | null>(null);
     const splitErrorRef = useRef<HTMLParagraphElement>(null);
+    const fieldsRef = useRef<HTMLFieldSetElement>(null);
     const splitErrorId = useId();
+
+    const currencyAmount = (value: string) =>
+        currency === "TWD" ? `NT$${value}` : `${currency} ${value}`;
 
     let splitError = "";
     if (split.kind === "mismatch") {
-        splitError = `${split.direction === "under" ? "還差" : "超出"} ${currency} ${split.difference}`;
-    } else if (split.kind === splitErrorAttempt?.kind) {
-        if (split.kind === "no-participants") {
-            splitError = "請至少選擇一位分攤者";
-        } else if (split.kind === "invalid-splits") {
-            splitError = "請確認分攤金額與匯率";
+        splitError = `${split.direction === "under" ? "還差" : "超出"} ${currencyAmount(split.difference)}`;
+    } else if (split.kind === "no-participants") {
+        splitError = "請至少選擇一位分攤者";
+    } else if (split.kind === "invalid-splits") {
+        splitError = "請確認分攤金額與匯率";
+    }
+    const showSplitError =
+        split.kind === "mismatch" || split.kind === splitErrorAttempt?.kind;
+    const payerSummary = `${nameFor(payer)}付款`;
+    let splitSummary = "請輸入總額";
+    if (split.kind === "valid") {
+        const names = Object.keys(split.splits).map(nameFor).join("、");
+        const total = currencyAmount(amount);
+        if (splitMode === "single") {
+            splitSummary = `${names}負擔全額 ${total}`;
+        } else {
+            const action = splitMode === "equally" ? "平分" : "分攤";
+            splitSummary = `${names}${action} ${total}`;
         }
+    } else if (splitError) {
+        splitSummary = `分攤待修正（${splitError}）`;
     }
 
     useEffect(() => {
@@ -118,6 +156,13 @@ export const ExpenseForm: React.FC<Props> = ({
             splitErrorRef.current?.focus();
         }
     }, [splitErrorAttempt]);
+
+    useEffect(() => {
+        const focused = document.activeElement;
+        if (focused instanceof HTMLInputElement && fieldsRef.current?.contains(focused)) {
+            focused.scrollIntoView({ block: "nearest" });
+        }
+    }, [keyboardOpen]);
 
     const isAddingExpense = submitState === "saving";
     const isWriteUnknown = submitState === "unknown";
@@ -143,9 +188,9 @@ export const ExpenseForm: React.FC<Props> = ({
             setPayer(userEmail);
             setItemName("");
             setAmount("");
-            setPayType("myself");
+            setSplitMode("single");
+            setSingleRecipient(null);
             setSelectedUsers([]);
-            setSplitMode("equally");
             setSpecificSplits({});
             setSplitErrorAttempt(null);
         }
@@ -209,11 +254,20 @@ export const ExpenseForm: React.FC<Props> = ({
         <>
             <form
                 onSubmit={handleSubmit}
-                className="flex-1 flex flex-col bg-surface"
+                className={classNames(
+                    "flex min-h-0 min-w-0 flex-col bg-surface",
+                    keyboardOpen && "overflow-y-auto overscroll-contain",
+                )}
             >
                 <fieldset
+                    ref={fieldsRef}
                     disabled={isAddingExpense}
-                    className="min-w-0 flex-1 overflow-y-auto max-w-2xl custom-scrollbar"
+                    className={classNames(
+                        "min-w-0",
+                        keyboardOpen
+                            ? "shrink-0"
+                            : "min-h-0 overflow-y-auto overscroll-contain custom-scrollbar",
+                    )}
                 >
                     {/* Main Amount Input */}
                     <div className="px-6 pt-2 pb-6 sm:py-8">
@@ -226,6 +280,7 @@ export const ExpenseForm: React.FC<Props> = ({
                                     type="number"
                                     placeholder="0"
                                     inputMode="decimal"
+                                    aria-label="總額"
                                     autoFocus
                                     required
                                     className={`bg-transparent text-6xl font-bold text-center outline-none w-full max-w-[240px] placeholder-text-muted/30 text-text-main ${
@@ -293,8 +348,9 @@ export const ExpenseForm: React.FC<Props> = ({
 
                     <div className="px-4 pb-6 space-y-3">
                         {/* Item Name */}
-                        <InputGroup icon={FileText} required label="項目名稱">
+                        <InputGroup icon={FileText} required label="項目名稱" htmlFor={`${fieldId}-item`}>
                             <input
+                                id={`${fieldId}-item`}
                                 type="text"
                                 required
                                 placeholder="What is this for?"
@@ -351,8 +407,9 @@ export const ExpenseForm: React.FC<Props> = ({
                         </InputGroup>
 
                         {/* Date */}
-                        <InputGroup icon={Calendar} required label="日期">
+                        <InputGroup icon={Calendar} required label="日期" htmlFor={`${fieldId}-date`}>
                             <input
+                                id={`${fieldId}-date`}
                                 type="date"
                                 required
                                 className="w-full bg-transparent text-base outline-none text-text-main dark:scheme-dark"
@@ -361,270 +418,189 @@ export const ExpenseForm: React.FC<Props> = ({
                             />
                         </InputGroup>
 
-                        {/* Payer */}
-                        <InputGroup icon={UserIcon} required label="付款人">
+                        <InputGroup icon={UserIcon} required label="付款人" htmlFor={`${fieldId}-payer`}>
                             <select
+                                id={`${fieldId}-payer`}
                                 required
-                                className="w-full bg-transparent text-base outline-none text-text-main p-1 border rounded-md"
+                                className="min-h-11 w-full rounded-md border border-border bg-background px-2 text-base text-text-main"
                                 value={payer}
                                 onChange={(e) => setPayer(e.target.value)}
                             >
-                                {Object.entries(users).map(([email, name]) => (
-                                    <option key={email} value={email}>
-                                        {name}
-                                    </option>
+                                {!Object.hasOwn(users, userEmail) && <option value={userEmail}>我</option>}
+                                {memberEntries.map(([email, name]) => (
+                                    <option key={email} value={email}>{name}</option>
                                 ))}
                             </select>
                         </InputGroup>
-                        {/* Split Method */}
                         <InputGroup icon={UsersIcon} label="分攤方式">
-                            <div className="flex gap-4">
-                                <label className="flex items-center gap-2">
-                                    <input
-                                        type="radio"
-                                        name="payType"
-                                        value="myself"
-                                        checked={payType === "myself"}
-                                        onChange={() => {
-                                            setPayType("myself");
-                                            setSelectedUsers([]);
-                                            setSplitErrorAttempt(null);
-                                        }}
-                                    />
-                                    Myself
-                                </label>
-                                <label className="flex items-center gap-2">
-                                    <input
-                                        type="radio"
-                                        name="payType"
-                                        value="others"
-                                        checked={payType === "others"}
-                                        onChange={() => setPayType("others")}
-                                    />
-                                    With Others
-                                </label>
+                            <div role="radiogroup" aria-label="分攤方式" className="flex flex-wrap gap-x-4">
+                                {splitModes.map(({ kind, label }) => (
+                                    <label key={kind} className="flex min-h-11 items-center gap-2 text-base">
+                                        <input
+                                            type="radio"
+                                            name="splitMode"
+                                            checked={splitMode === kind}
+                                            onChange={() => {
+                                                setSplitMode(kind);
+                                                setSplitErrorAttempt(null);
+                                            }}
+                                        />
+                                        {label}
+                                    </label>
+                                ))}
                             </div>
 
-                            {payType === "others" && (
-                                <div className="mt-4 space-y-3">
-                                    <div className="flex items-center gap-4">
-                                        <label className="flex items-center gap-2">
-                                            <input
-                                                type="radio"
-                                                name="splitMode"
-                                                value="equally"
-                                                checked={
-                                                    splitMode === "equally"
-                                                }
-                                                onChange={() => {
-                                                    setSplitMode("equally");
-                                                    setSplitErrorAttempt(null);
-                                                }}
-                                            />{" "}
-                                            平分
-                                        </label>
-                                        <label className="flex items-center gap-2">
-                                            <input
-                                                type="radio"
-                                                name="splitMode"
-                                                value="specific"
-                                                checked={
-                                                    splitMode === "specific"
-                                                }
-                                                onChange={() => {
-                                                    setSplitMode("specific");
-                                                    setSplitErrorAttempt(null);
-                                                }}
-                                            />{" "}
-                                            指定金額
-                                        </label>
-                                    </div>
-                                    <p className="text-sm text-text-muted">
-                                        Select participants:
-                                    </p>
-                                    {splitMode === "equally" && (
-                                        <div
-                                            className="flex flex-wrap gap-2"
-                                            role="group"
-                                            aria-label="平分參與者"
-                                            aria-describedby={
-                                                splitError ? splitErrorId : undefined
-                                            }
-                                        >
-                                            {Object.entries(users).map(
-                                                ([email, name]) => (
-                                                    <label
-                                                        key={email}
-                                                        className="flex items-center gap-2 p-2 border rounded-lg"
-                                                    >
-                                                        <input
-                                                            type="checkbox"
-                                                            checked={selectedUsers.includes(
-                                                                email,
-                                                            )}
-                                                            onChange={(e) => {
-                                                                setSplitErrorAttempt(null);
-                                                                if (
-                                                                    e.target
-                                                                        .checked
-                                                                ) {
-                                                                    setSelectedUsers(
-                                                                        (
-                                                                            prev,
-                                                                        ) => [
-                                                                            ...prev,
-                                                                            email,
-                                                                        ],
-                                                                    );
-                                                                } else {
-                                                                    setSelectedUsers(
-                                                                        (
-                                                                            prev,
-                                                                        ) =>
-                                                                            prev.filter(
-                                                                                (
-                                                                                    p,
-                                                                                ) =>
-                                                                                    p !==
-                                                                                    email,
-                                                                            ),
-                                                                    );
-                                                                }
-                                                            }}
-                                                        />
-                                                        {name}
-                                                    </label>
-                                                ),
-                                            )}
-                                        </div>
-                                    )}
-
-                                    {splitMode === "specific" && (
-                                        <div
-                                            className="space-y-2"
-                                            role="group"
-                                            aria-label="指定分攤金額"
-                                            aria-describedby={
-                                                splitError ? splitErrorId : undefined
-                                            }
-                                        >
-                                            {Object.entries(users).map(
-                                                ([email, name]) => (
-                                                    <div
-                                                        key={email}
-                                                        className="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2"
-                                                    >
-                                                        <span className="text-sm text-text-main">
-                                                            {users[email] ||
-                                                                email.split(
-                                                                    "@",
-                                                                )[0]}
-                                                        </span>
-                                                        <div className="flex items-center gap-2">
-                                                            <input
-                                                                type="number"
-                                                                inputMode="decimal"
-                                                                className="w-24 p-1 border rounded bg-background text-right"
-                                                                placeholder="0"
-                                                                aria-label={`${name}的分攤金額`}
-                                                                value={
-                                                                    specificSplits[
-                                                                        email
-                                                                    ] || ""
-                                                                }
-                                                                min="0"
-                                                                step="any"
-                                                                onChange={(
-                                                                    e,
-                                                                ) => {
-                                                                    setSpecificSplits(
-                                                                        (
-                                                                            prev,
-                                                                        ) => ({
-                                                                            ...prev,
-                                                                            [email]:
-                                                                                e.target.value.replace(
-                                                                                    /^0+(?=\d)/,
-                                                                                    "",
-                                                                                ),
-                                                                        }),
-                                                                    );
-                                                                }}
-                                                            />
-                                                            <span className="text-sm text-accent">
-                                                                {currency}
-                                                            </span>
-                                                        </div>
-                                                    </div>
-                                                ),
-                                            )}
-                                            {split.summary !== null && (
-                                                <p className="text-text-muted text-sm">
-                                                    總和：{split.summary}
-                                                </p>
-                                            )}
-                                        </div>
-                                    )}
-                                    <p
-                                        id={splitErrorId}
-                                        ref={splitErrorRef}
-                                        aria-live="polite"
-                                        tabIndex={splitError ? -1 : undefined}
-                                        className="w-fit rounded-sm text-sm text-red-700 empty:sr-only focus:outline-2 focus:outline-offset-2 focus:outline-current forest:text-red-200"
+                            {splitMode === "single" && (
+                                <label className="mt-2 block text-sm text-text-muted">
+                                    負擔人
+                                    <select
+                                        className="mt-1 block min-h-11 w-full rounded-md border border-border bg-background px-2 text-base text-text-main"
+                                        value={singleRecipient ?? ""}
+                                        aria-describedby={showSplitError ? splitErrorId : undefined}
+                                        onChange={(e) => setSingleRecipient(e.target.value || null)}
                                     >
-                                        {splitError}
-                                    </p>
+                                        <option value="">跟隨付款人（{nameFor(payer)}）</option>
+                                        {memberEntries.map(([email, name]) => (
+                                            <option key={email} value={email}>{name}</option>
+                                        ))}
+                                    </select>
+                                </label>
+                            )}
+
+                            {splitMode === "equally" && (
+                                <div
+                                    className="mt-2 flex flex-wrap gap-2"
+                                    role="group"
+                                    aria-label="平分參與者"
+                                    aria-describedby={showSplitError ? splitErrorId : undefined}
+                                >
+                                    {memberEntries.map(([email, name]) => (
+                                        <label key={email} className="flex min-h-11 min-w-0 max-w-full items-center gap-2 rounded-md border border-border px-3 py-2 text-base">
+                                            <input
+                                                type="checkbox"
+                                                className="shrink-0"
+                                                checked={selectedUsers.includes(email)}
+                                                onChange={(e) => {
+                                                    const checked = e.target.checked;
+                                                    setSplitErrorAttempt(null);
+                                                    setSelectedUsers((previous) =>
+                                                        checked
+                                                            ? [...previous, email]
+                                                            : previous.filter((user) => user !== email),
+                                                    );
+                                                }}
+                                            />
+                                            <span className="min-w-0 wrap-anywhere">{name}</span>
+                                        </label>
+                                    ))}
                                 </div>
                             )}
+
+                            {splitMode === "specific" && (
+                                <div
+                                    className="mt-2 space-y-2"
+                                    role="group"
+                                    aria-label="指定分攤金額"
+                                    aria-describedby={showSplitError ? splitErrorId : undefined}
+                                >
+                                    {memberEntries.map(([email, name]) => (
+                                        <label
+                                            key={email}
+                                            className="flex min-h-11 items-center justify-between gap-2 rounded-md border border-border px-2 py-1"
+                                        >
+                                            <span className="min-w-0 wrap-anywhere">{name}</span>
+                                            <span className="flex shrink-0 items-center gap-1">
+                                                <input
+                                                    type="number"
+                                                    inputMode="decimal"
+                                                    className="w-20 rounded border border-border bg-background px-1.5 py-1 text-right text-base tabular-nums"
+                                                    placeholder="0"
+                                                    aria-label={`${name}的分攤金額`}
+                                                    value={specificSplits[email] ?? ""}
+                                                    min="0"
+                                                    step="any"
+                                                    onChange={(e) => {
+                                                        const value = e.target.value.replace(/^0+(?=\d)/, "");
+                                                        setSplitErrorAttempt(null);
+                                                        setSpecificSplits((previous) => ({
+                                                            ...previous,
+                                                            [email]: value,
+                                                        }));
+                                                    }}
+                                                />
+                                                <span className="text-xs text-text-muted">{currency}</span>
+                                            </span>
+                                        </label>
+                                    ))}
+                                    {split.summary !== null && (
+                                        <p className="text-sm tabular-nums text-text-muted">總和 {currencyAmount(split.summary)}</p>
+                                    )}
+                                </div>
+                            )}
+                            <p
+                                id={splitErrorId}
+                                ref={splitErrorRef}
+                                aria-live="polite"
+                                tabIndex={showSplitError ? -1 : undefined}
+                                className="mt-2 w-fit rounded-sm text-sm text-red-700 empty:sr-only focus:outline-2 focus:outline-offset-2 focus:outline-current forest:text-red-200"
+                            >
+                                {showSplitError ? splitError : ""}
+                            </p>
                         </InputGroup>
                     </div>
                 </fieldset>
-                <p role="status" className="sr-only">
-                    {isAddingExpense ? "正在儲存支出" : ""}
-                </p>
-                <p
-                    ref={submitErrorRef}
-                    role="alert"
-                    tabIndex={-1}
-                    className="mb-3 rounded-sm text-sm text-red-700 empty:sr-only focus:outline-2 focus:outline-offset-2 focus:outline-current forest:text-red-200"
-                >
-                    {isWriteUnknown
-                        ? "暫時無法確認是否已儲存。請先查看這個旅程的紀錄，再決定是否重新新增。"
-                        : submitState === "rejected"
-                          ? "儲存失敗，請再試一次"
-                          : ""}
-                </p>
-                <DialogFooter>
-                    <Button
-                        type="button"
-                        variant="destructive"
-                        onClick={onCancel}
-                        disabled={isAddingExpense}
-                    >
-                        Cancel
-                    </Button>
-                    <Button
-                        type="submit"
-                        disabled={
-                            !!amountError ||
-                            !!itemNameError ||
-                            !!categoryError ||
-                            isAddingExpense ||
-                            isWriteUnknown
-                        }
-                    >
-                        {isAddingExpense ? (
-                            <div className="flex items-center justify-center">
-                                <Loader2
-                                    className="animate-spin mr-2"
-                                    size={20}
-                                />
-                                Saving...
-                            </div>
-                        ) : (
-                            "Save"
-                        )}
-                    </Button>
+                <DialogFooter className="m-0 shrink-0 flex-col gap-2 rounded-none bg-surface px-4 py-3 sm:flex-col">
+                    <p role="status" className="sr-only">
+                        {isAddingExpense ? "正在儲存支出" : ""}
+                    </p>
+                    <div>
+                        <p
+                            data-slot="expense-summary"
+                            tabIndex={0}
+                            className="max-h-[20dvh] overflow-y-auto rounded-sm text-sm wrap-anywhere tabular-nums text-text-main focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-current"
+                        >
+                            {payerSummary} · {splitSummary}
+                        </p>
+                        <p
+                            ref={submitErrorRef}
+                            role="alert"
+                            tabIndex={-1}
+                            className="mt-2 rounded-sm text-sm text-red-700 empty:sr-only focus:outline-2 focus:outline-offset-2 focus:outline-current forest:text-red-200"
+                        >
+                            {isWriteUnknown
+                                ? "暫時無法確認是否已儲存。請先查看這個旅程的紀錄，再決定是否重新新增。"
+                                : submitState === "rejected"
+                                  ? "儲存失敗，請再試一次"
+                                  : ""}
+                        </p>
+                    </div>
+                    <div className="flex justify-end gap-2">
+                        <Button
+                            type="button"
+                            variant="outline"
+                            className="min-h-11"
+                            onClick={onCancel}
+                            disabled={isAddingExpense}
+                        >
+                            取消
+                        </Button>
+                        <Button
+                            type="submit"
+                            className="min-h-11 text-gray-950 ocean:text-white"
+                            disabled={
+                                !!amountError ||
+                                !!itemNameError ||
+                                !!categoryError ||
+                                isAddingExpense ||
+                                isWriteUnknown
+                            }
+                        >
+                            {isAddingExpense && (
+                                <Loader2 aria-hidden="true" className="animate-spin" />
+                            )}
+                            {isAddingExpense ? "儲存中…" : "儲存支出"}
+                        </Button>
+                    </div>
                 </DialogFooter>
             </form>
         </>

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { ExpenseList } from "../components/ExpenseList";
 import { useExpenses } from "../src/stores/ExpensesStore";
 import { useAuthState } from "../src/stores/AuthStore";
@@ -29,6 +29,11 @@ function ExpensePage({
     const [isDialogOpen, setIsDialogOpen] = useState<boolean>(false);
     const [currentDate, setCurrentDate] = useState(new Date());
     const [showSaved, setShowSaved] = useState(false);
+    const [keyboardViewport, setKeyboardViewport] = useState<{
+        height: number;
+        top: number;
+    } | null>(null);
+    const addingExpense = isDialogOpen && expense === null;
     const savedNoticeRef = useRef<HTMLParagraphElement>(null);
     const submitLock = useRef<"idle" | "saving" | "saved" | "unknown">("idle");
     const {
@@ -39,6 +44,32 @@ function ExpensePage({
         data: result,
     } = useAddExpense(sheetId, userEmail);
     const submitState = isPending ? "saving" : isError ? "unknown" : result ?? "idle";
+
+    useEffect(() => {
+        const viewport = window.visualViewport;
+        if (!addingExpense || !viewport) return;
+
+        const updateViewport = () => {
+            // The mobile keyboard shrinks the visual viewport without resizing the layout viewport.
+            const obscuredHeight = document.documentElement.clientHeight - viewport.height;
+            const keyboardOpen = viewport.scale === 1 && obscuredHeight > 120;
+            setKeyboardViewport((previous) => {
+                if (!keyboardOpen) return null;
+                const { height, offsetTop: top } = viewport;
+                if (previous?.height === height && previous.top === top) return previous;
+                return { height, top };
+            });
+        };
+
+        updateViewport();
+        viewport.addEventListener("resize", updateViewport);
+        viewport.addEventListener("scroll", updateViewport);
+        return () => {
+            viewport.removeEventListener("resize", updateViewport);
+            viewport.removeEventListener("scroll", updateViewport);
+            setKeyboardViewport(null);
+        };
+    }, [addingExpense]);
 
     const openExpenseForm = (expense?: Expense) => {
         if (submitLock.current === "saving") return;
@@ -79,6 +110,7 @@ function ExpensePage({
                 userEmail={userEmail}
                 isDialogOpen={isDialogOpen}
                 selectedDate={currentDate}
+                keyboardOpen={keyboardViewport !== null}
             />
         ) : (
             <ExpenseDetail expense={expense} onCancel={closeExpenseForm} />
@@ -111,7 +143,19 @@ function ExpensePage({
             >
                 <DialogContent
                     showCloseButton={!isPending}
-                    className="sm:max-w-2xl bg-surface max-h-[80vh] overflow-auto"
+                    className={
+                        expense
+                            ? "sm:max-w-2xl bg-surface max-h-[80vh] overflow-auto"
+                            : "sm:max-w-2xl bg-surface max-h-[85dvh] grid-rows-[auto_minmax(0,1fr)] gap-0 overflow-clip p-0 transition-none"
+                    }
+                    style={
+                        addingExpense && keyboardViewport
+                            ? {
+                                  top: keyboardViewport.top + keyboardViewport.height / 2,
+                                  maxHeight: keyboardViewport.height - 16,
+                              }
+                            : undefined
+                    }
                     onCloseAutoFocus={(event) => {
                         if (showSaved) {
                             event.preventDefault();
@@ -119,7 +163,7 @@ function ExpensePage({
                         }
                     }}
                 >
-                    <DialogHeader>
+                    <DialogHeader className={expense ? undefined : "px-4 py-3 pr-12"}>
                         <DialogTitle>
                             {expense ? "編輯支出" : "新增支出"}
                         </DialogTitle>
