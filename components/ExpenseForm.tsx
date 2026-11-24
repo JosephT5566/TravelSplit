@@ -16,6 +16,7 @@ import {
 import { useConfig } from "../src/stores/ConfigStore";
 import { DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { ToastNotice } from "@/components/ui/toast";
 import logger from "@/src/utils/logger";
 import { evaluateExpenseSplit } from "@/src/utils/expenseSplits";
 
@@ -166,14 +167,6 @@ export const ExpenseForm: React.FC<Props> = ({
 
     const isAddingExpense = submitState === "saving";
     const isWriteUnknown = submitState === "unknown";
-    const submitErrorRef = useRef<HTMLParagraphElement>(null);
-
-    useEffect(() => {
-        if (submitState === "rejected" || submitState === "unknown") {
-            submitErrorRef.current?.focus({ preventScroll: true });
-            submitErrorRef.current?.scrollIntoView({ block: "center" });
-        }
-    }, [submitState]);
 
     useEffect(() => {
         if (isDialogOpen) {
@@ -561,18 +554,17 @@ export const ExpenseForm: React.FC<Props> = ({
                         >
                             {payerSummary} · {splitSummary}
                         </p>
-                        <p
-                            ref={submitErrorRef}
-                            role="alert"
-                            tabIndex={-1}
-                            className="mt-2 rounded-sm text-sm text-red-700 empty:sr-only focus:outline-2 focus:outline-offset-2 focus:outline-current forest:text-red-200"
-                        >
-                            {isWriteUnknown
-                                ? "暫時無法確認是否已儲存。請先查看這個旅程的紀錄，再決定是否重新新增。"
-                                : submitState === "rejected"
-                                  ? "儲存失敗，請再試一次"
-                                  : ""}
-                        </p>
+                    </div>
+                    <div role="alert" className="empty:sr-only">
+                        {submitState === "rejected" && (
+                            <ToastNotice kind="error" message="無法新增支出，請重試。" />
+                        )}
+                        {isWriteUnknown && (
+                            <ToastNotice
+                                kind="warning"
+                                message="暫時無法確認是否已儲存。請先查看這個旅程的紀錄，再決定是否重新新增。"
+                            />
+                        )}
                     </div>
                     <div className="flex justify-end gap-2">
                         <Button
@@ -586,14 +578,13 @@ export const ExpenseForm: React.FC<Props> = ({
                         </Button>
                         <Button
                             type="submit"
-                            className="min-h-11 text-gray-950 ocean:text-white"
+                            className="min-h-11 text-gray-950 aria-disabled:opacity-50 ocean:text-white"
                             disabled={
                                 !!amountError ||
                                 !!itemNameError ||
-                                !!categoryError ||
-                                isAddingExpense ||
-                                isWriteUnknown
+                                !!categoryError
                             }
+                            aria-disabled={isAddingExpense || isWriteUnknown}
                         >
                             {isAddingExpense && (
                                 <Loader2 aria-hidden="true" className="animate-spin" />

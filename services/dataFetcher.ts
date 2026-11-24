@@ -100,7 +100,11 @@ export const useDeleteExpense = () => {
 
     return useMutation<DeleteExpenseResponse, Error, string>({
         mutationFn: async (timestamp) => {
-            return api.deleteExpenses(timestamp);
+            const response = await api.deleteExpenses(timestamp);
+            if (response?.deletedTimestamp !== timestamp || !(response.deletedCount > 0)) {
+                throw new Error("Delete response did not confirm the requested expense.");
+            }
+            return response;
         },
         onSuccess: (response) => {
             logger.log("Deleted expense response:", response);

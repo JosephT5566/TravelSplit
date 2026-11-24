@@ -15,6 +15,7 @@ import { DateNavigator } from "./DateNavigator";
 import classNames from "classnames";
 
 interface Props {
+    addButtonRef: React.Ref<HTMLButtonElement>;
     expenses: Expense[];
     onOpenExpenseForm: (expense?: Expense) => void;
     onRefresh: () => void;
@@ -23,6 +24,7 @@ interface Props {
 }
 
 export const ExpenseList: React.FC<Props> = ({
+    addButtonRef,
     expenses,
     onOpenExpenseForm,
     onRefresh,
@@ -154,6 +156,7 @@ export const ExpenseList: React.FC<Props> = ({
             </div>
 
             <button
+                ref={addButtonRef}
                 onClick={() => onOpenExpenseForm()}
                 className="fixed bottom-20 right-4 w-14 h-14 bg-primary text-primary-fg rounded-full shadow-lg flex items-center justify-center hover:opacity-90 transition-transform hover:scale-105 active:scale-95 z-40"
                 aria-label="Add Expense"

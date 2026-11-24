@@ -9,6 +9,7 @@ import { AddExpenseRequest, Expense } from "../src/types";
 import ExpenseDetail from "@/components/ExpenseDetail";
 import { useAddExpense } from "@/services/dataFetcher";
 import { useSelectedSheetId } from "@/src/hooks/useSelectedSheetId";
+import { useToast } from "@/components/ui/toast";
 import {
     Dialog,
     DialogContent,
@@ -25,16 +26,16 @@ function ExpensePage({
     userEmail: string;
 }) {
     const { expenses, refreshExpenses, apiState } = useExpenses();
+    const showToast = useToast();
     const [expense, setExpense] = useState<Expense | null>(null);
     const [isDialogOpen, setIsDialogOpen] = useState<boolean>(false);
     const [currentDate, setCurrentDate] = useState(new Date());
-    const [showSaved, setShowSaved] = useState(false);
     const [keyboardViewport, setKeyboardViewport] = useState<{
         height: number;
         top: number;
     } | null>(null);
     const addingExpense = isDialogOpen && expense === null;
-    const savedNoticeRef = useRef<HTMLParagraphElement>(null);
+    const addButtonRef = useRef<HTMLButtonElement>(null);
     const submitLock = useRef<"idle" | "saving" | "saved" | "unknown">("idle");
     const {
         mutate: addExpense,
@@ -75,7 +76,6 @@ function ExpensePage({
         if (submitLock.current === "saving") return;
         submitLock.current = "idle";
         resetAddExpense();
-        setShowSaved(false);
         setExpense(expense ?? null);
         setIsDialogOpen(true);
     };
@@ -92,7 +92,7 @@ function ExpensePage({
             onSuccess: (result) => {
                 if (result === "saved") {
                     setIsDialogOpen(false);
-                    setShowSaved(true);
+                    showToast({ kind: "success", message: "已新增支出" });
                 }
             },
             onSettled: (result) => {
@@ -119,15 +119,8 @@ function ExpensePage({
 
     return (
         <div className="animate-in fade-in slide-in-from-right-4 duration-300">
-            <p
-                ref={savedNoticeRef}
-                role="status"
-                tabIndex={showSaved ? -1 : undefined}
-                className="mx-4 my-2 rounded-md border border-border bg-surface px-3 py-2 text-sm text-text-main empty:sr-only focus:outline-2 focus:outline-offset-2 focus:outline-current"
-            >
-                {showSaved ? "支出已儲存" : ""}
-            </p>
             <ExpenseList
+                addButtonRef={addButtonRef}
                 expenses={expenses}
                 onOpenExpenseForm={openExpenseForm}
                 onRefresh={refreshExpenses}
@@ -157,9 +150,9 @@ function ExpensePage({
                             : undefined
                     }
                     onCloseAutoFocus={(event) => {
-                        if (showSaved) {
+                        if (expense === null) {
                             event.preventDefault();
-                            savedNoticeRef.current?.focus();
+                            addButtonRef.current?.focus();
                         }
                     }}
                 >
