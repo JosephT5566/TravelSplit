@@ -33,7 +33,6 @@ jobs:
       - name: Build
         env:
           NEXT_PUBLIC_AUTH_PROXY: ${{ vars.NEXT_PUBLIC_AUTH_PROXY || 'https://example.com' }}
-          NEXT_PUBLIC_EMAIL_WHITE_LIST: ${{ vars.NEXT_PUBLIC_EMAIL_WHITE_LIST || '' }}
           NEXT_PUBLIC_TRAVEL_SPLIT_GCF: ${{ vars.NEXT_PUBLIC_TRAVEL_SPLIT_GCF || 'https://example.com' }}
           NEXT_PUBLIC_SHEET_ID: ${{ vars.NEXT_PUBLIC_SHEET_ID || 'build-check-sheet-id' }}
           BASE_PATH: ""
