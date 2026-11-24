@@ -82,6 +82,18 @@ The summary displays the entry currency. Specified shares are compared to the to
 
 The **Who Owes Who** card on `/summary` nets each balance between the signed-in user and a member of the selected sheet. When the signed-in user paid, other participants owe their own shares. When someone else paid, the signed-in user owes their share to that payer. Zero balances produce no payment row. The summary includes expenses marked as settled in the sheet.
 
+New clients send the original decimal inputs and split mode in
+`payload.calculation` alongside the numeric values expected by older API
+deployments. The formula-capable GCF uses those inputs to validate the split
+and computes shares in integer TWD cents. It rounds the total once and
+allocates leftover cents by fractional remainder, using member ID for ties.
+
+For a sheet with `台幣總額`, `分攤差額`, and `分攤設定` on all affected
+expense tabs, the GCF writes formulas for new entries. Edit the existing
+`匯率` cell on the payer's tab. The other tabs reference that expense by
+transaction ID, so one edit updates every share. The API returns evaluated
+amounts. Older rows and older sheet layouts use stored numbers.
+
 ## Data Fetching and Persistence
 
 - `services/queryClient.ts` owns the TanStack Query client.

@@ -18,7 +18,7 @@ import { DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { ToastNotice } from "@/components/ui/toast";
 import logger from "@/src/utils/logger";
-import { evaluateExpenseSplit } from "@/src/utils/expenseSplits";
+import { evaluateExpenseSplit, type ExpenseCalculation } from "@/src/utils/expenseSplits";
 
 interface Props {
     onCancel: () => void;
@@ -84,8 +84,8 @@ export const ExpenseForm: React.FC<Props> = ({
 
     const [date, setDate] = useState(format(selectedDate, "yyyy-MM-dd"));
     const [currency, setCurrency] = useState("TWD");
-    const [exchangeRate, setExchangeRate] = useState<number>(
-        currencies[currency],
+    const [exchangeRate, setExchangeRate] = useState(
+        String(currencies[currency] ?? ""),
     );
     const [category, setCategory] = useState("");
     const [payer, setPayer] = useState(userEmail);
@@ -107,7 +107,7 @@ export const ExpenseForm: React.FC<Props> = ({
     const nameFor = (email: string) =>
         users[email] || (email === userEmail ? "我" : email.split("@")[0]);
     const recipient = singleRecipient ?? payer;
-    const split = evaluateExpenseSplit({
+    const calculation: ExpenseCalculation = {
         amount,
         exchangeRate,
         method:
@@ -116,7 +116,8 @@ export const ExpenseForm: React.FC<Props> = ({
                 : splitMode === "equally"
                   ? { kind: "equally", participants: selectedUsers }
                   : { kind: "specific", amounts: specificSplits },
-    });
+    };
+    const split = evaluateExpenseSplit(calculation);
     const [splitErrorAttempt, setSplitErrorAttempt] = useState<{
         kind: typeof split.kind;
     } | null>(null);
@@ -176,7 +177,7 @@ export const ExpenseForm: React.FC<Props> = ({
             // Reset all state values to their initial values when dialog closes
             setDate(format(new Date(), "yyyy-MM-dd"));
             setCurrency("TWD");
-            setExchangeRate(currencies["TWD"]);
+            setExchangeRate(String(currencies["TWD"] ?? ""));
             setCategory("");
             setPayer(userEmail);
             setItemName("");
@@ -236,8 +237,9 @@ export const ExpenseForm: React.FC<Props> = ({
             amount: Number(amount),
             currency,
             payer,
-            exchangeRate,
+            exchangeRate: Number(exchangeRate),
             splitsJson: split.splits,
+            calculation,
         };
 
         onSave(expenseData);
@@ -307,7 +309,7 @@ export const ExpenseForm: React.FC<Props> = ({
                                         type="button"
                                         onClick={() => {
                                             setCurrency(curr);
-                                            setExchangeRate(currencies[curr]);
+                                            setExchangeRate(String(currencies[curr] ?? ""));
                                         }}
                                         className={`px-3 py-1 text-xs rounded-full border transition-colors ${
                                             currency === curr
@@ -333,7 +335,7 @@ export const ExpenseForm: React.FC<Props> = ({
                                 min="0"
                                 step="any"
                                 onChange={(e) =>
-                                    setExchangeRate(e.target.valueAsNumber)
+                                    setExchangeRate(e.target.value)
                                 }
                             />
                         </div>

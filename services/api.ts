@@ -200,47 +200,41 @@ const getGcfUrl = (path: string, sheetId = getSelectedSheetId()) => {
     return url.toString();
 };
 
+function readExpenseNumber(raw: string | number | null | undefined) {
+    if (raw == null || (typeof raw === "string" && !raw.trim())) return undefined;
+    const value = Number(raw);
+    return Number.isFinite(value) ? value : undefined;
+}
+
 function mapRawExpenseToExpense(
     raw: RawExpense,
     currentUserEmail: string,
     users: Record<string, string>,
 ): Expense {
-    const splitsJson: Record<string, number> = {};
-    const knownColumns = [
-        "時間戳記",
-        "日期",
-        "星期",
-        "類別",
-        "品項",
-        "金額",
-        "貨幣",
-        "匯率",
-        "付款人",
-        "個人小記",
-        "已結算",
-    ];
-    const swappedUsers = Object.fromEntries(
-        Object.entries(users).map(([key, value]) => [value, key]),
-    );
+    const amount = readExpenseNumber(raw["金額"]);
+    const rate = readExpenseNumber(raw["匯率"]);
+    const personalShare = readExpenseNumber(raw["個人小記"]);
+    const hasFormulaSplit = Boolean(raw["分攤設定"]);
+    if (
+        hasFormulaSplit &&
+        (readExpenseNumber(raw["台幣總額"]) === undefined ||
+            readExpenseNumber(raw["分攤差額"]) === undefined ||
+            personalShare === undefined)
+    ) {
+        throw new Error("試算表有無法計算的支出。請檢查付款人分頁的金額與匯率。");
+    }
 
-    splitsJson[currentUserEmail] = parseFloat(raw["個人小記"]) || 0;
-
-    for (const key in raw) {
-        if (
-            !knownColumns.includes(key) &&
-            raw[key] !== null &&
-            raw[key] !== ""
-        ) {
-            const amount = parseFloat(raw[key] as string);
-
-            if (!isNaN(amount)) {
-                // The key is a nickname, find the corresponding email
-                const email = swappedUsers[key];
-                if (email) {
-                    splitsJson[email] = amount;
-                }
-            }
-        }
+    const splitsJson: Record<string, number> = {
+        [currentUserEmail]: personalShare ?? 0,
+    };
+    const reservedColumns = new Set([
+        "時間戳記", "日期", "星期", "類別", "品項", "金額", "貨幣", "匯率", "付款人",
+        "個人小記", "已結算", "台幣總額", "分攤差額", "分攤設定",
+    ]);
+    for (const [email, name] of Object.entries(users)) {
+        if (reservedColumns.has(name)) continue;
+        const share = readExpenseNumber(raw[name]);
+        if (share !== undefined) splitsJson[email] = share;
     }
 
     return {
@@ -249,9 +243,9 @@ function mapRawExpenseToExpense(
         itemName: raw["品項"],
         category: raw["類別"],
         payer: raw["付款人"],
-        amount: parseFloat(raw["金額"]),
+        amount: amount ?? NaN,
         currency: raw["貨幣"],
-        exchangeRate: parseFloat(raw["匯率"]) || 1,
+        exchangeRate: rate || 1,
         splitsJson,
     };
 }
