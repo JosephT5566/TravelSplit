@@ -54,10 +54,10 @@ The [PR build check](../.github/workflows/build-check.yml) builds the root-path 
 
 ## Tests and Lint
 
-There is no dedicated test or lint command in `package.json` yet. Run the expense split regression tests with Node.js 22.18 or newer:
+There is no dedicated test or lint command in `package.json` yet. Run the expense split and settlement regression tests with Node.js 22.18 or newer:
 
 ```bash
-node --test tests/expense-splits.test.mts
+node --test tests/*.test.mts
 ```
 
 When adding tests, start with the smallest setup compatible with Next App Router and React 18. Prioritize behavior at these boundaries:

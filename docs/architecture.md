@@ -78,11 +78,15 @@ The add-expense form models the payer and the split separately. Single-person sp
 
 The summary displays the entry currency. Specified shares are compared to the total in that currency before exchange-rate conversion. The form shows differences below the share inputs. Attempting to save an invalid split focuses its message and preserves the draft. On mobile, the summary and actions stay at the bottom of the dialog when the on-screen keyboard is closed and scroll with the fields when it opens.
 
+## Settlement Summary
+
+The **Who Owes Who** card on `/summary` nets each balance between the signed-in user and a member of the selected sheet. When the signed-in user paid, other participants owe their own shares. When someone else paid, the signed-in user owes their share to that payer. Zero balances produce no payment row. The summary includes expenses marked as settled in the sheet.
+
 ## Data Fetching and Persistence
 
 - `services/queryClient.ts` owns the TanStack Query client.
 - `services/persister.ts` wires query persistence into IndexedDB.
-- `services/dataFetcher.ts` contains query hooks for config and expenses.
+- `services/dataFetcher.ts` contains query hooks for config and expenses. The expense query waits for the selected sheet's config so it can map the sheet's member columns to email addresses.
 - Confirmed `POST /add` responses close the form and invalidate the expense query for the submitting sheet and account. The list and summary use `GET /data` to determine which rows the account can see. The write response's `newRecord` is optional for this flow.
 - Confirmed adds and deletes show a success toast in the signed-in layout. A rejected add shows an error above the dialog actions, keeps the draft, and allows another submission. An unreadable response, a 20-second write deadline, or another unconfirmed add shows a warning in the dialog and blocks Save until the form closes. The warning asks the user to check the trip records before adding the expense again.
 - A failed delete shows an error toast and keeps the row. A row without a timestamp shows a warning and sends no delete request.

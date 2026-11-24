@@ -35,7 +35,7 @@ export const useGetSheetConfig = () => {
 // Expenses hooks
 export const useExpensesQuery = () => {
     const { user, isSignedIn } = useAuthState();
-    const { sheetConfig } = useConfig();
+    const { sheetConfig, isInitialized } = useConfig();
     const selectedSheetId = useSelectedSheetId();
 
     return useQuery<Expense[], Error>({
@@ -55,6 +55,8 @@ export const useExpensesQuery = () => {
             isSignedIn &&
             !!selectedSheetId &&
             !!user?.email &&
+            // The fallback config has no member names to map split columns.
+            isInitialized &&
             !!sheetConfig?.users,
         retry: 3,
     });
