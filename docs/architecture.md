@@ -78,6 +78,10 @@ The add-expense form models the payer and the split separately. Single-person sp
 
 The summary displays the entry currency. Specified shares are compared to the total in that currency before exchange-rate conversion. The form shows differences below the share inputs. Attempting to save an invalid split focuses its message and preserves the draft. On mobile, the summary and actions stay at the bottom of the dialog when the on-screen keyboard is closed and scroll with the fields when it opens.
 
+## Settlement Summary
+
+The **Who Owes Who** card on `/summary` nets each balance between the signed-in user and a member of the selected sheet. When the signed-in user paid, other participants owe their own shares. When someone else paid, the signed-in user owes their share to that payer. Zero balances produce no payment row. The summary includes expenses marked as settled in the sheet.
+
 ## Data Fetching and Persistence
 
 - `services/queryClient.ts` owns the TanStack Query client.
