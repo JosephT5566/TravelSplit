@@ -86,7 +86,7 @@ The **Who Owes Who** card on `/summary` nets each balance between the signed-in 
 
 - `services/queryClient.ts` owns the TanStack Query client.
 - `services/persister.ts` wires query persistence into IndexedDB.
-- `services/dataFetcher.ts` contains query hooks for config and expenses.
+- `services/dataFetcher.ts` contains query hooks for config and expenses. The expense query waits for the selected sheet's config so it can map the sheet's member columns to email addresses.
 - Confirmed `POST /add` responses close the form and invalidate the expense query for the submitting sheet and account. The list and summary use `GET /data` to determine which rows the account can see. The write response's `newRecord` is optional for this flow.
 - A rejected write keeps the draft and allows another submission. An unreadable response, a 20-second write deadline, or another unconfirmed write keeps the draft and disables Save until the form is closed. The form asks the user to check the trip records before adding the expense again.
 - `src/stores/ExpensesStore.tsx` exposes normalized expense state plus refresh status.
