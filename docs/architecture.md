@@ -12,6 +12,7 @@ The app is a Next.js App Router project. `app/layout.tsx` installs the global PW
 6. `AppShell`
 
 `AppShell` decides whether a route is public, signed out, waiting for sheet selection, or ready to render inside the authenticated `Layout`.
+The authenticated layout gives the header and bottom navigation their own rows and scrolls the content between them. The notification viewport sits above the navigation on mobile and in the top-right corner on desktop.
 
 ## Public Travel Books
 

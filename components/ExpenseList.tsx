@@ -158,7 +158,7 @@ export const ExpenseList: React.FC<Props> = ({
             <button
                 ref={addButtonRef}
                 onClick={() => onOpenExpenseForm()}
-                className="fixed bottom-20 right-4 w-14 h-14 bg-primary text-primary-fg rounded-full shadow-lg flex items-center justify-center hover:opacity-90 transition-transform hover:scale-105 active:scale-95 z-40"
+                className="fixed bottom-[calc(5rem+env(safe-area-inset-bottom,0px))] right-4 w-14 h-14 bg-primary text-primary-fg rounded-full shadow-lg flex items-center justify-center hover:opacity-90 transition-transform hover:scale-105 active:scale-95 z-40"
                 aria-label="Add Expense"
             >
                 <Plus size={28} />

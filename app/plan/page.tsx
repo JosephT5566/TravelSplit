@@ -24,7 +24,7 @@ const PlanPage = () => {
     const { resources } = sheetConfig;
 
     return (
-        <div className="flex flex-col gap-5 p-4 mx-auto pb-20">
+        <div className="flex flex-col gap-5 p-4 mx-auto">
             <TravelBookList resources={resources} />
 
             {/* External Resources Section */}

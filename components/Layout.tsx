@@ -11,6 +11,13 @@ import { AppHeader } from "./AppHeader";
 import { SideDrawer } from "./SideDrawer";
 import { ToastProvider, ToastViewport } from "@/components/ui/toast";
 import { useSelectedSheetId } from "@/src/hooks/useSelectedSheetId";
+import { cn } from "@/lib/utils";
+
+const navigation = [
+    { href: "/", label: "Expenses", Icon: List },
+    { href: "/summary", label: "Summary", Icon: PieChart },
+    { href: "/plan", label: "Plan", Icon: NotebookPen },
+];
 
 interface LayoutProps {
     children: React.ReactNode;
@@ -30,55 +37,49 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
     return (
         <ToastProvider key={JSON.stringify([sheetId, user.email])}>
             <SideDrawer />
-            <AppHeader user={user} onAccountClick={openDrawer} />
+            <div className="grid h-dvh grid-rows-[auto_minmax(0,1fr)_auto]">
+                <AppHeader user={user} onAccountClick={openDrawer} />
 
-            {/* Main Content Area */}
-            <div className="layout-container max-w-2xl mx-auto min-h-[calc(100dvh-140px)] max-h-[calc(100dvh-140px)] overflow-auto">
-                {apiState.error && (
-                    <div className="mb-4 p-3 bg-red-100 text-red-700 rounded text-sm border border-red-200">
-                        {apiState.error}
-                    </div>
-                )}
-                {children}
+                <main className="mx-auto w-full max-w-2xl overflow-auto">
+                    {apiState.error && (
+                        <div className="mb-4 p-3 bg-red-100 text-red-700 rounded text-sm border border-red-200">
+                            {apiState.error}
+                        </div>
+                    )}
+                    {children}
+                </main>
+
+                <div className="relative z-30">
+                    <ToastViewport />
+                    <nav
+                        aria-label="Main navigation"
+                        className="border-t border-border bg-surface pt-1 pb-[calc(0.25rem+env(safe-area-inset-bottom,0px))] transition-colors"
+                    >
+                        <div className="mx-auto grid max-w-2xl grid-cols-3 gap-1 px-4">
+                            {navigation.map(({ href, label, Icon }) => {
+                                const isCurrent = pathname === href;
+
+                                return (
+                                    <Link
+                                        key={href}
+                                        href={href}
+                                        aria-current={isCurrent ? "page" : undefined}
+                                        className={cn(
+                                            "flex flex-col items-center justify-center gap-1 rounded-lg px-1 py-2 text-center text-xs/4 transition-colors focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-current",
+                                            isCurrent
+                                                ? "bg-primary/12 font-semibold text-text-main"
+                                                : "text-text-main/80 hover:bg-background hover:text-text-main",
+                                        )}
+                                    >
+                                        <Icon aria-hidden="true" className="size-5 shrink-0" />
+                                        <span>{label}</span>
+                                    </Link>
+                                );
+                            })}
+                        </div>
+                    </nav>
+                </div>
             </div>
-
-            {/* Bottom Nav */}
-            <nav className="fixed bottom-0 left-0 right-0 bg-surface border-t border-border flex justify-around p-3 z-30 transition-colors pb-[max(0.75rem,env(safe-area-inset-bottom))]">
-                <ToastViewport />
-                <Link
-                    href="/"
-                    className={`flex flex-col items-center transition-colors ${
-                        pathname === "/"
-                            ? "text-primary"
-                            : "text-text-muted hover:text-text-main"
-                    }`}
-                >
-                    <List size={24} />
-                    <span className="text-xs mt-1">Expenses</span>
-                </Link>
-                <Link
-                    href="/summary"
-                    className={`flex flex-col items-center transition-colors ${
-                        pathname === "/summary"
-                            ? "text-primary"
-                            : "text-text-muted hover:text-text-main"
-                    }`}
-                >
-                    <PieChart size={24} />
-                    <span className="text-xs mt-1">Summary</span>
-                </Link>
-                <Link
-                    href="/plan"
-                    className={`flex flex-col items-center transition-colors ${
-                        pathname === "/plan"
-                            ? "text-primary"
-                            : "text-text-muted hover:text-text-main"
-                    }`}
-                >
-                    <NotebookPen size={24} />
-                    <span className="text-xs mt-1">Plan</span>
-                </Link>
-            </nav>
         </ToastProvider>
     );
 };
