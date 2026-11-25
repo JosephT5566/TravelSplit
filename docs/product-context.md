@@ -21,6 +21,7 @@ The expense app should make it easy to:
 - Select the active trip sheet when multiple sheets are configured.
 - Load sheet config: users, categories, currencies, trip dates, and resources.
 - Add expenses with date, category, item, payer, currency, exchange rate, and split amounts.
+- Add up a receipt with the inline calculator and apply the result to the expense total.
 - Review day-based expenses and summaries.
 - Keep previously loaded data available through persisted query cache.
 

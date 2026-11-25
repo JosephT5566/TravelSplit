@@ -17,6 +17,7 @@ import { useConfig } from "../src/stores/ConfigStore";
 import { DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { ToastNotice } from "@/components/ui/toast";
+import { ExpenseCalculator } from "@/components/ExpenseCalculator";
 import logger from "@/src/utils/logger";
 import { evaluateExpenseSplit, type ExpenseCalculation } from "@/src/utils/expenseSplits";
 
@@ -118,6 +119,8 @@ export const ExpenseForm: React.FC<Props> = ({
                   : { kind: "specific", amounts: specificSplits },
     };
     const split = evaluateExpenseSplit(calculation);
+    const rate = Number(exchangeRate);
+    const hasPositiveRate = Number.isFinite(rate) && rate > 0;
     const [splitErrorAttempt, setSplitErrorAttempt] = useState<{
         kind: typeof split.kind;
     } | null>(null);
@@ -278,7 +281,7 @@ export const ExpenseForm: React.FC<Props> = ({
                                     aria-label="總額"
                                     autoFocus
                                     required
-                                    className={`bg-transparent text-6xl font-bold text-center outline-none w-full max-w-[240px] placeholder-text-muted/30 text-text-main ${
+                                    className={`bg-transparent text-6xl font-bold text-center outline-none w-full min-w-0 max-w-[240px] placeholder-text-muted/30 text-text-main ${
                                         amountError ? "border-red-500" : ""
                                     }`}
                                     min="0"
@@ -321,6 +324,22 @@ export const ExpenseForm: React.FC<Props> = ({
                                     </button>
                                 ))}
                             </div>
+                            {isDialogOpen && (
+                                <ExpenseCalculator
+                                    amount={amount}
+                                    canApplyAmount={(result) =>
+                                        !hasPositiveRate || evaluateExpenseSplit({
+                                            amount: result,
+                                            exchangeRate,
+                                            method: { kind: "single", email: payer },
+                                        }).kind === "valid"
+                                    }
+                                    onApply={(result) => {
+                                        setAmount(result);
+                                        setAmountError(null);
+                                    }}
+                                />
+                            )}
                         </div>
                         {/* exchange rate */}
                         <div className="flex items-center justify-between mt-2">
