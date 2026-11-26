@@ -16,6 +16,7 @@ export const ExpenseListItem: React.FC<ExpenseListItemProps> = ({
 }) => {
     const { user } = useAuthState();
     const showToast = useToast();
+    const personalShare = user ? expense.splitsJson[user.email] : undefined;
 
     const { mutateAsync: deleteExpenseMutation, isPending: isDeletingExpense } =
         useDeleteExpense();
@@ -44,7 +45,7 @@ export const ExpenseListItem: React.FC<ExpenseListItemProps> = ({
                 {user && (
                     <>
                         <span className="text-lg font-bold text-accent">
-                            {expense.splitsJson[user.email]}
+                            {personalShare === undefined ? null : Number(personalShare.toFixed(2))}
                         </span>
                         <span className="text-xs text-text-muted font-medium pl-1">
                             TWD

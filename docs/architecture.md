@@ -95,6 +95,7 @@ Formula-backed `/data` rows use `金額（台幣）` for the rounded TWD total.
 The frontend also accepts the legacy `台幣總額` field during rollout. It
 uses the evaluated share columns, which can contain fractional cents. Older
 rows without formula split metadata still use their stored shares.
+The expense list rounds each personal share to two decimal places for display and omits trailing zeros.
 
 Participant tabs reference the payer's row by transaction ID. Editing
 `匯率` on the payer's tab updates shares across tabs. New single-person and
