@@ -200,6 +200,9 @@ const getGcfUrl = (path: string, sheetId = getSelectedSheetId()) => {
     return url.toString();
 };
 
+const TWD_TOTAL_COLUMN = "金額（台幣）";
+const LEGACY_TWD_TOTAL_COLUMN = "台幣總額";
+
 function readExpenseNumber(raw: string | number | null | undefined) {
     if (raw == null || (typeof raw === "string" && !raw.trim())) return undefined;
     const value = Number(raw);
@@ -215,9 +218,10 @@ function mapRawExpenseToExpense(
     const rate = readExpenseNumber(raw["匯率"]);
     const personalShare = readExpenseNumber(raw["個人小記"]);
     const hasFormulaSplit = Boolean(raw["分攤設定"]);
+    const twdTotal = raw[TWD_TOTAL_COLUMN] ?? raw[LEGACY_TWD_TOTAL_COLUMN];
     if (
         hasFormulaSplit &&
-        (readExpenseNumber(raw["台幣總額"]) === undefined ||
+        (readExpenseNumber(twdTotal) === undefined ||
             readExpenseNumber(raw["分攤差額"]) === undefined ||
             personalShare === undefined)
     ) {
@@ -229,7 +233,7 @@ function mapRawExpenseToExpense(
     };
     const reservedColumns = new Set([
         "時間戳記", "日期", "星期", "類別", "品項", "金額", "貨幣", "匯率", "付款人",
-        "個人小記", "已結算", "台幣總額", "分攤差額", "分攤設定",
+        "個人小記", "已結算", TWD_TOTAL_COLUMN, LEGACY_TWD_TOTAL_COLUMN, "分攤差額", "分攤設定",
     ]);
     for (const [email, name] of Object.entries(users)) {
         if (reservedColumns.has(name)) continue;

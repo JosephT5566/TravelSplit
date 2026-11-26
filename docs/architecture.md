@@ -13,6 +13,7 @@ The app is a Next.js App Router project. `app/layout.tsx` installs the global PW
 
 `AppShell` decides whether a route is public, signed out, waiting for sheet selection, or ready to render inside the authenticated `Layout`.
 The authenticated layout gives the header and bottom navigation their own rows and scrolls the content between them. The notification viewport sits above the navigation on mobile and in the top-right corner on desktop.
+Toasts slide up from the bottom navigation on mobile and in from the right on desktop. They fade without sliding when reduced motion is enabled. The next queued toast appears after the current toast finishes closing.
 
 ## Public Travel Books
 
@@ -85,17 +86,21 @@ The summary displays the entry currency. Specified shares are compared to the to
 
 The **Who Owes Who** card on `/summary` nets each balance between the signed-in user and a member of the selected sheet. When the signed-in user paid, other participants owe their own shares. When someone else paid, the signed-in user owes their share to that payer. Zero balances produce no payment row. The summary includes expenses marked as settled in the sheet.
 
-New clients send the original decimal inputs and split mode in
-`payload.calculation` alongside the numeric values expected by older API
-deployments. The formula-capable GCF uses those inputs to validate the split
-and computes shares in integer TWD cents. It rounds the total once and
-allocates leftover cents by fractional remainder, using member ID for ties.
+Clients send the original decimal inputs and split mode in `payload.calculation`
+alongside the numeric values used by older API deployments. The new GCF
+requires `payload.calculation` and checks each affected tab before writing a
+batch. If a tab has an invalid layout, `/add` returns `422 INVALID_SHEET_LAYOUT`.
 
-For a sheet with `台幣總額`, `分攤差額`, and `分攤設定` on all affected
-expense tabs, the GCF writes formulas for new entries. Edit the existing
-`匯率` cell on the payer's tab. The other tabs reference that expense by
-transaction ID, so one edit updates every share. The API returns evaluated
-amounts. Older rows and older sheet layouts use stored numbers.
+Formula-backed `/data` rows use `金額（台幣）` for the rounded TWD total.
+The frontend also accepts the legacy `台幣總額` field during rollout. It
+uses the evaluated share columns, which can contain fractional cents. Older
+rows without formula split metadata still use their stored shares.
+
+Participant tabs reference the payer's row by transaction ID. Editing
+`匯率` on the payer's tab updates shares across tabs. New single-person and
+equal splits also recalculate when `金額` changes. Existing single-person and
+equal splits with fixed shares need their formulas updated to follow amount
+changes. See [backend rollout notes](https://github.com/JosephT5566/google-api-gcf/pull/2).
 
 ## Data Fetching and Persistence
 

@@ -1,0 +1,55 @@
+.toast {
+    --toast-offset-x: 0px;
+    --toast-offset-y: 12px;
+    --toast-enter-duration: 180ms;
+    --toast-exit-duration: 120ms;
+}
+
+.toast[data-state="open"] {
+    animation: toast-enter var(--toast-enter-duration) cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.toast[data-state="closed"] {
+    animation: toast-exit var(--toast-exit-duration) ease-in both;
+    pointer-events: none;
+}
+
+@media (min-width: 40rem) {
+    .toast {
+        --toast-offset-x: 12px;
+        --toast-offset-y: 0px;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .toast {
+        --toast-offset-x: 0px;
+        --toast-offset-y: 0px;
+        --toast-enter-duration: 80ms;
+        --toast-exit-duration: 80ms;
+    }
+}
+
+@keyframes toast-enter {
+    from {
+        opacity: 0;
+        transform: translate(var(--toast-offset-x), var(--toast-offset-y));
+    }
+
+    to {
+        opacity: 1;
+        transform: translate(0, 0);
+    }
+}
+
+@keyframes toast-exit {
+    from {
+        opacity: 1;
+        transform: translate(0, 0);
+    }
+
+    to {
+        opacity: 0;
+        transform: translate(var(--toast-offset-x), var(--toast-offset-y));
+    }
+}

@@ -1,8 +1,9 @@
 "use client";
 
-import { createContext, useContext, useRef, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useRef, useState, type ReactNode } from "react";
 import { CircleAlert, CircleCheck, TriangleAlert, X } from "lucide-react";
 import { Toast as ToastPrimitive } from "radix-ui";
+import styles from "./toast.module.css";
 
 const variants = {
     success: {
@@ -48,6 +49,21 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     const nextId = useRef(0);
     const [queue, setQueue] = useState<(ToastMessage & { id: number })[]>([]);
     const [toast] = queue;
+    const toastId = toast?.id;
+    const toastElement = useRef<HTMLLIElement | null>(null);
+
+    const trackToastElement = useCallback((element: HTMLLIElement | null) => {
+        const previous = toastElement.current;
+        toastElement.current = element;
+        if (element || previous?.dataset.state !== "closed") return;
+
+        // Radix can reattach refs during renders. Advance only after Presence removes the node.
+        queueMicrotask(() => {
+            if (!previous.isConnected) {
+                setQueue((pending) => pending.filter(({ id }) => id !== toastId));
+            }
+        });
+    }, [toastId]);
 
     const showToast = (message: ToastMessage) => {
         const id = nextId.current++;
@@ -61,13 +77,8 @@ export function ToastProvider({ children }: { children: ReactNode }) {
                 {toast && (
                     <ToastPrimitive.Root
                         key={toast.id}
-                        open
-                        onOpenChange={(open) => {
-                            if (!open) {
-                                setQueue((pending) => pending.filter(({ id }) => id !== toast.id));
-                            }
-                        }}
-                        className="rounded-lg shadow-lg"
+                        ref={trackToastElement}
+                        className={`${styles.toast} rounded-lg shadow-lg`}
                     >
                         <ToastNotice kind={toast.kind} message={toast.message}>
                             <ToastPrimitive.Close
