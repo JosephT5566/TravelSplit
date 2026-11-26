@@ -13,6 +13,7 @@ The app is a Next.js App Router project. `app/layout.tsx` installs the global PW
 
 `AppShell` decides whether a route is public, signed out, waiting for sheet selection, or ready to render inside the authenticated `Layout`.
 The authenticated layout gives the header and bottom navigation their own rows and scrolls the content between them. The notification viewport sits above the navigation on mobile and in the top-right corner on desktop.
+Toasts slide up from the bottom navigation on mobile and in from the right on desktop. They fade without sliding when reduced motion is enabled. The next queued toast appears after the current toast finishes closing.
 
 ## Public Travel Books
 
