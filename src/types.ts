@@ -97,4 +97,45 @@ export type SheetConfig = {
         url?: string;
         type?: 'google_docs' | 'google_sheets';
     }[];
-}
+};
+
+export type TodoItem = {
+    id: string;
+    ownerEmail: string;
+    text: string;
+    checked: boolean;
+    createdAt: string;
+    updatedAt: string;
+};
+
+export type CreateTodoItemInput = {
+    text: string;
+    checked?: boolean;
+};
+
+export type CreateTodosRequest = {
+    items: CreateTodoItemInput[];
+};
+
+export type CreateTodosResponse = {
+    items: TodoItem[];
+};
+
+export type UpdateTodoRequest = {
+    id: string;
+    text?: string;
+    checked?: boolean;
+};
+
+export type UpdateTodoResponse = {
+    item: TodoItem;
+};
+
+export type DeleteTodoRequest = {
+    id: string;
+};
+
+export type DeleteTodoResponse = {
+    deletedId: string;
+    deletedItem: TodoItem;
+};

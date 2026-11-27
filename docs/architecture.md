@@ -49,8 +49,9 @@ The actual ID token is expected to be protected by an HTTP-only cookie and is no
 `services/api.ts` is the API boundary.
 
 - `getGcfUrl(path, sheetId)` appends the selected `sheetId` query parameter.
-- `apiFetch` retries once after 401/403 or known unauthorized error codes.
+- `apiFetch` retries once after 401/403 or known unauthorized error codes for expense/config routes.
 - `POST /add` only replays after a 401/403 and successful token refresh, while the original form's account and sheet are still active.
+- `/todos` requests always use a caller-pinned `sheetId` (never re-reading `getSelectedSheetId()` at send time) and opt out of treating HTTP 403 as unauthorized: `403 FORBIDDEN` does not trigger token refresh, redirect to `/`, or clear auth, and structured errors expose `error.code` (and HTTP status) via `TodoApiError`. `401 UNAUTHORIZED` still shares the single-refresh queue, with `canReplayWrite` guarding Todo writes.
 - Token refresh is queued so concurrent failed requests share one refresh attempt.
 - GCF responses usually use `{ success, data, error }`; `/me` may return a user object directly.
 - `credentials: "include"` is important because auth cookies are part of the request model.
@@ -61,6 +62,10 @@ Current GCF routes referenced by the app:
 - `GET /data`
 - `POST /add`
 - `DELETE /delete`
+- `GET /todos` (`sheetId`, optional `ownerEmail`)
+- `POST /todos` (`sheetId`, batch `items`)
+- `PATCH /todos` (`sheetId`, `{ id, text?, checked? }`)
+- `DELETE /todos` (`sheetId`, `{ id }`)
 - `GET /me` or equivalent current-user endpoint through the API wrapper
 
 ## Sheet Selection
@@ -107,14 +112,15 @@ changes. See [backend rollout notes](https://github.com/JosephT5566/google-api-g
 
 - `services/queryClient.ts` owns the TanStack Query client.
 - `services/persister.ts` wires query persistence into IndexedDB.
-- `services/dataFetcher.ts` contains query hooks for config and expenses. The expense query waits for the selected sheet's config so it can map the sheet's member columns to email addresses.
+- `services/dataFetcher.ts` contains query and mutation hooks for config, expenses, and todos (`services/todoCache.ts` holds pure TanStack Query options and cache helpers). The expense query waits for the selected sheet's config so it can map the sheet's member columns to email addresses.
+- Todo queries use `[TODOS_KEY, sheetId, ownerEmail]` and share the same IndexedDB persister. Check/uncheck (`PATCH /todos` with `checked` only) applies an optimistic update to that key and rolls back on failure; create, text edit, and delete update the exact pinned key from the server response. Todo writes use `networkMode: "always"` and `retry: false`, and fail immediately with `TodoApiError` (`code: "OFFLINE"`) when offline rather than queuing mutations.
 - Confirmed `POST /add` responses close the form and invalidate the expense query for the submitting sheet and account. The list and summary use `GET /data` to determine which rows the account can see. The write response's `newRecord` is optional for this flow.
 - Confirmed adds and deletes show a success toast in the signed-in layout. A rejected add shows an error above the dialog actions, keeps the draft, and allows another submission. An unreadable response, a 20-second write deadline, or another unconfirmed add shows a warning in the dialog and blocks Save until the form closes. The warning asks the user to check the trip records before adding the expense again.
 - A failed delete shows an error toast and keeps the row. A row without a timestamp shows a warning and sends no delete request.
 - `src/stores/ExpensesStore.tsx` exposes normalized expense state plus refresh status.
 - `src/stores/ConfigStore.tsx` merges default TWD currency config with sheet config and persists app-level display config.
 
-Clearing auth state should also clear expense cache to avoid showing another user's stale data.
+Clearing auth state (`clearExpensesCache` -> `clearUserQueryCaches`) removes both expense and todos queries across all sheets and `ownerEmail`s so stale user or companion data is not restored from IndexedDB.
 
 ## Styling and UI
 
