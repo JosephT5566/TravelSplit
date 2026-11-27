@@ -64,7 +64,7 @@ resolve_repo() {
 
   lookup_remote=${remote_name:-origin}
   if command -v git >/dev/null 2>&1; then
-    if git_url=$(git remote get-url "$lookup_remote" 2>/dev/null); then
+    if git_url=$(git remote get-url "$lookup_remote" </dev/null 2>/dev/null); then
       if parsed=$(parse_github_repo "$git_url"); then
         printf '%s\n' "$parsed"
         return 0
@@ -129,7 +129,7 @@ while read -r local_ref local_sha remote_ref remote_sha || [ -n "${local_ref-}" 
     exit 1
   fi
 
-  if ! issue_json=$(gh issue view "$issue_num" --repo "$resolved_repo" --json labels,state); then
+  if ! issue_json=$(gh issue view "$issue_num" --repo "$resolved_repo" --json labels,state </dev/null); then
     printf '%s\n' \
       "pre-push: blocked push of '${branch_name}' (issue #${issue_num} in ${resolved_repo}): 'gh issue view' failed." \
       "pre-push: 推送已阻擋：無法透過 'gh' 讀取 issue #${issue_num}，請確認登入狀態與網路連線。" \

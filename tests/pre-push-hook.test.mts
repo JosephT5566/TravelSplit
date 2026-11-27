@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -13,11 +13,31 @@ const SAMPLE_SHA = "1111111111111111111111111111111111111111";
 const REMOTE_SHA = "2222222222222222222222222222222222222222";
 const DEFAULT_URL = "https://github.com/JosephT5566/TravelSplit.git";
 
-function pathWithoutGh(): string {
+function resolveOnPath(tool: string): string | null {
     const entries = (process.env.PATH ?? "").split(path.delimiter).filter(Boolean);
-    return entries
-        .filter((dir) => !existsSync(path.join(dir, "gh")))
-        .join(path.delimiter);
+    for (const dir of entries) {
+        const candidate = path.join(dir, tool);
+        if (existsSync(candidate)) {
+            return candidate;
+        }
+    }
+    return null;
+}
+
+/** PATH containing only the non-gh utilities the hook needs, for the missing-gh case. */
+function withToolsPathWithoutGh<T>(fn: (toolsPath: string) => T): T {
+    const dir = mkdtempSync(path.join(os.tmpdir(), "tripsplit-pre-push-tools-"));
+    try {
+        for (const tool of ["tr", "git"]) {
+            const resolved = resolveOnPath(tool);
+            if (resolved) {
+                symlinkSync(resolved, path.join(dir, tool));
+            }
+        }
+        return fn(dir);
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
 }
 
 function withStubDir<T>(stubScript: string | null, fn: (ctx: { binDir: string; logFile: string }) => T): T {
@@ -35,12 +55,17 @@ function withStubDir<T>(stubScript: string | null, fn: (ctx: { binDir: string; l
     }
 }
 
+function stubPath(binDir: string): string {
+    return `${binDir}${path.delimiter}${process.env.PATH ?? ""}`;
+}
+
 function runHook(options: {
     stdin: string;
     remoteName?: string;
     remoteUrl?: string;
     envPath: string;
     cwd?: string;
+    extraEnv?: Record<string, string>;
 }) {
     const args: string[] = [];
     if (options.remoteName !== undefined) {
@@ -57,6 +82,7 @@ function runHook(options: {
         env: {
             ...process.env,
             PATH: options.envPath,
+            ...options.extraEnv,
         },
     });
 }
@@ -68,24 +94,18 @@ printf '%s\\n' "$*" >> "$GH_LOG_FILE"
 printf '%s\\n' '{"labels":[{"name":"enhancement"},{"name":"ai-ready"}],"state":"OPEN"}'
 `,
         ({ binDir, logFile }) => {
-            const prevLog = process.env.GH_LOG_FILE;
-            process.env.GH_LOG_FILE = logFile;
-            try {
-                const res = runHook({
-                    stdin: `refs/heads/codex/issue-999-sample-feature ${SAMPLE_SHA} refs/heads/codex/issue-999-sample-feature ${ZERO_SHA}\n`,
-                    remoteName: "origin",
-                    remoteUrl: DEFAULT_URL,
-                    envPath: `${binDir}${path.delimiter}${pathWithoutGh()}`,
-                });
-                assert.equal(res.status, 0, res.stderr);
-                const calls = readFileSync(logFile, "utf8").trim().split("\n");
-                assert.deepEqual(calls, [
-                    "issue view 999 --repo JosephT5566/TravelSplit --json labels,state",
-                ]);
-            } finally {
-                if (prevLog === undefined) delete process.env.GH_LOG_FILE;
-                else process.env.GH_LOG_FILE = prevLog;
-            }
+            const res = runHook({
+                stdin: `refs/heads/codex/issue-999-sample-feature ${SAMPLE_SHA} refs/heads/codex/issue-999-sample-feature ${ZERO_SHA}\n`,
+                remoteName: "origin",
+                remoteUrl: DEFAULT_URL,
+                envPath: stubPath(binDir),
+                extraEnv: { GH_LOG_FILE: logFile },
+            });
+            assert.equal(res.status, 0, res.stderr);
+            const calls = readFileSync(logFile, "utf8").trim().split("\n");
+            assert.deepEqual(calls, [
+                "issue view 999 --repo JosephT5566/TravelSplit --json labels,state",
+            ]);
         },
     );
 });
@@ -97,24 +117,18 @@ printf '%s\\n' "$*" >> "$GH_LOG_FILE"
 printf '%s\\n' '{ "labels": [ { "id": "LA_1", "name": "ai-ready", "color": "0e8a16" } ], "state": "CLOSED" }'
 `,
         ({ binDir, logFile }) => {
-            const prevLog = process.env.GH_LOG_FILE;
-            process.env.GH_LOG_FILE = logFile;
-            try {
-                const res = runHook({
-                    stdin: `refs/heads/codex/issue-123 ${SAMPLE_SHA} refs/heads/codex/issue-123 ${REMOTE_SHA}\n`,
-                    remoteName: "origin",
-                    remoteUrl: "git@github.com:ExampleOrg/ExampleRepo.git",
-                    envPath: `${binDir}${path.delimiter}${pathWithoutGh()}`,
-                });
-                assert.equal(res.status, 0, res.stderr);
-                assert.equal(
-                    readFileSync(logFile, "utf8").trim(),
-                    "issue view 123 --repo ExampleOrg/ExampleRepo --json labels,state",
-                );
-            } finally {
-                if (prevLog === undefined) delete process.env.GH_LOG_FILE;
-                else process.env.GH_LOG_FILE = prevLog;
-            }
+            const res = runHook({
+                stdin: `refs/heads/codex/issue-123 ${SAMPLE_SHA} refs/heads/codex/issue-123 ${REMOTE_SHA}\n`,
+                remoteName: "origin",
+                remoteUrl: "git@github.com:ExampleOrg/ExampleRepo.git",
+                envPath: stubPath(binDir),
+                extraEnv: { GH_LOG_FILE: logFile },
+            });
+            assert.equal(res.status, 0, res.stderr);
+            assert.equal(
+                readFileSync(logFile, "utf8").trim(),
+                "issue view 123 --repo ExampleOrg/ExampleRepo --json labels,state",
+            );
         },
     );
 
@@ -127,7 +141,7 @@ printf '%s\\n' '{ "labels": [ { "name": "ai-ready", "color": "0e8a16" } ], "stat
                 stdin: `refs/heads/codex/issue-124-first-key ${SAMPLE_SHA} refs/heads/codex/issue-124-first-key ${ZERO_SHA}\n`,
                 remoteName: "origin",
                 remoteUrl: DEFAULT_URL,
-                envPath: `${binDir}${path.delimiter}${pathWithoutGh()}`,
+                envPath: stubPath(binDir),
             });
             assert.equal(res.status, 0, res.stderr);
         },
@@ -141,35 +155,30 @@ printf '%s\\n' "$*" >> "$GH_LOG_FILE"
 printf '%s\\n' '{"labels":[{"name":"ai-ready"}],"state":"OPEN"}'
 `,
         ({ binDir, logFile }) => {
-            const prevLog = process.env.GH_LOG_FILE;
-            process.env.GH_LOG_FILE = logFile;
-            try {
-                const sshRes = runHook({
-                    stdin: `refs/heads/codex/issue-42-ssh ${SAMPLE_SHA} refs/heads/codex/issue-42-ssh ${ZERO_SHA}\n`,
-                    remoteName: "origin",
-                    remoteUrl: "ssh://git@github.com/AnotherOwner/AnotherRepo.git",
-                    envPath: `${binDir}${path.delimiter}${pathWithoutGh()}`,
-                });
-                assert.equal(sshRes.status, 0, sshRes.stderr);
+            const sshRes = runHook({
+                stdin: `refs/heads/codex/issue-42-ssh ${SAMPLE_SHA} refs/heads/codex/issue-42-ssh ${ZERO_SHA}\n`,
+                remoteName: "origin",
+                remoteUrl: "ssh://git@github.com/AnotherOwner/AnotherRepo.git",
+                envPath: stubPath(binDir),
+                extraEnv: { GH_LOG_FILE: logFile },
+            });
+            assert.equal(sshRes.status, 0, sshRes.stderr);
 
-                const fallbackRes = runHook({
-                    stdin: `refs/heads/codex/issue-43-fallback ${SAMPLE_SHA} refs/heads/codex/issue-43-fallback ${ZERO_SHA}\n`,
-                    remoteName: "origin",
-                    remoteUrl: "/tmp/local-bare-repo.git",
-                    envPath: `${binDir}${path.delimiter}${pathWithoutGh()}`,
-                    cwd: binDir,
-                });
-                assert.equal(fallbackRes.status, 0, fallbackRes.stderr);
+            const fallbackRes = runHook({
+                stdin: `refs/heads/codex/issue-43-fallback ${SAMPLE_SHA} refs/heads/codex/issue-43-fallback ${ZERO_SHA}\n`,
+                remoteName: "origin",
+                remoteUrl: "/tmp/local-bare-repo.git",
+                envPath: stubPath(binDir),
+                extraEnv: { GH_LOG_FILE: logFile },
+                cwd: binDir,
+            });
+            assert.equal(fallbackRes.status, 0, fallbackRes.stderr);
 
-                const calls = readFileSync(logFile, "utf8").trim().split("\n");
-                assert.deepEqual(calls, [
-                    "issue view 42 --repo AnotherOwner/AnotherRepo --json labels,state",
-                    "issue view 43 --repo JosephT5566/TravelSplit --json labels,state",
-                ]);
-            } finally {
-                if (prevLog === undefined) delete process.env.GH_LOG_FILE;
-                else process.env.GH_LOG_FILE = prevLog;
-            }
+            const calls = readFileSync(logFile, "utf8").trim().split("\n");
+            assert.deepEqual(calls, [
+                "issue view 42 --repo AnotherOwner/AnotherRepo --json labels,state",
+                "issue view 43 --repo JosephT5566/TravelSplit --json labels,state",
+            ]);
         },
     );
 });
@@ -184,7 +193,7 @@ printf '%s\\n' '{"labels":[{"name":"ai-ready-draft"},{"name":"bug"}],"state":"OP
                 stdin: `refs/heads/codex/issue-404-missing-label ${SAMPLE_SHA} refs/heads/codex/issue-404-missing-label ${ZERO_SHA}\n`,
                 remoteName: "origin",
                 remoteUrl: DEFAULT_URL,
-                envPath: `${binDir}${path.delimiter}${pathWithoutGh()}`,
+                envPath: stubPath(binDir),
             });
             assert.equal(res.status, 1);
             assert.match(res.stderr, /ai-ready/);
@@ -201,7 +210,7 @@ printf '%s\\n' '{"labels":[],"state":"OPEN"}'
                 stdin: `refs/heads/codex/issue-405-empty-labels ${SAMPLE_SHA} refs/heads/codex/issue-405-empty-labels ${ZERO_SHA}\n`,
                 remoteName: "origin",
                 remoteUrl: DEFAULT_URL,
-                envPath: `${binDir}${path.delimiter}${pathWithoutGh()}`,
+                envPath: stubPath(binDir),
             });
             assert.equal(res.status, 1);
             assert.match(res.stderr, /ai-ready/);
@@ -217,7 +226,7 @@ echo "gh should not have been called" >&2
 exit 99
 `,
         ({ binDir }) => {
-            const envPath = `${binDir}${path.delimiter}${pathWithoutGh()}`;
+            const envPath = stubPath(binDir);
 
             const nonCodex = runHook({
                 stdin: [
@@ -254,7 +263,7 @@ exit 99
                 stdin: `refs/heads/issue-777-missing-prefix ${SAMPLE_SHA} refs/heads/issue-777-missing-prefix ${ZERO_SHA}\n`,
                 remoteName: "origin",
                 remoteUrl: DEFAULT_URL,
-                envPath: `${binDir}${path.delimiter}${pathWithoutGh()}`,
+                envPath: stubPath(binDir),
             });
             assert.equal(res.status, 0, res.stderr);
             assert.match(res.stderr, /codex\/issue-777-<slug>/);
@@ -274,7 +283,7 @@ exit 99
                 stdin: `(delete) ${ZERO_SHA} refs/heads/codex/issue-888-old ${REMOTE_SHA}\nrefs/heads/codex/issue-889-old ${ZERO_SHA} refs/heads/codex/issue-889-old ${REMOTE_SHA}\n`,
                 remoteName: "origin",
                 remoteUrl: DEFAULT_URL,
-                envPath: `${binDir}${path.delimiter}${pathWithoutGh()}`,
+                envPath: stubPath(binDir),
             });
             assert.equal(res.status, 0, res.stderr);
         },
@@ -292,7 +301,7 @@ exit 1
                 stdin: `refs/heads/codex/issue-500-gh-error ${SAMPLE_SHA} refs/heads/codex/issue-500-gh-error ${ZERO_SHA}\n`,
                 remoteName: "origin",
                 remoteUrl: DEFAULT_URL,
-                envPath: `${binDir}${path.delimiter}${pathWithoutGh()}`,
+                envPath: stubPath(binDir),
             });
             assert.equal(res.status, 1);
             assert.match(res.stderr, /git push --no-verify/);
@@ -308,21 +317,24 @@ exit 0
                 stdin: `refs/heads/codex/issue-501-gh-empty ${SAMPLE_SHA} refs/heads/codex/issue-501-gh-empty ${ZERO_SHA}\n`,
                 remoteName: "origin",
                 remoteUrl: DEFAULT_URL,
-                envPath: `${binDir}${path.delimiter}${pathWithoutGh()}`,
+                envPath: stubPath(binDir),
             });
             assert.equal(res.status, 1);
             assert.match(res.stderr, /git push --no-verify/);
         },
     );
 
-    const missingGh = runHook({
-        stdin: `refs/heads/codex/issue-502-no-gh ${SAMPLE_SHA} refs/heads/codex/issue-502-no-gh ${ZERO_SHA}\n`,
-        remoteName: "origin",
-        remoteUrl: DEFAULT_URL,
-        envPath: pathWithoutGh(),
+    withToolsPathWithoutGh((toolsPath) => {
+        const missingGh = runHook({
+            stdin: `refs/heads/codex/issue-502-no-gh ${SAMPLE_SHA} refs/heads/codex/issue-502-no-gh ${ZERO_SHA}\n`,
+            remoteName: "origin",
+            remoteUrl: DEFAULT_URL,
+            envPath: toolsPath,
+        });
+        assert.equal(missingGh.status, 1);
+        assert.match(missingGh.stderr, /git push --no-verify/);
+        assert.match(missingGh.stderr, /gh/);
     });
-    assert.equal(missingGh.status, 1);
-    assert.match(missingGh.stderr, /git push --no-verify/);
 });
 
 test("pre-push fails if any ref among multiple stdin lines is missing ai-ready", () => {
@@ -342,11 +354,40 @@ fi
                 ].join("\n") + "\n",
                 remoteName: "origin",
                 remoteUrl: DEFAULT_URL,
-                envPath: `${binDir}${path.delimiter}${pathWithoutGh()}`,
+                envPath: stubPath(binDir),
             });
             assert.equal(res.status, 1);
             assert.match(res.stderr, /#602/);
             assert.match(res.stderr, /ai-ready/);
+        },
+    );
+});
+
+test("pre-push does not let gh consume remaining stdin refs", () => {
+    withStubDir(
+        `#!/bin/sh
+# If stdin were inherited from the hook's while-read loop, this would drain later refs.
+cat >/dev/null
+printf '%s\\n' "$*" >> "$GH_LOG_FILE"
+printf '%s\\n' '{"labels":[{"name":"ai-ready"}],"state":"OPEN"}'
+`,
+        ({ binDir, logFile }) => {
+            const res = runHook({
+                stdin: [
+                    `refs/heads/codex/issue-701-first ${SAMPLE_SHA} refs/heads/codex/issue-701-first ${ZERO_SHA}`,
+                    `refs/heads/codex/issue-702-second ${SAMPLE_SHA} refs/heads/codex/issue-702-second ${ZERO_SHA}`,
+                ].join("\n") + "\n",
+                remoteName: "origin",
+                remoteUrl: DEFAULT_URL,
+                envPath: stubPath(binDir),
+                extraEnv: { GH_LOG_FILE: logFile },
+            });
+            assert.equal(res.status, 0, res.stderr);
+            const calls = readFileSync(logFile, "utf8").trim().split("\n");
+            assert.deepEqual(calls, [
+                "issue view 701 --repo JosephT5566/TravelSplit --json labels,state",
+                "issue view 702 --repo JosephT5566/TravelSplit --json labels,state",
+            ]);
         },
     );
 });
