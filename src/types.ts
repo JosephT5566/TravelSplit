@@ -113,10 +113,6 @@ export type CreateTodoItemInput = {
     checked?: boolean;
 };
 
-export type CreateTodosRequest = {
-    items: CreateTodoItemInput[];
-};
-
 export type CreateTodosResponse = {
     items: TodoItem[];
 };
@@ -129,10 +125,6 @@ export type UpdateTodoRequest = {
 
 export type UpdateTodoResponse = {
     item: TodoItem;
-};
-
-export type DeleteTodoRequest = {
-    id: string;
 };
 
 export type DeleteTodoResponse = {

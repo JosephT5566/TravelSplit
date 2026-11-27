@@ -7,10 +7,10 @@ import type {
     UpdateTodoRequest,
     UpdateTodoResponse,
 } from "../src/types";
-import { api } from "./api";
-import { EXPENSES_KEY, TODOS_KEY } from "./cacheKeys";
+import { api, TodoApiError } from "./api";
+import { TODOS_KEY } from "./cacheKeys";
 
-export type TodoMutationDeps = {
+type TodoMutationDeps = {
     queryClient: QueryClient;
     sheetId: string;
     userEmail: string;
@@ -19,7 +19,8 @@ export type TodoMutationDeps = {
 
 type UpdateTodoContext = {
     isOptimistic: boolean;
-    previousItem?: TodoItem;
+    previousChecked?: boolean;
+    optimisticChecked?: boolean;
 };
 
 export function getTodosQueryKey(
@@ -38,15 +39,26 @@ export function createTodosQueryOptions({
     ownerEmail: string | null | undefined;
     isSignedIn: boolean;
 }) {
+    const trimmedSheetId = sheetId?.trim();
+    const trimmedOwnerEmail = ownerEmail?.trim();
+
     return {
         queryKey: getTodosQueryKey(sheetId, ownerEmail),
         queryFn: ({ signal }: { signal: AbortSignal }) => {
-            if (!sheetId || !ownerEmail) {
+            if (!trimmedSheetId || !trimmedOwnerEmail) {
                 return Promise.resolve<TodoItem[]>([]);
             }
-            return api.getTodos(sheetId, ownerEmail, signal);
+            return api.getTodos(trimmedSheetId, trimmedOwnerEmail, signal);
         },
-        enabled: isSignedIn && !!sheetId && !!ownerEmail,
+        enabled:
+            isSignedIn && Boolean(trimmedSheetId) && Boolean(trimmedOwnerEmail),
+        retry: (failureCount: number, error: Error) =>
+            !(
+                error instanceof TodoApiError &&
+                error.status !== undefined &&
+                error.status >= 400 &&
+                error.status < 500
+            ) && failureCount < 3,
     };
 }
 
@@ -62,12 +74,31 @@ export function createCreateTodosMutationOptions({
             api.createTodos(sheetId, items, canReplayWrite),
         networkMode: "always" as const,
         retry: false as const,
+        onMutate: async () => {
+            if (typeof navigator !== "undefined" && navigator.onLine === false) {
+                return;
+            }
+            await queryClient.cancelQueries({ queryKey, exact: true });
+        },
         onSuccess: (data: CreateTodosResponse) => {
+            const existing = queryClient.getQueryData<TodoItem[]>(queryKey);
+            if (!Array.isArray(existing)) {
+                void queryClient.invalidateQueries({ queryKey, exact: true });
+                return;
+            }
             queryClient.setQueryData<TodoItem[]>(queryKey, (old) => {
                 if (!Array.isArray(old)) {
-                    return [...data.items];
+                    return old;
                 }
-                return [...old, ...data.items];
+                const existingIds = new Set(old.map((item) => item.id));
+                const appended: TodoItem[] = [];
+                for (const item of data.items) {
+                    if (!existingIds.has(item.id)) {
+                        existingIds.add(item.id);
+                        appended.push(item);
+                    }
+                }
+                return appended.length > 0 ? [...old, ...appended] : old;
             });
         },
     };
@@ -94,32 +125,39 @@ export function createUpdateTodoMutationOptions({
         onMutate: async (
             input: UpdateTodoRequest,
         ): Promise<UpdateTodoContext> => {
-            if (
-                !isCheckOnlyUpdate(input) ||
-                (typeof navigator !== "undefined" &&
-                    navigator.onLine === false)
-            ) {
+            if (typeof navigator !== "undefined" && navigator.onLine === false) {
                 return { isOptimistic: false };
             }
 
             await queryClient.cancelQueries({ queryKey, exact: true });
+
+            if (!isCheckOnlyUpdate(input)) {
+                return { isOptimistic: false };
+            }
+
             const current = queryClient.getQueryData<TodoItem[]>(queryKey);
             const previousItem = Array.isArray(current)
                 ? current.find((item) => item.id === input.id)
                 : undefined;
 
-            if (previousItem) {
-                queryClient.setQueryData<TodoItem[]>(queryKey, (old) => {
-                    if (!Array.isArray(old)) return old;
-                    return old.map((item) =>
-                        item.id === input.id
-                            ? { ...item, checked: input.checked }
-                            : item,
-                    );
-                });
+            if (!previousItem) {
+                return { isOptimistic: false };
             }
 
-            return { isOptimistic: true, previousItem };
+            queryClient.setQueryData<TodoItem[]>(queryKey, (old) => {
+                if (!Array.isArray(old)) return old;
+                return old.map((item) =>
+                    item.id === input.id
+                        ? { ...item, checked: input.checked }
+                        : item,
+                );
+            });
+
+            return {
+                isOptimistic: true,
+                previousChecked: previousItem.checked,
+                optimisticChecked: input.checked,
+            };
         },
         onSuccess: (data: UpdateTodoResponse) => {
             queryClient.setQueryData<TodoItem[]>(queryKey, (old) => {
@@ -134,16 +172,23 @@ export function createUpdateTodoMutationOptions({
             input: UpdateTodoRequest,
             context: UpdateTodoContext | undefined,
         ) => {
-            if (!context?.isOptimistic || !context.previousItem) {
+            if (
+                !context?.isOptimistic ||
+                context.previousChecked === undefined ||
+                context.optimisticChecked === undefined
+            ) {
                 return;
             }
-            const previousItem = context.previousItem;
+            const { previousChecked, optimisticChecked } = context;
             queryClient.setQueryData<TodoItem[]>(queryKey, (old) => {
                 if (!Array.isArray(old)) return old;
                 return old.map((item) =>
-                    item.id === input.id ? previousItem : item,
+                    item.id === input.id && item.checked === optimisticChecked
+                        ? { ...item, checked: previousChecked }
+                        : item,
                 );
             });
+            void queryClient.invalidateQueries({ queryKey, exact: true });
         },
     };
 }
@@ -160,6 +205,12 @@ export function createDeleteTodoMutationOptions({
             api.deleteTodo(sheetId, id, canReplayWrite),
         networkMode: "always" as const,
         retry: false as const,
+        onMutate: async () => {
+            if (typeof navigator !== "undefined" && navigator.onLine === false) {
+                return;
+            }
+            await queryClient.cancelQueries({ queryKey, exact: true });
+        },
         onSuccess: (data: DeleteTodoResponse) => {
             queryClient.setQueryData<TodoItem[]>(queryKey, (old) => {
                 if (!Array.isArray(old)) {
@@ -169,9 +220,4 @@ export function createDeleteTodoMutationOptions({
             });
         },
     };
-}
-
-export function clearUserQueryCaches(client: QueryClient) {
-    client.removeQueries({ queryKey: [EXPENSES_KEY] });
-    client.removeQueries({ queryKey: [TODOS_KEY] });
 }

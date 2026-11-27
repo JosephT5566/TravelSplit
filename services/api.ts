@@ -283,16 +283,19 @@ async function processTodoResponse<T>(response: Response): Promise<T> {
     };
 
     if (!response.ok || envelope.success !== true) {
-        const code =
-            typeof envelope.error?.code === "string" &&
-            envelope.error.code.trim()
-                ? envelope.error.code
-                : statusToTodoErrorCode(response.status);
+        const trimmedCode =
+            typeof envelope.error?.code === "string"
+                ? envelope.error.code.trim()
+                : "";
+        const code = trimmedCode || statusToTodoErrorCode(response.status);
+        const trimmedMessage =
+            typeof envelope.error?.message === "string"
+                ? envelope.error.message.trim()
+                : "";
         const message =
-            typeof envelope.error?.message === "string" &&
-            envelope.error.message.trim()
-                ? envelope.error.message
-                : response.statusText || "Unknown error from server";
+            trimmedMessage ||
+            response.statusText ||
+            "Unknown error from server";
         throw new TodoApiError(message, code, response.status);
     }
 

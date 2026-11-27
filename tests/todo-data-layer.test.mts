@@ -5,6 +5,7 @@ import path from "node:path";
 import { afterEach, beforeEach, test } from "node:test";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { dehydrate, hydrate, QueryClient } from "@tanstack/react-query";
+import type { PersistedClient, Persister } from "@tanstack/react-query-persist-client";
 import type {
     AddExpenseRequest,
     CreateTodoItemInput,
@@ -67,7 +68,10 @@ const {
     USER_STORAGE_KEY,
 } = await import("../services/cacheKeys.ts");
 const {
+    clearUserCachesIfSignedOut,
     clearUserQueryCaches,
+} = await import("../services/queryClient.ts");
+const {
     createCreateTodosMutationOptions,
     createDeleteTodoMutationOptions,
     createTodosQueryOptions,
@@ -305,6 +309,13 @@ test("AC1: GET /todos returns empty array when Todos tab is missing and sends no
         isSignedIn: true,
     });
     assert.equal(disabledWhenMissingParams.enabled, false);
+
+    const disabledWhenWhitespaceParams = createTodosQueryOptions({
+        sheetId: "   ",
+        ownerEmail: "  ",
+        isSignedIn: true,
+    });
+    assert.equal(disabledWhenWhitespaceParams.enabled, false);
 
     const queryOptions = createTodosQueryOptions({
         sheetId: SHEET_A,
@@ -613,6 +624,59 @@ test("AC4: batch POST /todos sends items with credentials, strips client ownerEm
         existing,
         ...serverItems,
     ]);
+
+    // Deduplicate by id if an already-cached item id is returned again.
+    const dupServerItem = serverItems[0];
+    const newServerItem = makeTodo({ id: "1700000000000-uuid-3", text: "防曬" });
+    mockFetch(() => gcfOk({ items: [dupServerItem, newServerItem] }, 201));
+    await executeMutation(
+        queryClient,
+        createCreateTodosMutationOptions({
+            queryClient,
+            sheetId: SHEET_A,
+            userEmail: USER_AN,
+            canReplayWrite: () => true,
+        }),
+        [{ text: "買車票" }, { text: "防曬" }],
+    );
+    assert.deepEqual(queryClient.getQueryData(cacheKey), [
+        existing,
+        ...serverItems,
+        newServerItem,
+    ]);
+});
+
+test("AC4 (F2): batch POST when cache is undefined does not seed partial list and invalidates exact query", async () => {
+    const queryClient = createTestQueryClient();
+    const cacheKey = getTodosQueryKey(SHEET_A, USER_AN);
+    assert.equal(queryClient.getQueryData(cacheKey), undefined);
+
+    const invalidatedFilters: unknown[] = [];
+    const originalInvalidate = queryClient.invalidateQueries.bind(queryClient);
+    queryClient.invalidateQueries = ((filters?: unknown, options?: unknown) => {
+        invalidatedFilters.push(filters);
+        return originalInvalidate(filters as never, options as never);
+    }) as typeof queryClient.invalidateQueries;
+
+    const serverItem = makeTodo({ id: "todo-new-1", text: "新待辦" });
+    mockFetch(() => gcfOk({ items: [serverItem] }, 201));
+
+    const response = await executeMutation(
+        queryClient,
+        createCreateTodosMutationOptions({
+            queryClient,
+            sheetId: SHEET_A,
+            userEmail: USER_AN,
+            canReplayWrite: () => true,
+        }),
+        [{ text: "新待辦" }],
+    );
+
+    assert.deepEqual(response, { items: [serverItem] });
+    assert.equal(queryClient.getQueryData(cacheKey), undefined);
+    assert.deepEqual(invalidatedFilters, [
+        { queryKey: cacheKey, exact: true },
+    ]);
 });
 
 test("AC5: optimistic check updates immediately, applies server item on 200, and rolls back on 500 and 404 with code", async () => {
@@ -761,6 +825,254 @@ test("AC5: optimistic check updates immediately, applies server item on 200, and
     resolveTextPatch(gcfOk({ item: editedItem }, 200));
     await textPromise;
     assert.deepEqual(queryClient.getQueryData(cacheKey), [editedItem, todo2]);
+
+    // 5. Optimistic uncheck -> fails with 500 -> rolls back checked to true.
+    const checkedTodo = makeTodo({ id: "todo-1", checked: true });
+    queryClient.setQueryData(cacheKey, [checkedTodo, todo2]);
+    let resolveUncheckFail!: (res: Response) => void;
+    mockFetch(
+        () =>
+            new Promise<Response>((resolve) => {
+                resolveUncheckFail = resolve;
+            }),
+    );
+
+    const uncheckPromise = executeMutation(
+        queryClient,
+        createUpdateTodoMutationOptions({
+            queryClient,
+            sheetId: SHEET_A,
+            userEmail: USER_AN,
+            canReplayWrite: () => true,
+        }),
+        { id: "todo-1", checked: false },
+    );
+    await new Promise((r) => setTimeout(r, 0));
+    assert.equal(
+        queryClient.getQueryData<TodoItem[]>(cacheKey)?.[0].checked,
+        false,
+    );
+
+    resolveUncheckFail(
+        gcfError(500, "INTERNAL_SERVER_ERROR", "Sheets backend failed"),
+    );
+    await assert.rejects(
+        uncheckPromise,
+        (err: unknown) =>
+            err instanceof TodoApiError &&
+            err.code === "INTERNAL_SERVER_ERROR" &&
+            err.status === 500,
+    );
+    assert.deepEqual(queryClient.getQueryData(cacheKey), [checkedTodo, todo2]);
+});
+
+test("AC5 (F3): rapid check->uncheck where both fail uses field-level revert guard and invalidates", async () => {
+    const queryClient = createTestQueryClient();
+    const cacheKey = getTodosQueryKey(SHEET_A, USER_AN);
+    const todo1 = makeTodo({ id: "todo-1", checked: false });
+    queryClient.setQueryData(cacheKey, [todo1]);
+
+    const invalidatedFilters: unknown[] = [];
+    const originalInvalidate = queryClient.invalidateQueries.bind(queryClient);
+    queryClient.invalidateQueries = ((filters?: unknown, options?: unknown) => {
+        invalidatedFilters.push(filters);
+        return originalInvalidate(filters as never, options as never);
+    }) as typeof queryClient.invalidateQueries;
+
+    const resolvers: Array<(res: Response) => void> = [];
+    mockFetch(
+        () =>
+            new Promise<Response>((resolve) => {
+                resolvers.push(resolve);
+            }),
+    );
+
+    const checkPromise = executeMutation(
+        queryClient,
+        createUpdateTodoMutationOptions({
+            queryClient,
+            sheetId: SHEET_A,
+            userEmail: USER_AN,
+            canReplayWrite: () => true,
+        }),
+        { id: "todo-1", checked: true },
+    );
+    await new Promise((r) => setTimeout(r, 0));
+    assert.equal(
+        queryClient.getQueryData<TodoItem[]>(cacheKey)?.[0].checked,
+        true,
+    );
+
+    const uncheckPromise = executeMutation(
+        queryClient,
+        createUpdateTodoMutationOptions({
+            queryClient,
+            sheetId: SHEET_A,
+            userEmail: USER_AN,
+            canReplayWrite: () => true,
+        }),
+        { id: "todo-1", checked: false },
+    );
+    await new Promise((r) => setTimeout(r, 0));
+    assert.equal(
+        queryClient.getQueryData<TodoItem[]>(cacheKey)?.[0].checked,
+        false,
+    );
+
+    // First mutation (checked: true) fails while cache holds second mutation's optimistic checked: false.
+    // Field-level guard must NOT overwrite checked back to false/true, and must invalidate.
+    resolvers[0](gcfError(500, "INTERNAL_SERVER_ERROR", "First failed"));
+    await assert.rejects(
+        checkPromise,
+        (err: unknown) =>
+            err instanceof TodoApiError &&
+            err.code === "INTERNAL_SERVER_ERROR",
+    );
+    assert.equal(
+        queryClient.getQueryData<TodoItem[]>(cacheKey)?.[0].checked,
+        false,
+    );
+    assert.equal(invalidatedFilters.length, 1);
+    assert.deepEqual(invalidatedFilters[0], {
+        queryKey: cacheKey,
+        exact: true,
+    });
+
+    // Second mutation (checked: false) fails: cached checked matches optimistic false -> reverts checked to previousChecked (true) and invalidates so server truth can reconcile.
+    resolvers[1](gcfError(500, "INTERNAL_SERVER_ERROR", "Second failed"));
+    await assert.rejects(
+        uncheckPromise,
+        (err: unknown) =>
+            err instanceof TodoApiError &&
+            err.code === "INTERNAL_SERVER_ERROR",
+    );
+    assert.equal(
+        queryClient.getQueryData<TodoItem[]>(cacheKey)?.[0].checked,
+        true,
+    );
+    assert.equal(invalidatedFilters.length, 2);
+    assert.deepEqual(invalidatedFilters[1], {
+        queryKey: cacheKey,
+        exact: true,
+    });
+    assert.equal(queryClient.getQueryState(cacheKey)?.isInvalidated, true);
+});
+
+test("AC5 (F3): failed check toggle does not revert a concurrent successful text edit", async () => {
+    const queryClient = createTestQueryClient();
+    const cacheKey = getTodosQueryKey(SHEET_A, USER_AN);
+    const todo1 = makeTodo({
+        id: "todo-1",
+        text: "買車票",
+        checked: false,
+        updatedAt: "2026-11-27T01:00:00.000Z",
+    });
+    queryClient.setQueryData(cacheKey, [todo1]);
+
+    let resolveToggle!: (res: Response) => void;
+    let resolveTextEdit!: (res: Response) => void;
+    mockFetch((_url, init) => {
+        const parsed = JSON.parse(String(init?.body)) as {
+            text?: string;
+            checked?: boolean;
+        };
+        return new Promise<Response>((resolve) => {
+            if (parsed.text !== undefined) {
+                resolveTextEdit = resolve;
+            } else {
+                resolveToggle = resolve;
+            }
+        });
+    });
+
+    // Start optimistic toggle (checked: true).
+    const togglePromise = executeMutation(
+        queryClient,
+        createUpdateTodoMutationOptions({
+            queryClient,
+            sheetId: SHEET_A,
+            userEmail: USER_AN,
+            canReplayWrite: () => true,
+        }),
+        { id: "todo-1", checked: true },
+    );
+    await new Promise((r) => setTimeout(r, 0));
+    assert.equal(
+        queryClient.getQueryData<TodoItem[]>(cacheKey)?.[0].checked,
+        true,
+    );
+
+    // Start concurrent text edit and let it succeed (returning updated text & updatedAt, with checked still true).
+    const textPromise = executeMutation(
+        queryClient,
+        createUpdateTodoMutationOptions({
+            queryClient,
+            sheetId: SHEET_A,
+            userEmail: USER_AN,
+            canReplayWrite: () => true,
+        }),
+        { id: "todo-1", text: "買新幹線車票" },
+    );
+    await new Promise((r) => setTimeout(r, 0));
+
+    const serverTextUpdated: TodoItem = {
+        ...todo1,
+        text: "買新幹線車票",
+        checked: true,
+        updatedAt: "2026-11-27T06:00:00.000Z",
+    };
+    resolveTextEdit(gcfOk({ item: serverTextUpdated }, 200));
+    await textPromise;
+    assert.deepEqual(queryClient.getQueryData(cacheKey), [serverTextUpdated]);
+
+    // Now the earlier check toggle fails -> ONLY `checked` reverts to false; text & updatedAt stay intact.
+    resolveToggle(gcfError(500, "INTERNAL_SERVER_ERROR", "Toggle failed"));
+    await assert.rejects(
+        togglePromise,
+        (err: unknown) =>
+            err instanceof TodoApiError &&
+            err.code === "INTERNAL_SERVER_ERROR",
+    );
+    assert.deepEqual(queryClient.getQueryData(cacheKey), [
+        {
+            ...serverTextUpdated,
+            checked: false,
+        },
+    ]);
+});
+
+test("AC5 (F3): a failed toggle does not overwrite a checked value the server confirmed meanwhile", async () => {
+    const queryClient = createTestQueryClient();
+    const cacheKey = getTodosQueryKey(SHEET_A, USER_AN);
+    const todo1 = makeTodo({ id: "todo-1", checked: false });
+    queryClient.setQueryData(cacheKey, [todo1]);
+
+    const pending: Array<(res: Response) => void> = [];
+    mockFetch(() => new Promise<Response>((resolve) => pending.push(resolve)));
+    const options = () =>
+        createUpdateTodoMutationOptions({
+            queryClient,
+            sheetId: SHEET_A,
+            userEmail: USER_AN,
+            canReplayWrite: () => true,
+        });
+
+    // M1 re-sends checked:false (previous false, optimistic false) and stays in flight.
+    const m1 = executeMutation(queryClient, options(), { id: "todo-1", checked: false });
+    await new Promise((r) => setTimeout(r, 0));
+    // M2 checks the item and the server confirms checked:true.
+    const m2 = executeMutation(queryClient, options(), { id: "todo-1", checked: true });
+    await new Promise((r) => setTimeout(r, 0));
+    const confirmed: TodoItem = { ...todo1, checked: true, updatedAt: "2026-11-27T07:00:00.000Z" };
+    pending[1](gcfOk({ item: confirmed }, 200));
+    await m2;
+    assert.deepEqual(queryClient.getQueryData(cacheKey), [confirmed]);
+
+    // M1 now fails: its optimistic value (false) no longer matches the cache, so it must not revert.
+    pending[0](gcfError(500, "INTERNAL_SERVER_ERROR", "Toggle failed"));
+    await assert.rejects(m1, (err: unknown) => err instanceof TodoApiError && err.code === "INTERNAL_SERVER_ERROR");
+    assert.deepEqual(queryClient.getQueryData(cacheKey), [confirmed]);
+    assert.equal(queryClient.getQueryState(cacheKey)?.isInvalidated, true);
 });
 
 test("AC6: Todo 403 FORBIDDEN does not refresh, does not redirect, preserves auth & expense cache, and exposes FORBIDDEN code", async () => {
@@ -1017,6 +1329,71 @@ test("AC8: Todo GET 401 refreshes once and retries; refresh failure redirects to
     assert.equal(mockLocation.href, "/");
 });
 
+test("AC8 (F4): createTodosQueryOptions does not retry 4xx TodoApiError through default QueryClient", async () => {
+    // QueryClient WITHOUT `retry: false` (default retry behavior).
+    const queryClient = new QueryClient();
+
+    // 1. Persistent GET 401 -> apiFetch refreshes once and retries once, then TanStack Query does NOT retry.
+    const persistent401Calls = mockFetch((url) => {
+        if (url.startsWith(`${AUTH_PROXY_BASE}/auth/travel-split/refresh`)) {
+            return jsonResponse({ ok: true }, 200);
+        }
+        return gcfError(401, "UNAUTHORIZED", "Still unauthorized");
+    });
+
+    const queryOptions = createTodosQueryOptions({
+        sheetId: SHEET_A,
+        ownerEmail: USER_AN,
+        isSignedIn: true,
+    });
+
+    await assert.rejects(
+        queryClient.fetchQuery(queryOptions),
+        (err: unknown) =>
+            err instanceof TodoApiError &&
+            err.code === "UNAUTHORIZED" &&
+            err.status === 401,
+    );
+    assert.equal(
+        persistent401Calls.filter((c) =>
+            c.url.includes("/auth/travel-split/refresh"),
+        ).length,
+        1,
+    );
+    assert.equal(persistent401Calls.length, 3);
+
+    // 2. GET 403 -> exactly one GET, zero refreshes, zero TanStack retries.
+    const queryClient403 = new QueryClient();
+    const persistent403Calls = mockFetch(() =>
+        gcfError(403, "FORBIDDEN", "Not in sheet users"),
+    );
+
+    await assert.rejects(
+        queryClient403.fetchQuery(queryOptions),
+        (err: unknown) =>
+            err instanceof TodoApiError &&
+            err.code === "FORBIDDEN" &&
+            err.status === 403,
+    );
+    assert.equal(persistent403Calls.length, 1);
+
+    // 3. Non-4xx errors still retry up to 3 times.
+    assert.equal(
+        queryOptions.retry(
+            0,
+            new TodoApiError("Server error", "INTERNAL_SERVER_ERROR", 500),
+        ),
+        true,
+    );
+    assert.equal(
+        queryOptions.retry(
+            3,
+            new TodoApiError("Server error", "INTERNAL_SERVER_ERROR", 500),
+        ),
+        false,
+    );
+});
+
 test("AC9: Todo errors expose code and status for 400/404/422/500, envelope success:false, unreadable body, and network failure", async () => {
     const cases: Array<[number, string, string]> = [
         [400, "INVALID_PARAMS", "Todo text must be between 1 and 500 characters."],
@@ -1037,13 +1414,16 @@ test("AC9: Todo errors expose code and status for 400/404/422/500, envelope succ
         );
     }
 
-    // HTTP 200 with envelope success: false must also reject with code.
-    mockFetch(() => gcfError(200, "INVALID_PARAMS", "Envelope failure"));
+    // HTTP 200 with envelope success: false must also reject with trimmed code & message.
+    mockFetch(() =>
+        gcfError(200, "  INVALID_PARAMS  ", "  Envelope failure  "),
+    );
     await assert.rejects(
         api.getTodos(SHEET_A, USER_AN),
         (err: unknown) =>
             err instanceof TodoApiError &&
             err.code === "INVALID_PARAMS" &&
+            err.message === "Envelope failure" &&
             err.status === 200,
     );
 
@@ -1128,6 +1508,114 @@ test("Offline writes fail immediately with code OFFLINE and send no fetch", asyn
     assert.deepEqual(queryClient.getQueryData(cacheKey), [item]);
 });
 
+test("F5: create, text-edit update, and delete cancel in-flight GET so stale response cannot overwrite cache", async () => {
+    const queryClient = createTestQueryClient();
+    const cacheKey = getTodosQueryKey(SHEET_A, USER_AN);
+    const initial = makeTodo({ id: "todo-1", text: "舊文字" });
+
+    // Helper: start an in-flight GET and return its abort signal + resolver.
+    const startStaleGet = (stalePayload: TodoItem[]) => {
+        let resolveGet!: (res: Response) => void;
+        let capturedSignal: AbortSignal | undefined;
+        let getPromise!: Promise<TodoItem[]>;
+        return {
+            interceptGet(init: RequestInit | undefined) {
+                capturedSignal = init?.signal ?? undefined;
+                return new Promise<Response>((resolve) => {
+                    resolveGet = resolve;
+                });
+            },
+            start() {
+                getPromise = queryClient.fetchQuery(
+                    createTodosQueryOptions({
+                        sheetId: SHEET_A,
+                        ownerEmail: USER_AN,
+                        isSignedIn: true,
+                    }),
+                );
+            },
+            async finishStale() {
+                resolveGet(gcfOk(stalePayload, 200));
+                await getPromise.catch(() => undefined);
+                return capturedSignal;
+            },
+        };
+    };
+
+    // 1. Create cancels in-flight GET.
+    queryClient.setQueryData(cacheKey, [initial]);
+    const created = makeTodo({ id: "todo-2", text: "新待辦" });
+    const get1 = startStaleGet([initial]);
+    mockFetch((_url, init) => {
+        if (init?.method === "GET") return get1.interceptGet(init);
+        return gcfOk({ items: [created] }, 201);
+    });
+    get1.start();
+    await new Promise((r) => setTimeout(r, 0));
+    await executeMutation(
+        queryClient,
+        createCreateTodosMutationOptions({
+            queryClient,
+            sheetId: SHEET_A,
+            userEmail: USER_AN,
+            canReplayWrite: () => true,
+        }),
+        [{ text: "新待辦" }],
+    );
+    const sig1 = await get1.finishStale();
+    assert.equal(sig1?.aborted, true);
+    assert.deepEqual(queryClient.getQueryData(cacheKey), [initial, created]);
+
+    // 2. Text-edit update cancels in-flight GET.
+    const edited = makeTodo({
+        id: "todo-1",
+        text: "新文字",
+        updatedAt: "2026-11-27T07:00:00.000Z",
+    });
+    const get2 = startStaleGet([initial, created]);
+    mockFetch((_url, init) => {
+        if (init?.method === "GET") return get2.interceptGet(init);
+        return gcfOk({ item: edited }, 200);
+    });
+    get2.start();
+    await new Promise((r) => setTimeout(r, 0));
+    await executeMutation(
+        queryClient,
+        createUpdateTodoMutationOptions({
+            queryClient,
+            sheetId: SHEET_A,
+            userEmail: USER_AN,
+            canReplayWrite: () => true,
+        }),
+        { id: "todo-1", text: "新文字" },
+    );
+    const sig2 = await get2.finishStale();
+    assert.equal(sig2?.aborted, true);
+    assert.deepEqual(queryClient.getQueryData(cacheKey), [edited, created]);
+
+    // 3. Delete cancels in-flight GET.
+    const get3 = startStaleGet([edited, created]);
+    mockFetch((_url, init) => {
+        if (init?.method === "GET") return get3.interceptGet(init);
+        return gcfOk({ deletedId: "todo-2", deletedItem: created }, 200);
+    });
+    get3.start();
+    await new Promise((r) => setTimeout(r, 0));
+    await executeMutation(
+        queryClient,
+        createDeleteTodoMutationOptions({
+            queryClient,
+            sheetId: SHEET_A,
+            userEmail: USER_AN,
+            canReplayWrite: () => true,
+        }),
+        "todo-2",
+    );
+    const sig3 = await get3.finishStale();
+    assert.equal(sig3?.aborted, true);
+    assert.deepEqual(queryClient.getQueryData(cacheKey), [edited]);
+});
+
 test("AC10: auth-clear removes all todos and expenses queries so dehydrated/restored cache contains none", () => {
     const queryClient = createTestQueryClient();
 
@@ -1197,8 +1685,10 @@ test("AC10: auth-clear removes all todos and expenses queries so dehydrated/rest
         { tripName: "Hokkaido" },
     );
 
-    // Verify ExpensesStore delegates clearExpensesCache to clearUserQueryCaches
-    // and AuthStore invokes clearExpensesCache in all 4 auth-clear paths.
+    // Verify ExpensesStore imports clearUserQueryCaches from queryClient (not todoCache)
+    // and delegates clearExpensesCache to clearUserQueryCaches,
+    // AuthStore invokes clearExpensesCache in all 4 auth-clear paths,
+    // and Providers wires PersistQueryClientProvider onSuccess to clearUserCachesIfSignedOut.
     const expensesStoreSrc = readFileSync(
         path.join(REPO_ROOT, "src/stores/ExpensesStore.tsx"),
         "utf8",
@@ -1207,6 +1697,7 @@ test("AC10: auth-clear removes all todos and expenses queries so dehydrated/rest
         expensesStoreSrc,
         /export function clearExpensesCache\(\)\s*\{\s*clearUserQueryCaches\(queryClient\);\s*\}/,
     );
+    assert.equal(expensesStoreSrc.includes("todoCache"), false);
 
     const authStoreSrc = readFileSync(
         path.join(REPO_ROOT, "src/stores/AuthStore.tsx"),
@@ -1214,4 +1705,162 @@ test("AC10: auth-clear removes all todos and expenses queries so dehydrated/rest
     );
     const clearCalls = authStoreSrc.match(/clearExpensesCache\(\)/g) ?? [];
     assert.equal(clearCalls.length, 4);
+
+    const providersSrc = readFileSync(
+        path.join(REPO_ROOT, "components/Providers.tsx"),
+        "utf8",
+    );
+    assert.match(providersSrc, /onSuccess=/);
+    assert.match(providersSrc, /clearUserCachesIfSignedOut/);
+});
+
+test("AC10 (F1): clearUserQueryCaches persists cleaned client state without todos or expenses to persister", async () => {
+    const queryClient = createTestQueryClient();
+    queryClient.setQueryData([EXPENSES_KEY, SHEET_A, USER_AN], [
+        { itemName: "拉麵" },
+    ]);
+    queryClient.setQueryData([TODOS_KEY, SHEET_A, USER_AN], [
+        makeTodo({ id: "an-1", ownerEmail: USER_AN }),
+    ]);
+    queryClient.setQueryData([TODOS_KEY, SHEET_A, USER_BO], [
+        makeTodo({ id: "bo-1", ownerEmail: USER_BO }),
+    ]);
+    queryClient.setQueryData([SHEET_CONFIG_KEY, SHEET_A], {
+        tripName: "Hokkaido",
+    });
+
+    const persisted: PersistedClient[] = [];
+    const fakePersister: Persister = {
+        persistClient: async (client) => {
+            persisted.push(client);
+        },
+        restoreClient: async () => persisted[persisted.length - 1],
+        removeClient: async () => {
+            persisted.length = 0;
+        },
+    };
+
+    clearUserQueryCaches(queryClient, fakePersister);
+    await new Promise((r) => setTimeout(r, 0));
+
+    assert.equal(persisted.length, 1);
+    const savedKeys = persisted[0].clientState.queries.map((q) => q.queryKey);
+    assert.equal(
+        savedKeys.some((key) => key[0] === TODOS_KEY),
+        false,
+    );
+    assert.equal(
+        savedKeys.some((key) => key[0] === EXPENSES_KEY),
+        false,
+    );
+    assert.equal(
+        savedKeys.some((key) => key[0] === SHEET_CONFIG_KEY),
+        true,
+    );
+});
+
+test("AC10 (F1): restore-then-signed-out clears hydrated todos and expenses while signed-in keeps them", async () => {
+    // Build a dehydrated snapshot containing todos, expenses, and sheet config.
+    const sourceClient = createTestQueryClient();
+    sourceClient.setQueryData([EXPENSES_KEY, SHEET_A, USER_AN], [
+        { itemName: "拉麵" },
+    ]);
+    sourceClient.setQueryData([TODOS_KEY, SHEET_A, USER_AN], [
+        makeTodo({ id: "an-1", ownerEmail: USER_AN }),
+    ]);
+    sourceClient.setQueryData([TODOS_KEY, SHEET_A, USER_BO], [
+        makeTodo({ id: "bo-1", ownerEmail: USER_BO }),
+    ]);
+    sourceClient.setQueryData([SHEET_CONFIG_KEY, SHEET_A], {
+        tripName: "Hokkaido",
+    });
+    const dehydratedSnapshot = dehydrate(sourceClient);
+
+    // Case 1: storage lacks user (signed out) -> todos & expenses removed and cleaned snapshot persisted.
+    const signedOutClient = createTestQueryClient();
+    hydrate(signedOutClient, dehydratedSnapshot);
+    const persistedSignedOut: PersistedClient[] = [];
+    const signedOutPersister: Persister = {
+        persistClient: async (client) => {
+            persistedSignedOut.push(client);
+        },
+        restoreClient: async () => undefined,
+        removeClient: async () => undefined,
+    };
+
+    const signedOutStorage = {
+        getItem: (_key: string) => null,
+    };
+    const didClearSignedOut = clearUserCachesIfSignedOut(
+        signedOutClient,
+        signedOutStorage,
+        signedOutPersister,
+    );
+    await new Promise((r) => setTimeout(r, 0));
+
+    assert.equal(didClearSignedOut, true);
+    assert.equal(
+        signedOutClient.getQueryData([EXPENSES_KEY, SHEET_A, USER_AN]),
+        undefined,
+    );
+    assert.equal(
+        signedOutClient.getQueryData([TODOS_KEY, SHEET_A, USER_AN]),
+        undefined,
+    );
+    assert.equal(
+        signedOutClient.getQueryData([TODOS_KEY, SHEET_A, USER_BO]),
+        undefined,
+    );
+    assert.deepEqual(
+        signedOutClient.getQueryData([SHEET_CONFIG_KEY, SHEET_A]),
+        { tripName: "Hokkaido" },
+    );
+    assert.equal(persistedSignedOut.length, 1);
+    const savedKeys = persistedSignedOut[0].clientState.queries.map(
+        (q) => q.queryKey,
+    );
+    assert.equal(
+        savedKeys.some((k) => k[0] === TODOS_KEY || k[0] === EXPENSES_KEY),
+        false,
+    );
+
+    // Case 2: storage has user (signed in) -> hydrated todos & expenses kept, persister not rewritten.
+    const signedInClient = createTestQueryClient();
+    hydrate(signedInClient, dehydratedSnapshot);
+    const persistedSignedIn: PersistedClient[] = [];
+    const signedInPersister: Persister = {
+        persistClient: async (client) => {
+            persistedSignedIn.push(client);
+        },
+        restoreClient: async () => undefined,
+        removeClient: async () => undefined,
+    };
+
+    const signedInStorage = {
+        getItem: (key: string) =>
+            key === USER_STORAGE_KEY
+                ? JSON.stringify({ email: USER_AN, name: "小安" })
+                : null,
+    };
+    const didClearSignedIn = clearUserCachesIfSignedOut(
+        signedInClient,
+        signedInStorage,
+        signedInPersister,
+    );
+    await new Promise((r) => setTimeout(r, 0));
+
+    assert.equal(didClearSignedIn, false);
+    assert.deepEqual(
+        signedInClient.getQueryData([EXPENSES_KEY, SHEET_A, USER_AN]),
+        [{ itemName: "拉麵" }],
+    );
+    assert.deepEqual(
+        signedInClient.getQueryData([TODOS_KEY, SHEET_A, USER_AN]),
+        [makeTodo({ id: "an-1", ownerEmail: USER_AN })],
+    );
+    assert.deepEqual(
+        signedInClient.getQueryData([TODOS_KEY, SHEET_A, USER_BO]),
+        [makeTodo({ id: "bo-1", ownerEmail: USER_BO })],
+    );
+    assert.equal(persistedSignedIn.length, 0);
 });

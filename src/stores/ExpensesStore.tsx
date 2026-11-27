@@ -3,8 +3,10 @@
 import React, { createContext, useContext, useCallback, useMemo } from "react";
 import { useExpensesQuery } from "../../services/dataFetcher";
 import { Expense, ApiState } from "../types";
-import { queryClient } from "../../services/queryClient";
-import { clearUserQueryCaches } from "../../services/todoCache";
+import {
+    clearUserQueryCaches,
+    queryClient,
+} from "../../services/queryClient";
 
 interface ExpensesContextValue {
     expenses: Expense[];

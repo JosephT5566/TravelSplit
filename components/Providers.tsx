@@ -1,7 +1,10 @@
 "use client";
 
 import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
-import { queryClient } from "../services/queryClient";
+import {
+    clearUserCachesIfSignedOut,
+    queryClient,
+} from "../services/queryClient";
 import { createIDBPersister } from "../services/persister";
 
 const persister = createIDBPersister();
@@ -15,6 +18,9 @@ export function ReactQueryProvider({
         <PersistQueryClientProvider
             client={queryClient}
             persistOptions={{ persister }}
+            onSuccess={() => {
+                clearUserCachesIfSignedOut(queryClient, undefined, persister);
+            }}
         >
             {children}
         </PersistQueryClientProvider>

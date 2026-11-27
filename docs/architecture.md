@@ -51,7 +51,7 @@ The actual ID token is expected to be protected by an HTTP-only cookie and is no
 - `getGcfUrl(path, sheetId)` appends the selected `sheetId` query parameter.
 - `apiFetch` retries once after 401/403 or known unauthorized error codes for expense/config routes.
 - `POST /add` only replays after a 401/403 and successful token refresh, while the original form's account and sheet are still active.
-- `/todos` requests always use a caller-pinned `sheetId` (never re-reading `getSelectedSheetId()` at send time) and opt out of treating HTTP 403 as unauthorized: `403 FORBIDDEN` does not trigger token refresh, redirect to `/`, or clear auth, and structured errors expose `error.code` (and HTTP status) via `TodoApiError`. `401 UNAUTHORIZED` still shares the single-refresh queue, with `canReplayWrite` guarding Todo writes.
+- `/todos` requests always use a caller-pinned `sheetId` (never re-reading `getSelectedSheetId()` at send time) and opt out of treating HTTP 403 as unauthorized: `403 FORBIDDEN` does not trigger token refresh, redirect to `/`, or clear auth, and structured errors expose `error.code` (and HTTP status) via `TodoApiError`. `401 UNAUTHORIZED` still shares the single-refresh queue, with `canReplayWrite` guarding Todo writes. If token refresh fails, Todo `GET` redirects to `/` like other GETs, whereas a Todo write rejects with `TodoApiError` (`code: "UNAUTHORIZED"`) without redirecting (matching `POST /add`).
 - Token refresh is queued so concurrent failed requests share one refresh attempt.
 - GCF responses usually use `{ success, data, error }`; `/me` may return a user object directly.
 - `credentials: "include"` is important because auth cookies are part of the request model.
@@ -110,17 +110,17 @@ changes. See [backend rollout notes](https://github.com/JosephT5566/google-api-g
 
 ## Data Fetching and Persistence
 
-- `services/queryClient.ts` owns the TanStack Query client.
-- `services/persister.ts` wires query persistence into IndexedDB.
+- `services/queryClient.ts` owns the TanStack Query client and auth-clear cache helpers (`clearUserQueryCaches`, `clearUserCachesIfSignedOut`).
+- `services/persister.ts` wires query persistence into IndexedDB (awaiting `idb-keyval` writes in `persistClient`).
 - `services/dataFetcher.ts` contains query and mutation hooks for config, expenses, and todos (`services/todoCache.ts` holds pure TanStack Query options and cache helpers). The expense query waits for the selected sheet's config so it can map the sheet's member columns to email addresses.
-- Todo queries use `[TODOS_KEY, sheetId, ownerEmail]` and share the same IndexedDB persister. Check/uncheck (`PATCH /todos` with `checked` only) applies an optimistic update to that key and rolls back on failure; create, text edit, and delete update the exact pinned key from the server response. Todo writes use `networkMode: "always"` and `retry: false`, and fail immediately with `TodoApiError` (`code: "OFFLINE"`) when offline rather than queuing mutations.
+- Todo queries use `[TODOS_KEY, sheetId, ownerEmail]`, share the same IndexedDB persister, and do not retry 4xx `TodoApiError` responses (retrying up to 3 times only for non-4xx failures). Todo writes (create, check toggle, text edit, and delete) cancel in-flight queries for the exact pinned key in `onMutate` so stale GET responses cannot overwrite write results. Create appends server items de-duplicated by `id` when the list is already cached, or invalidates the exact key without seeding a partial list when the cache is `undefined`. Check/uncheck (`PATCH /todos` with `checked` only) applies an optimistic `checked` toggle; on error it reverts only the `checked` field if it still matches that mutation's optimistic value and invalidates the exact key so the cache converges to server truth. Todo writes use `networkMode: "always"` and `retry: false`, and fail immediately with `TodoApiError` (`code: "OFFLINE"`) when offline rather than queuing mutations.
 - Confirmed `POST /add` responses close the form and invalidate the expense query for the submitting sheet and account. The list and summary use `GET /data` to determine which rows the account can see. The write response's `newRecord` is optional for this flow.
 - Confirmed adds and deletes show a success toast in the signed-in layout. A rejected add shows an error above the dialog actions, keeps the draft, and allows another submission. An unreadable response, a 20-second write deadline, or another unconfirmed add shows a warning in the dialog and blocks Save until the form closes. The warning asks the user to check the trip records before adding the expense again.
 - A failed delete shows an error toast and keeps the row. A row without a timestamp shows a warning and sends no delete request.
 - `src/stores/ExpensesStore.tsx` exposes normalized expense state plus refresh status.
 - `src/stores/ConfigStore.tsx` merges default TWD currency config with sheet config and persists app-level display config.
 
-Clearing auth state (`clearExpensesCache` -> `clearUserQueryCaches`) removes both expense and todos queries across all sheets and `ownerEmail`s so stale user or companion data is not restored from IndexedDB.
+Clearing auth state (`clearExpensesCache` -> `clearUserQueryCaches` in `services/queryClient.ts`) removes both expense and todos queries across all sheets and `ownerEmail`s and immediately persists the cleaned client to IndexedDB via `persistQueryClientSave`. In addition, `components/Providers.tsx` passes an `onSuccess` callback to `PersistQueryClientProvider` that calls `clearUserCachesIfSignedOut` after restore, preventing an early startup auth clear from being undone by a later IndexedDB hydration.
 
 ## Styling and UI
 

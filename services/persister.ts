@@ -1,10 +1,10 @@
 import { get, set } from "idb-keyval";
-import { PersistedClient } from "@tanstack/react-query-persist-client";
+import type { PersistedClient } from "@tanstack/react-query-persist-client";
 
 export const createIDBPersister = (idbValidKey: IDBValidKey = "reactQuery") => {
     return {
         persistClient: async (client: PersistedClient) => {
-            set(idbValidKey, client);
+            await set(idbValidKey, client);
         },
         restoreClient: async () => {
             return await get(idbValidKey);
