@@ -11,4 +11,4 @@ Use [AGENTS.md](../AGENTS.md#issue-first-workflow) for the issue-first rules and
 
 To start a stage, name the skill and the issue or PR in your prompt. For example, say `Use issue-enhance on #12` or `Use review-pr on PR #15`.
 
-Check for an existing issue branch or PR before starting. If you hand off an unfinished issue, record the branch, last check, and remaining work in the issue or PR. The `ai-ready` label records approval. GitHub branch rules and required checks, when configured, enforce merge policy.
+Check for an existing issue branch or PR before starting. If you hand off an unfinished issue, record the branch, last check, and remaining work in the issue or PR. The `ai-ready` label records approval. Enable the repo-local `pre-push` hook (`git config core.hooksPath .githooks` or `npm run hooks:install`) to enforce `ai-ready` on `codex/issue-<n>-*` pushes locally (`git push --no-verify` to bypass). GitHub branch rules and required checks, when configured, enforce merge policy.

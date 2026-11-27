@@ -31,6 +31,7 @@ Update these docs when behavior, routes, auth assumptions, data shape, or develo
 - Use this workflow for implementation tracked in GitHub Issues. Follow the user's direct instructions for standalone work.
 - Use [issue-enhance](.agents/skills/issue-enhance/SKILL.md) to draft a spec with observable acceptance criteria. For UI changes, record the owner's selection using [ui-design-gate](.agents/skills/ui-design-gate/SKILL.md) before approval.
 - Start issue implementation once the owner has approved the spec and the issue carries `ai-ready`. Use [implement-from-issue](.agents/skills/implement-from-issue/SKILL.md) and a separate `codex/issue-<number>-<slug>` branch. Record decisions and handoff status in the issue or PR.
+- Enable the repo-local `pre-push` hook with `git config core.hooksPath .githooks` (or `npm run hooks:install`) to block pushing `codex/issue-<n>-*` unless issue `#n` carries `ai-ready`; bypass consciously with `git push --no-verify`.
 - Use [review-pr](.agents/skills/review-pr/SKILL.md) in a separate session. The owner merges after required checks and reviews pass.
 - Flag changes to auth, sheet isolation or expense writes, public travel-book access or reservation data, PWA caching, environment variables, Pages paths, or GitHub Actions for owner approval before merging.
 
