@@ -366,6 +366,41 @@ export function TodoRow({
         );
     }
 
+    if (!canEdit) {
+        return (
+            <li>
+                <div className="flex min-h-[48px] items-start gap-3 px-4 py-3">
+                    <span
+                        aria-hidden="true"
+                        className={cn(
+                            "mt-0.5 grid size-5 shrink-0 place-items-center rounded-full border-2",
+                            item.checked
+                                ? "border-primary bg-primary text-primary-foreground"
+                                : "border-text-main/28 bg-background/40 forest:border-text-main/38",
+                        )}
+                    >
+                        {item.checked && (
+                            <Check className="size-3 stroke-[3]" />
+                        )}
+                    </span>
+                    <span
+                        className={cn(
+                            "min-w-0 flex-1 text-[15px] leading-[22px] wrap-anywhere",
+                            item.checked
+                                ? "text-text-main/58 line-through decoration-current/60 forest:text-text-main/72 ocean:text-text-main/68"
+                                : "text-text-main",
+                        )}
+                    >
+                        <span className="sr-only">
+                            {item.checked ? "已完成：" : "未完成："}
+                        </span>
+                        {item.text}
+                    </span>
+                </div>
+            </li>
+        );
+    }
+
     const checkboxDisabled = !canEdit || !isOnline || isPending;
     const textDisabled = !isOnline || isPending;
 
