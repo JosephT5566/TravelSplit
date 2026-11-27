@@ -73,7 +73,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
                                         )}
                                     >
                                         <Icon aria-hidden="true" className="size-5 shrink-0" />
-                                        <span>{label}</span>
+                                        <span className="max-w-full truncate">{label}</span>
                                     </Link>
                                 );
                             })}

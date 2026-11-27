@@ -148,11 +148,7 @@ export function TodoLoadErrorState({
             </p>
             <button
                 type="button"
-                onClick={() => {
-                    if (!isDisabled) {
-                        onRetry();
-                    }
-                }}
+                onClick={onRetry}
                 disabled={isDisabled}
                 aria-disabled={isDisabled ? "true" : undefined}
                 aria-describedby={!isOnline ? offlineBannerId : undefined}
