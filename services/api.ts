@@ -1,4 +1,4 @@
-import {
+import type {
     AddExpenseRequest,
     Expense,
     SheetConfig,
@@ -6,9 +6,27 @@ import {
     RawExpense,
     ExpenseWriteResult,
     DeleteExpenseResponse,
+    TodoItem,
+    CreateTodoItemInput,
+    CreateTodosResponse,
+    UpdateTodoRequest,
+    UpdateTodoResponse,
+    DeleteTodoResponse,
 } from "../src/types";
 import logger from "@/src/utils/logger";
 import { getSelectedSheetId } from "@/src/utils/sheetSelection";
+
+export class TodoApiError extends Error {
+    code: string;
+    status?: number;
+
+    constructor(message: string, code: string, status?: number) {
+        super(message);
+        this.name = "TodoApiError";
+        this.code = code;
+        this.status = status;
+    }
+}
 
 let isRefreshing = false;
 let failedQueue: {
@@ -28,12 +46,20 @@ const processQueue = (error?: unknown) => {
     failedQueue = [];
 };
 
-const isUnauthorizedResponse = async (response: Response) => {
+const isUnauthorizedResponse = async (
+    response: Response,
+    {
+        treatForbiddenAsUnauthorized = true,
+    }: { treatForbiddenAsUnauthorized?: boolean } = {},
+) => {
     if (response.ok) {
         return false;
     }
 
-    if (response.status === 401 || response.status === 403) {
+    if (
+        response.status === 401 ||
+        (treatForbiddenAsUnauthorized && response.status === 403)
+    ) {
         return true;
     }
 
@@ -72,9 +98,11 @@ async function apiFetch(
     {
         hasRetried = false,
         canReplayWrite,
+        treatForbiddenAsUnauthorized = true,
     }: {
         hasRetried?: boolean;
         canReplayWrite?: () => boolean;
+        treatForbiddenAsUnauthorized?: boolean;
     } = {},
 ): Promise<Response> {
     try {
@@ -82,8 +110,11 @@ async function apiFetch(
 
         // A server error with an auth-looking payload may follow an applied write.
         const isDenied = canReplayWrite
-            ? response.status === 401 || response.status === 403
-            : await isUnauthorizedResponse(response);
+            ? response.status === 401 ||
+              (treatForbiddenAsUnauthorized && response.status === 403)
+            : await isUnauthorizedResponse(response, {
+                  treatForbiddenAsUnauthorized,
+              });
         if (!isDenied || hasRetried) {
             return response;
         }
@@ -92,7 +123,11 @@ async function apiFetch(
             if (options.signal?.aborted || (canReplayWrite && !canReplayWrite())) {
                 return response;
             }
-            return apiFetch(url, options, { hasRetried: true, canReplayWrite });
+            return apiFetch(url, options, {
+                hasRetried: true,
+                canReplayWrite,
+                treatForbiddenAsUnauthorized,
+            });
         };
 
         if (isRefreshing) {
@@ -199,6 +234,93 @@ const getGcfUrl = (path: string, sheetId = getSelectedSheetId()) => {
     url.searchParams.append("sheetId", sheetId);
     return url.toString();
 };
+
+function statusToTodoErrorCode(status: number): string {
+    switch (status) {
+        case 400:
+            return "INVALID_PARAMS";
+        case 401:
+            return "UNAUTHORIZED";
+        case 403:
+            return "FORBIDDEN";
+        case 404:
+            return "NOT_FOUND";
+        case 422:
+            return "INVALID_SHEET_LAYOUT";
+        default:
+            return status >= 500 ? "INTERNAL_SERVER_ERROR" : "UNKNOWN_ERROR";
+    }
+}
+
+async function processTodoResponse<T>(response: Response): Promise<T> {
+    let body: unknown;
+    try {
+        body = await response.json();
+    } catch {
+        throw new TodoApiError(
+            `Invalid response from server (${response.status || "unknown"})`,
+            response.ok
+                ? "INVALID_RESPONSE"
+                : statusToTodoErrorCode(response.status),
+            response.status,
+        );
+    }
+
+    if (typeof body !== "object" || body === null || !("success" in body)) {
+        throw new TodoApiError(
+            response.statusText || "Invalid response from server",
+            response.ok
+                ? "INVALID_RESPONSE"
+                : statusToTodoErrorCode(response.status),
+            response.status,
+        );
+    }
+
+    const envelope = body as {
+        success: unknown;
+        data?: unknown;
+        error?: { code?: unknown; message?: unknown } | null;
+    };
+
+    if (!response.ok || envelope.success !== true) {
+        const trimmedCode =
+            typeof envelope.error?.code === "string"
+                ? envelope.error.code.trim()
+                : "";
+        const code = trimmedCode || statusToTodoErrorCode(response.status);
+        const trimmedMessage =
+            typeof envelope.error?.message === "string"
+                ? envelope.error.message.trim()
+                : "";
+        const message =
+            trimmedMessage ||
+            response.statusText ||
+            "Unknown error from server";
+        throw new TodoApiError(message, code, response.status);
+    }
+
+    return envelope.data as T;
+}
+
+function getPinnedTodosUrl(sheetId: string): URL {
+    const trimmedSheetId = typeof sheetId === "string" ? sheetId.trim() : "";
+    if (!trimmedSheetId) {
+        throw new TodoApiError(
+            "Missing sheetId for todo request.",
+            "INVALID_PARAMS",
+        );
+    }
+    return new URL(getGcfUrl("/todos", trimmedSheetId));
+}
+
+function assertOnlineForTodoWrite() {
+    if (typeof navigator !== "undefined" && navigator.onLine === false) {
+        throw new TodoApiError(
+            "Cannot modify todos while offline.",
+            "OFFLINE",
+        );
+    }
+}
 
 const TWD_TOTAL_COLUMN = "金額（台幣）";
 const LEGACY_TWD_TOTAL_COLUMN = "台幣總額";
@@ -358,5 +480,152 @@ export const api = {
         logger.log("🚀 Fetched /me response:", response);
 
         return processUserResponse(response);
+    },
+
+    async getTodos(
+        sheetId: string,
+        ownerEmail?: string,
+        signal?: AbortSignal,
+    ): Promise<TodoItem[]> {
+        const url = getPinnedTodosUrl(sheetId);
+        const trimmedOwner =
+            typeof ownerEmail === "string" ? ownerEmail.trim() : "";
+        if (trimmedOwner) {
+            url.searchParams.append("ownerEmail", trimmedOwner);
+        }
+
+        const response = await apiFetch(
+            url.toString(),
+            {
+                method: "GET",
+                credentials: "include",
+                signal,
+            },
+            { treatForbiddenAsUnauthorized: false },
+        );
+        const data = await processTodoResponse<TodoItem[]>(response);
+        if (!Array.isArray(data)) {
+            throw new TodoApiError(
+                "Invalid todo list response.",
+                "INVALID_RESPONSE",
+                response.status,
+            );
+        }
+        return data;
+    },
+
+    async createTodos(
+        sheetId: string,
+        items: CreateTodoItemInput[],
+        canReplayWrite: () => boolean,
+    ): Promise<CreateTodosResponse> {
+        assertOnlineForTodoWrite();
+        const url = getPinnedTodosUrl(sheetId);
+        const payloadItems = items.map(({ text, checked }) =>
+            checked === undefined ? { text } : { text, checked },
+        );
+
+        const response = await apiFetch(
+            url.toString(),
+            {
+                method: "POST",
+                credentials: "include",
+                body: JSON.stringify({ items: payloadItems }),
+                headers: {
+                    "Content-Type": "application/json",
+                },
+            },
+            {
+                canReplayWrite,
+                treatForbiddenAsUnauthorized: false,
+            },
+        );
+        const data = await processTodoResponse<CreateTodosResponse>(response);
+        if (!data || !Array.isArray(data.items)) {
+            throw new TodoApiError(
+                "Invalid create todos response.",
+                "INVALID_RESPONSE",
+                response.status,
+            );
+        }
+        return data;
+    },
+
+    async updateTodo(
+        sheetId: string,
+        input: UpdateTodoRequest,
+        canReplayWrite: () => boolean,
+    ): Promise<UpdateTodoResponse> {
+        assertOnlineForTodoWrite();
+        const url = getPinnedTodosUrl(sheetId);
+        const body: UpdateTodoRequest = {
+            id: input.id,
+            ...(input.text !== undefined ? { text: input.text } : {}),
+            ...(input.checked !== undefined ? { checked: input.checked } : {}),
+        };
+
+        const response = await apiFetch(
+            url.toString(),
+            {
+                method: "PATCH",
+                credentials: "include",
+                body: JSON.stringify(body),
+                headers: {
+                    "Content-Type": "application/json",
+                },
+            },
+            {
+                canReplayWrite,
+                treatForbiddenAsUnauthorized: false,
+            },
+        );
+        const data = await processTodoResponse<UpdateTodoResponse>(response);
+        if (
+            !data ||
+            typeof data.item !== "object" ||
+            data.item === null ||
+            typeof data.item.id !== "string"
+        ) {
+            throw new TodoApiError(
+                "Invalid update todo response.",
+                "INVALID_RESPONSE",
+                response.status,
+            );
+        }
+        return data;
+    },
+
+    async deleteTodo(
+        sheetId: string,
+        id: string,
+        canReplayWrite: () => boolean,
+    ): Promise<DeleteTodoResponse> {
+        assertOnlineForTodoWrite();
+        const url = getPinnedTodosUrl(sheetId);
+
+        const response = await apiFetch(
+            url.toString(),
+            {
+                method: "DELETE",
+                credentials: "include",
+                body: JSON.stringify({ id }),
+                headers: {
+                    "Content-Type": "application/json",
+                },
+            },
+            {
+                canReplayWrite,
+                treatForbiddenAsUnauthorized: false,
+            },
+        );
+        const data = await processTodoResponse<DeleteTodoResponse>(response);
+        if (!data || typeof data.deletedId !== "string") {
+            throw new TodoApiError(
+                "Invalid delete todo response.",
+                "INVALID_RESPONSE",
+                response.status,
+            );
+        }
+        return data;
     },
 };

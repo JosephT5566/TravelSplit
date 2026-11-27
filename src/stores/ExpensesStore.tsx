@@ -3,8 +3,10 @@
 import React, { createContext, useContext, useCallback, useMemo } from "react";
 import { useExpensesQuery } from "../../services/dataFetcher";
 import { Expense, ApiState } from "../types";
-import { queryClient } from "../../services/queryClient";
-import { EXPENSES_KEY } from "../../services/cacheKeys";
+import {
+    clearUserQueryCaches,
+    queryClient,
+} from "../../services/queryClient";
 
 interface ExpensesContextValue {
     expenses: Expense[];
@@ -17,7 +19,7 @@ const ExpensesContext = createContext<ExpensesContextValue | undefined>(
 );
 
 export function clearExpensesCache() {
-    queryClient.removeQueries({ queryKey: [EXPENSES_KEY] });
+    clearUserQueryCaches(queryClient);
 }
 
 export function ExpensesProvider({ children }: { children: React.ReactNode }) {
