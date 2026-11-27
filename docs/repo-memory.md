@@ -30,7 +30,7 @@ The app is designed for real travel use: phones, intermittent network, outdoor r
 
 - `/`: main expense list and expense add/edit dialog.
 - `/summary`: expense summary.
-- `/plan`: trip plan/resource list.
+- `/plan`: trip plan, personal todo list, and resource list.
 - `/select-sheet`: selected Google Sheet picker when multiple sheets are configured.
 - `/2026-shimanami`: public Shimanami travel book.
 - `/2026-hokkaido-car`: public Hokkaido self-drive travel book.

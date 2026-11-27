@@ -122,12 +122,22 @@ changes. See [backend rollout notes](https://github.com/JosephT5566/google-api-g
 
 Clearing auth state (`clearExpensesCache` -> `clearUserQueryCaches` in `services/queryClient.ts`) removes both expense and todos queries across all sheets and `ownerEmail`s and immediately persists the cleaned client to IndexedDB via `persistQueryClientSave`. In addition, `components/Providers.tsx` passes an `onSuccess` callback to `PersistQueryClientProvider` that calls `clearUserCachesIfSignedOut` after restore, preventing an early startup auth clear from being undone by a later IndexedDB hydration.
 
+## Plan Page Todo Section
+
+The authenticated `/plan` route renders an inline personal Todo section (`components/todos/PlanTodoSection.tsx` -> `components/todos/TodoList.tsx`) between the travel-book cards and external resources.
+
+- `PlanTodoSection` keys `TodoList` by `[sheetId, user.email]` (matching `MainPage` in `app/page.tsx`) and passes pinned `sheetId`, `ownerEmail`, and `canEdit` props down so switching sheets or accounts remounts clean state without leaking previous rows.
+- Pure sorting, completion stats, text normalization/validation, character counter thresholds, and error-code-to-message mapping live in `src/utils/todoList.ts` (React-free) so future companion read-only views and export features can share the same logic. Items are always ordered by `createdAt` oldest first; toggling completion keeps items in place.
+- `src/hooks/useOnlineStatus.ts` subscribes to `online`/`offline` events via `useSyncExternalStore`. When offline, `TodoList` shows an offline status banner and disables write controls while keeping cached items readable; when offline with no cached data (`fetchStatus === "paused"` and `data === undefined`), it renders an offline-no-cache message instead of a permanent loading skeleton.
+- Per-row pending state is tracked in a `Set` of todo IDs using `mutateAsync` so concurrent row actions do not overwrite each other's pending state.
+- `403 FORBIDDEN` responses on Todo reads or writes show permission messages without triggering logout, token refresh, redirect, or cache clearing; `404 NOT_FOUND` on updates or deletes shows a stale-item toast and invalidates the pinned query key.
+
 ## Styling and UI
 
 - Global styles live in `app/globals.css`.
 - Tailwind config lives in `tailwind.config.ts`.
 - Component primitives live under `components/ui/`.
-- Feature UI lives directly in `components/` or `components/travel-books/`.
+- Feature UI lives directly in `components/`, `components/todos/`, or `components/travel-books/`.
 - Mobile-first behavior is important. Travel-book pages must work as practical field guides, not desktop dashboards.
 
 ## PWA and Static Export
