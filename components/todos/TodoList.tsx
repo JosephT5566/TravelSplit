@@ -381,13 +381,13 @@ export function TodoList({
 
     return (
         <section
-            aria-labelledby="plan-todos-heading"
+            aria-labelledby="todos-heading"
             className="flex min-w-0 flex-col gap-2.5"
         >
             <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                     <h2
-                        id="plan-todos-heading"
+                        id="todos-heading"
                         className="text-xl font-bold text-text-main"
                     >
                         待辦清單
@@ -507,8 +507,13 @@ export function TodoList({
                 ) : todosQuery.isError ? (
                     <TodoLoadErrorState
                         error={todosQuery.error}
+                        isOnline={isOnline}
                         isRetrying={todosQuery.isFetching}
+                        offlineBannerId={offlineBannerId}
                         onRetry={() => {
+                            if (!isOnline) {
+                                return;
+                            }
                             void todosQuery.refetch();
                         }}
                     />

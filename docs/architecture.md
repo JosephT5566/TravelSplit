@@ -12,7 +12,7 @@ The app is a Next.js App Router project. `app/layout.tsx` installs the global PW
 6. `AppShell`
 
 `AppShell` decides whether a route is public, signed out, waiting for sheet selection, or ready to render inside the authenticated `Layout`.
-The authenticated layout gives the header and bottom navigation their own rows and scrolls the content between them. The notification viewport sits above the navigation on mobile and in the top-right corner on desktop.
+The authenticated layout gives the header and 4-tab bottom navigation (`Expenses`, `Summary`, `待辦`, `Plan`) their own rows and scrolls the content between them. The notification viewport sits above the navigation on mobile and in the top-right corner on desktop.
 Toasts slide up from the bottom navigation on mobile and in from the right on desktop. They fade without sliding when reduced motion is enabled. The next queued toast appears after the current toast finishes closing.
 
 ## Public Travel Books
@@ -122,11 +122,11 @@ changes. See [backend rollout notes](https://github.com/JosephT5566/google-api-g
 
 Clearing auth state (`clearExpensesCache` -> `clearUserQueryCaches` in `services/queryClient.ts`) removes both expense and todos queries across all sheets and `ownerEmail`s and immediately persists the cleaned client to IndexedDB via `persistQueryClientSave`. In addition, `components/Providers.tsx` passes an `onSuccess` callback to `PersistQueryClientProvider` that calls `clearUserCachesIfSignedOut` after restore, preventing an early startup auth clear from being undone by a later IndexedDB hydration.
 
-## Plan Page Todo Section
+## Todo Page
 
-The authenticated `/plan` route renders an inline personal Todo section (`components/todos/PlanTodoSection.tsx` -> `components/todos/TodoList.tsx`) between the travel-book cards and external resources.
+The authenticated `/todos` route (4th bottom tab `待辦`, placed left of `Plan`) renders the personal todo list (`app/todos/page.tsx` -> `components/todos/TodosPageContent.tsx` -> `components/todos/TodoList.tsx`). `/plan` remains unchanged (travel books and external resources).
 
-- `PlanTodoSection` keys `TodoList` by `[sheetId, user.email]` (matching `MainPage` in `app/page.tsx`) and passes pinned `sheetId`, `ownerEmail`, and `canEdit` props down so switching sheets or accounts remounts clean state without leaking previous rows.
+- `TodosPageContent` keys `TodoList` by `[sheetId, user.email]` (matching `MainPage` in `app/page.tsx`) and passes pinned `sheetId`, `ownerEmail`, and `canEdit` props down so switching sheets or accounts remounts clean state without leaking previous rows.
 - Pure sorting, completion stats, text normalization/validation, character counter thresholds, and error-code-to-message mapping live in `src/utils/todoList.ts` (React-free) so future companion read-only views and export features can share the same logic. Items are always ordered by `createdAt` oldest first; toggling completion keeps items in place.
 - `src/hooks/useOnlineStatus.ts` subscribes to `online`/`offline` events via `useSyncExternalStore`. When offline, `TodoList` shows an offline status banner and disables write controls while keeping cached items readable; when offline with no cached data (`fetchStatus === "paused"` and `data === undefined`), it renders an offline-no-cache message instead of a permanent loading skeleton.
 - Per-row pending state is tracked in a `Set` of todo IDs using `mutateAsync` so concurrent row actions do not overwrite each other's pending state.
@@ -142,7 +142,7 @@ The authenticated `/plan` route renders an inline personal Todo section (`compon
 
 ## PWA and Static Export
 
-- `public/manifest.webmanifest` and `public/sw.js` support install/offline behavior.
+- `public/manifest.webmanifest` and `public/sw.js` support install/offline behavior (`sw.js` precaches core shell pages including `todos.html`).
 - `components/PWARegister.tsx` registers the service worker.
 - `public/offline.html` is the offline fallback.
 - `NEXT_PUBLIC_BASE_PATH` is used when generating manifest and icon URLs for hosted static paths.

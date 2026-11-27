@@ -94,11 +94,15 @@ export function TodoOfflineNoCacheState() {
 
 export function TodoLoadErrorState({
     error,
+    isOnline = true,
     isRetrying,
+    offlineBannerId,
     onRetry,
 }: {
     error: unknown;
+    isOnline?: boolean;
     isRetrying: boolean;
+    offlineBannerId?: string;
     onRetry: () => void;
 }) {
     if (isForbiddenError(error)) {
@@ -125,6 +129,8 @@ export function TodoLoadErrorState({
         kind === "invalid_sheet_layout" || kind === "unauthorized"
             ? getTodoErrorMessage(error, "load")
             : "請確認網路連線後再試一次。";
+    const isDisabled = isRetrying || !isOnline;
+    const isSpinnerActive = isRetrying && isOnline;
 
     return (
         <div
@@ -142,15 +148,21 @@ export function TodoLoadErrorState({
             </p>
             <button
                 type="button"
-                onClick={onRetry}
-                disabled={isRetrying}
-                className="mt-4 inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl border border-border bg-surface px-4 text-sm font-semibold text-text-main transition-colors hover:bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-surface disabled:opacity-55 motion-reduce:transition-none"
+                onClick={() => {
+                    if (!isDisabled) {
+                        onRetry();
+                    }
+                }}
+                disabled={isDisabled}
+                aria-disabled={isDisabled ? "true" : undefined}
+                aria-describedby={!isOnline ? offlineBannerId : undefined}
+                className="mt-4 inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl border border-border bg-surface px-4 text-sm font-semibold text-text-main transition-colors hover:bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-surface disabled:cursor-not-allowed disabled:opacity-55 disabled:hover:bg-surface motion-reduce:transition-none"
             >
                 <RefreshCw
                     aria-hidden="true"
                     className={cn(
                         "size-4",
-                        isRetrying &&
+                        isSpinnerActive &&
                             "animate-spin motion-reduce:animate-none",
                     )}
                 />

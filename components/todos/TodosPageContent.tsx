@@ -5,7 +5,7 @@ import { useSelectedSheetId } from "@/src/hooks/useSelectedSheetId";
 import { useAuthState } from "@/src/stores/AuthStore";
 import { TodoList } from "./TodoList";
 
-export function PlanTodoSection() {
+export function TodosPageContent() {
     const { user } = useAuthState();
     const sheetId = useSelectedSheetId();
 
