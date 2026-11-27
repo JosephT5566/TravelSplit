@@ -70,28 +70,49 @@ export function TodoList({
     const [isAdding, setIsAdding] = useState(false);
     const [pendingFocus, setPendingFocus] = useState<PendingFocus>(null);
 
-    const isMountedRef = useRef(false);
+    const activeRowActionRef = useRef<ActiveRowAction>(null);
     const pendingIdsRef = useRef<Set<string>>(new Set());
     const addInputRef = useRef<HTMLInputElement>(null);
     const textButtonRefs = useRef<Map<string, HTMLButtonElement>>(new Map());
     const deleteButtonRefs = useRef<Map<string, HTMLButtonElement>>(new Map());
 
-    useEffect(() => {
-        isMountedRef.current = true;
-        return () => {
-            isMountedRef.current = false;
-        };
-    }, []);
+    const updateActiveRowAction = useCallback(
+        (
+            next:
+                | ActiveRowAction
+                | ((current: ActiveRowAction) => ActiveRowAction),
+        ) => {
+            const value =
+                typeof next === "function"
+                    ? next(activeRowActionRef.current)
+                    : next;
+            activeRowActionRef.current = value;
+            setActiveRowAction(value);
+        },
+        [],
+    );
+
+    // True when keyboard focus can safely be restored for a settled request:
+    // the user has not moved on to a different row in the meantime.
+    const canRestoreFocusFor = (id: string) =>
+        activeRowActionRef.current === null ||
+        activeRowActionRef.current.id === id;
+
+    // A row whose save/delete is in flight must stay mounted so that a failure
+    // can keep its draft and inline error.
+    const isActiveRowBusy = () =>
+        activeRowActionRef.current !== null &&
+        pendingIdsRef.current.has(activeRowActionRef.current.id);
 
     useEffect(() => {
         if (!pendingFocus) return;
-        if (pendingFocus.target === "add") {
-            addInputRef.current?.focus();
-        } else if (pendingFocus.target === "text") {
-            textButtonRefs.current.get(pendingFocus.id)?.focus();
-        } else {
-            deleteButtonRefs.current.get(pendingFocus.id)?.focus();
-        }
+        const target =
+            pendingFocus.target === "add"
+                ? null
+                : pendingFocus.target === "text"
+                  ? textButtonRefs.current.get(pendingFocus.id)
+                  : deleteButtonRefs.current.get(pendingFocus.id);
+        (target ?? addInputRef.current)?.focus();
         setPendingFocus(null);
     }, [pendingFocus]);
 
@@ -128,25 +149,25 @@ export function TodoList({
 
     const endRowPending = useCallback((id: string) => {
         pendingIdsRef.current.delete(id);
-        if (isMountedRef.current) {
-            setPendingIds(new Set(pendingIdsRef.current));
-        }
+        setPendingIds(new Set(pendingIdsRef.current));
     }, []);
 
     const notifyWriteError = useCallback(
         (error: unknown, action: Exclude<TodoAction, "load">) => {
             const message = getTodoErrorMessage(error, action);
-            if (isMountedRef.current) {
-                showToast({
-                    kind: isOfflineError(error) ? "warning" : "error",
-                    message,
-                });
-            }
+            showToast({
+                kind: isOfflineError(error) ? "warning" : "error",
+                message,
+            });
             if (isNotFoundError(error)) {
-                void queryClient.invalidateQueries({
-                    queryKey: getTodosQueryKey(sheetId, ownerEmail),
-                    exact: true,
-                });
+                // The mutation's own onError may already have started a refetch.
+                void queryClient.invalidateQueries(
+                    {
+                        queryKey: getTodosQueryKey(sheetId, ownerEmail),
+                        exact: true,
+                    },
+                    { cancelRefetch: false },
+                );
             }
             return message;
         },
@@ -170,17 +191,13 @@ export function TodoList({
             setIsAdding(true);
             try {
                 await createTodosMutation.mutateAsync([{ text }]);
-                if (isMountedRef.current) {
-                    showToast({ kind: "success", message: "已新增待辦" });
-                }
+                showToast({ kind: "success", message: "已新增待辦" });
                 return true;
             } catch (error) {
                 notifyWriteError(error, "create");
                 return false;
             } finally {
-                if (isMountedRef.current) {
-                    setIsAdding(false);
-                }
+                setIsAdding(false);
             }
         },
         [canEdit, createTodosMutation, notifyWriteError, showToast],
@@ -217,17 +234,23 @@ export function TodoList({
             if (!canEdit || !isOnline || pendingIdsRef.current.has(item.id)) {
                 return;
             }
-            setActiveRowAction({ id: item.id, mode: "edit" });
+            if (isActiveRowBusy() && activeRowActionRef.current?.id !== item.id) {
+                return;
+            }
+            updateActiveRowAction({ id: item.id, mode: "edit" });
         },
         [canEdit, isOnline],
     );
 
-    const handleCancelEdit = useCallback((id: string) => {
-        setActiveRowAction((current) =>
-            current?.id === id && current.mode === "edit" ? null : current,
-        );
-        setPendingFocus({ target: "text", id });
-    }, []);
+    const handleCancelEdit = useCallback(
+        (id: string) => {
+            updateActiveRowAction((current) =>
+                current?.id === id && current.mode === "edit" ? null : current,
+            );
+            setPendingFocus({ target: "text", id });
+        },
+        [updateActiveRowAction],
+    );
 
     const handleSaveEdit = useCallback(
         async (id: string, text: string): Promise<string | null> => {
@@ -236,12 +259,13 @@ export function TodoList({
             }
             try {
                 await updateTodoMutation.mutateAsync({ id, text });
-                if (isMountedRef.current) {
-                    setActiveRowAction((current) =>
-                        current?.id === id && current.mode === "edit"
-                            ? null
-                            : current,
-                    );
+                const restoreFocus = canRestoreFocusFor(id);
+                updateActiveRowAction((current) =>
+                    current?.id === id && current.mode === "edit"
+                        ? null
+                        : current,
+                );
+                if (restoreFocus) {
                     setPendingFocus({ target: "text", id });
                 }
                 return null;
@@ -256,6 +280,7 @@ export function TodoList({
             endRowPending,
             notifyWriteError,
             startRowPending,
+            updateActiveRowAction,
             updateTodoMutation,
         ],
     );
@@ -265,17 +290,25 @@ export function TodoList({
             if (!canEdit || !isOnline || pendingIdsRef.current.has(item.id)) {
                 return;
             }
-            setActiveRowAction({ id: item.id, mode: "delete" });
+            if (isActiveRowBusy() && activeRowActionRef.current?.id !== item.id) {
+                return;
+            }
+            updateActiveRowAction({ id: item.id, mode: "delete" });
         },
         [canEdit, isOnline],
     );
 
-    const handleCancelDelete = useCallback((id: string) => {
-        setActiveRowAction((current) =>
-            current?.id === id && current.mode === "delete" ? null : current,
-        );
-        setPendingFocus({ target: "delete", id });
-    }, []);
+    const handleCancelDelete = useCallback(
+        (id: string) => {
+            updateActiveRowAction((current) =>
+                current?.id === id && current.mode === "delete"
+                    ? null
+                    : current,
+            );
+            setPendingFocus({ target: "delete", id });
+        },
+        [updateActiveRowAction],
+    );
 
     const handleConfirmDelete = useCallback(
         async (item: TodoItem) => {
@@ -290,30 +323,35 @@ export function TodoList({
             const prevItem =
                 currentIndex > 0 ? sortedTodos[currentIndex - 1] : undefined;
 
+            const focusAfterRowGone = (): PendingFocus =>
+                nextItem
+                    ? { target: "text", id: nextItem.id }
+                    : prevItem
+                      ? { target: "text", id: prevItem.id }
+                      : { target: "add" };
+
             try {
                 await deleteTodoMutation.mutateAsync(item.id);
-                if (isMountedRef.current) {
-                    setActiveRowAction((current) =>
-                        current?.id === item.id ? null : current,
-                    );
-                    showToast({ kind: "success", message: "已刪除待辦" });
-                    if (nextItem) {
-                        setPendingFocus({ target: "text", id: nextItem.id });
-                    } else if (prevItem) {
-                        setPendingFocus({ target: "text", id: prevItem.id });
-                    } else {
-                        setPendingFocus({ target: "add" });
-                    }
+                const restoreFocus = canRestoreFocusFor(item.id);
+                updateActiveRowAction((current) =>
+                    current?.id === item.id ? null : current,
+                );
+                showToast({ kind: "success", message: "已刪除待辦" });
+                if (restoreFocus) {
+                    setPendingFocus(focusAfterRowGone());
                 }
             } catch (error) {
                 notifyWriteError(error, "delete");
-                if (isMountedRef.current) {
-                    setActiveRowAction((current) =>
-                        current?.id === item.id ? null : current,
+                const restoreFocus = canRestoreFocusFor(item.id);
+                updateActiveRowAction((current) =>
+                    current?.id === item.id ? null : current,
+                );
+                if (restoreFocus) {
+                    setPendingFocus(
+                        isNotFoundError(error)
+                            ? focusAfterRowGone()
+                            : { target: "delete", id: item.id },
                     );
-                    if (!isNotFoundError(error)) {
-                        setPendingFocus({ target: "delete", id: item.id });
-                    }
                 }
             } finally {
                 endRowPending(item.id);
@@ -327,6 +365,7 @@ export function TodoList({
             showToast,
             sortedTodos,
             startRowPending,
+            updateActiveRowAction,
         ],
     );
 

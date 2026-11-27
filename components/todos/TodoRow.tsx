@@ -65,12 +65,22 @@ function TodoEditRow({
         el.setSelectionRange(end, end);
     }, []);
 
-    useLayoutEffect(() => {
+    const fitHeight = () => {
         const el = textareaRef.current;
         if (!el) return;
         el.style.height = "auto";
-        el.style.height = `${el.scrollHeight}px`;
-    }, [draft]);
+        // scrollHeight excludes the border, but the textarea is border-box.
+        const borderY = el.offsetHeight - el.clientHeight;
+        el.style.height = `${el.scrollHeight + borderY}px`;
+    };
+
+    useLayoutEffect(fitHeight, [draft]);
+
+    useEffect(() => {
+        // Re-measure when the width changes (rotation, window resize).
+        window.addEventListener("resize", fitHeight);
+        return () => window.removeEventListener("resize", fitHeight);
+    }, []);
 
     const handleSave = async () => {
         if (savingRef.current || isSaving || !isOnline) {
@@ -108,6 +118,10 @@ function TodoEditRow({
     };
 
     const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+        // Esc and Enter belong to the IME while a composition is active.
+        if (event.nativeEvent.isComposing || event.keyCode === 229) {
+            return;
+        }
         if (event.key === "Escape") {
             event.preventDefault();
             if (!isSaving) {
@@ -116,9 +130,6 @@ function TodoEditRow({
             return;
         }
         if (event.key === "Enter") {
-            if (event.nativeEvent.isComposing || event.keyCode === 229) {
-                return;
-            }
             event.preventDefault();
             if (
                 !event.shiftKey &&
@@ -457,7 +468,7 @@ export function TodoRow({
                         ref={(node) => setDeleteButtonRef(item.id, node)}
                         type="button"
                         disabled={!isOnline || isPending}
-                        aria-label={`刪除待辦：${item.text}`}
+                        aria-label={`刪除「${item.text}」`}
                         aria-describedby={
                             !isOnline ? offlineBannerId : undefined
                         }

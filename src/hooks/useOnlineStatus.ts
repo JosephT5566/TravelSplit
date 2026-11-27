@@ -13,7 +13,7 @@ const subscribe = (onStoreChange: () => void) => {
 };
 
 const getSnapshot = () =>
-    typeof navigator === "undefined" ? true : navigator.onLine;
+    typeof navigator === "undefined" || navigator.onLine !== false;
 
 const getServerSnapshot = () => true;
 

@@ -115,13 +115,7 @@ export function TodoAddRow({
                     aria-live="polite"
                     className="mt-1.5 flex items-center justify-between gap-2 px-0.5 text-xs tabular-nums"
                 >
-                    {counter.level === "warn" ? (
-                        <span className="font-semibold text-accent">
-                            接近字數上限
-                        </span>
-                    ) : (
-                        <span />
-                    )}
+                    <span />
                     <span
                         className={cn(
                             "font-semibold",
