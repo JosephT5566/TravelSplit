@@ -30,7 +30,8 @@ The app is designed for real travel use: phones, intermittent network, outdoor r
 
 - `/`: main expense list and expense add/edit dialog.
 - `/summary`: expense summary.
-- `/plan`: trip plan/resource list.
+- `/todos`: personal trip todo list (4th bottom tab `待辦`, left of `Plan`; precached as `todos.html` in `public/sw.js`).
+- `/plan`: trip plan travel books and resource list.
 - `/select-sheet`: selected Google Sheet picker when multiple sheets are configured.
 - `/2026-shimanami`: public Shimanami travel book.
 - `/2026-hokkaido-car`: public Hokkaido self-drive travel book.

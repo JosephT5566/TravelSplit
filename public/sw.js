@@ -7,6 +7,7 @@ const shellUrls = [
     "",
     "index.html",
     "summary.html",
+    "todos.html",
     "plan.html",
     "2026-shimanami.html",
     "select-sheet.html",
