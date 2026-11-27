@@ -38,6 +38,9 @@ function TodosSheetView({
     const handleSelectMember = useCallback(
         (email: string) => {
             setViewedEmail(email);
+            if (email === effectiveViewedEmail) {
+                return;
+            }
             const target = members.find((member) => member.email === email);
             if (!target || target.isMe) {
                 setLiveAnnouncement("已切回我的清單");
@@ -47,7 +50,7 @@ function TodosSheetView({
                 );
             }
         },
-        [members],
+        [members, effectiveViewedEmail],
     );
 
     const handleBackToMine = useCallback(() => {

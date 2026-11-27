@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useId, useState } from "react";
+import React, { useCallback, useId, useRef, useState } from "react";
 import { CopyPlus } from "lucide-react";
 import { useToast } from "@/components/ui/toast";
 import type { TodoItem } from "@/src/types";
@@ -24,6 +24,7 @@ export function TodoCopyButton({
     onBackToMine,
 }: TodoCopyButtonProps) {
     const [open, setOpen] = useState(false);
+    const triggerRef = useRef<HTMLButtonElement>(null);
     const offlineReasonId = useId();
     const showToast = useToast();
 
@@ -43,6 +44,7 @@ export function TodoCopyButton({
     return (
         <div className="border-b border-border bg-background/55 p-3">
             <button
+                ref={triggerRef}
                 type="button"
                 disabled={!isOnline}
                 aria-describedby={!isOnline ? offlineReasonId : undefined}
@@ -75,6 +77,12 @@ export function TodoCopyButton({
                 sourceItems={sourceItems}
                 isOnline={isOnline}
                 onSuccess={handleSuccess}
+                onCloseAutoFocus={(event) => {
+                    // Restore focus to the opener (the drawer is not rendered via a
+                    // DrawerTrigger, so Radix has no trigger to restore to).
+                    event.preventDefault();
+                    triggerRef.current?.focus();
+                }}
                 onGoToMine={onBackToMine ? handleGoToMine : undefined}
             />
         </div>

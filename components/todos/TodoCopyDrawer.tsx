@@ -31,6 +31,7 @@ export interface TodoCopyDrawerProps {
     sourceItems: readonly TodoItem[];
     isOnline: boolean;
     onSuccess: (message: string) => void;
+    onCloseAutoFocus?: (event: Event) => void;
     onGoToMine?: () => void;
 }
 
@@ -202,6 +203,7 @@ function TodoCopyDrawerBody({
             return;
         }
 
+        hasUserToggledRef.current = true;
         sendingRef.current = true;
         onSendingChange(true);
         setFailureState(null);
@@ -299,7 +301,7 @@ function TodoCopyDrawerBody({
                     type="button"
                     disabled={isSending || candidates.length === 0}
                     onClick={handleToggleSelectAll}
-                    className="inline-flex min-h-11 -ml-2 items-center rounded-lg px-2 text-[13px] font-semibold whitespace-nowrap text-text-main underline decoration-primary/70 underline-offset-4 transition-colors hover:bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:cursor-not-allowed disabled:no-underline disabled:opacity-45 motion-reduce:transition-none"
+                    className="inline-flex min-h-11 min-w-11 -ml-2 items-center justify-center rounded-lg px-2 text-[13px] font-semibold whitespace-nowrap text-text-main underline decoration-primary/70 underline-offset-4 transition-colors hover:bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:cursor-not-allowed disabled:no-underline disabled:opacity-45 motion-reduce:transition-none"
                 >
                     {allSelected ? "取消全選" : "全選"}
                 </button>
@@ -327,7 +329,6 @@ function TodoCopyDrawerBody({
                                             type="checkbox"
                                             checked={isChecked}
                                             disabled={isSending}
-                                            aria-label={candidate.text}
                                             onChange={() =>
                                                 handleToggleItem(candidate.id)
                                             }
@@ -487,9 +488,20 @@ export function TodoCopyDrawer({
     sourceItems,
     isOnline,
     onSuccess,
+    onCloseAutoFocus,
     onGoToMine,
 }: TodoCopyDrawerProps) {
     const [isSending, setIsSending] = useState(false);
+    // A fresh body session per open, so state never leaks into a re-open that
+    // happens while the previous close animation is still running.
+    const [wasOpen, setWasOpen] = useState(open);
+    const [sessionId, setSessionId] = useState(0);
+    if (open !== wasOpen) {
+        setWasOpen(open);
+        if (open) {
+            setSessionId((id) => id + 1);
+        }
+    }
     const isSendingRef = useRef(false);
 
     const handleSendingChange = useCallback((sending: boolean) => {
@@ -523,9 +535,11 @@ export function TodoCopyDrawer({
             open={open}
             onOpenChange={handleOpenChange}
             dismissible={!isSending}
+            autoFocus
         >
             <DrawerContent
                 aria-busy={isSending || undefined}
+                onCloseAutoFocus={onCloseAutoFocus}
                 onEscapeKeyDown={(event) => {
                     if (isSendingRef.current) {
                         event.preventDefault();
@@ -543,20 +557,19 @@ export function TodoCopyDrawer({
                 }}
                 className="flex max-h-[82dvh] flex-col overflow-hidden rounded-t-2xl border-t border-border bg-surface text-text-main data-[vaul-drawer-direction=bottom]:max-h-[82dvh]"
             >
-                {open && (
-                    <TodoCopyDrawerBody
-                        sheetId={sheetId}
-                        myEmail={myEmail}
-                        ownerName={ownerName}
-                        sourceItems={sourceItems}
-                        isOnline={isOnline}
-                        isSending={isSending}
-                        onSendingChange={handleSendingChange}
-                        onClose={handleClose}
-                        onSuccess={onSuccess}
-                        onGoToMine={onGoToMine}
-                    />
-                )}
+                <TodoCopyDrawerBody
+                    key={sessionId}
+                    sheetId={sheetId}
+                    myEmail={myEmail}
+                    ownerName={ownerName}
+                    sourceItems={sourceItems}
+                    isOnline={isOnline}
+                    isSending={isSending}
+                    onSendingChange={handleSendingChange}
+                    onClose={handleClose}
+                    onSuccess={onSuccess}
+                    onGoToMine={onGoToMine}
+                />
             </DrawerContent>
         </Drawer>
     );

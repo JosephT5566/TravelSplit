@@ -65,7 +65,7 @@ export function TodoMemberPills({
             <div
                 role="radiogroup"
                 aria-label="選擇要檢視的待辦清單"
-                className="flex min-w-0 flex-nowrap items-center gap-2 overflow-x-auto px-4 py-0.5"
+                className="flex min-w-0 flex-nowrap items-center gap-2 overflow-x-auto px-4 py-1.5"
             >
                 {members.map((member, index) => {
                     const isSelected = member.email === selectedEmail;
