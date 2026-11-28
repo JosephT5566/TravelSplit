@@ -13,8 +13,23 @@ import { useLocalStorageUser } from "../hooks/useLocalStorageUser";
 import { User } from "../types";
 import { clearExpensesCache } from "./ExpensesStore";
 import { api } from "../../services/api";
+import { todoSyncManager } from "../../services/todoSyncManager";
 import logger from "@/src/utils/logger";
 import { hasAuthErrorSearchParam } from "@/src/utils/authError";
+import { getActiveSheetIdOrNull } from "@/src/utils/sheetSelection";
+
+export type SignOutOptions = {
+    /**
+     * Clear the current user's todo outbox before redirecting.
+     * Pass `true` only when the outbox is already empty or after explicit user confirmation.
+     */
+    clearTodoOutbox?: boolean;
+};
+
+export type PrepareSignOutResult = {
+    canSignOutImmediately: boolean;
+    unsyncedCount: number;
+};
 
 type AuthState = {
     isSignedIn: boolean;
@@ -23,7 +38,8 @@ type AuthState = {
 };
 
 type AuthActions = {
-    signOut: () => void;
+    signOut: (options?: SignOutOptions) => Promise<void>;
+    prepareSignOut: () => Promise<PrepareSignOutResult>;
     saveUser: (user: User) => void;
 };
 
@@ -44,6 +60,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const checkCookie = async () => {
             try {
                 if (hasAuthErrorSearchParam()) {
+                    todoSyncManager.disposeActiveEngine();
                     clearUser();
                     clearExpensesCache();
                     return;
@@ -55,9 +72,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 // Case 1: No login cookie
                 if (!isLoggedIn) {
                     // If we have a persisted user but no login cookie, it means session expired or was cleared.
-                    // We should clean up local state.
+                    // We should clean up local state (preserving any persisted todo outbox for re-login).
                     if (persistedUser) {
                         logger.log("No login cookie found, clearing local user.");
+                        todoSyncManager.disposeActiveEngine();
                         clearUser();
                         clearExpensesCache();
                     }
@@ -79,7 +97,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                             "Failed to restore session from cookie",
                             error,
                         );
-                        // If fetching /me fails (e.g. 401 even with cookie), clear everything
+                        // If fetching /me fails (e.g. 401 even with cookie), clear auth state
+                        // without clearing persisted todo outbox entries.
+                        todoSyncManager.disposeActiveEngine();
                         clearUser();
                         clearExpensesCache();
                     }
@@ -95,15 +115,43 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
     }, [saveUser, clearUser, isLocalUserInitialized, persistedUser]);
 
-    const signOut = useCallback(() => {
-        const url = process.env.NEXT_PUBLIC_AUTH_PROXY;
-        if (url) {
-            const currentUrl = window.location.origin + window.location.pathname;
-            window.location.href = `${url}/auth/travel-split/logout?redirect_to=${encodeURIComponent(currentUrl)}`;
+    const prepareSignOut = useCallback(async (): Promise<PrepareSignOutResult> => {
+        const sheetId = getActiveSheetIdOrNull();
+        const ownerEmail = persistedUser?.email;
+        if (!sheetId || !ownerEmail) {
+            return { canSignOutImmediately: true, unsyncedCount: 0 };
         }
-        clearUser();
-        clearExpensesCache();
-    }, [clearUser]);
+        const result = await todoSyncManager.attemptSignOutFlush({
+            sheetId,
+            ownerEmail,
+        });
+        return {
+            canSignOutImmediately: result.flushed,
+            unsyncedCount: result.remainingCount,
+        };
+    }, [persistedUser?.email]);
+
+    const signOut = useCallback(
+        async (options?: SignOutOptions) => {
+            const ownerEmail = persistedUser?.email;
+            if (options?.clearTodoOutbox && ownerEmail) {
+                await todoSyncManager.clearOutboxAfterConfirmedSignOut(
+                    ownerEmail,
+                );
+            } else {
+                todoSyncManager.disposeActiveEngine();
+            }
+            clearUser();
+            clearExpensesCache();
+            const url = process.env.NEXT_PUBLIC_AUTH_PROXY;
+            if (url) {
+                const currentUrl =
+                    window.location.origin + window.location.pathname;
+                window.location.href = `${url}/auth/travel-split/logout?redirect_to=${encodeURIComponent(currentUrl)}`;
+            }
+        },
+        [clearUser, persistedUser?.email],
+    );
 
     const value = useMemo(
         () => ({
@@ -111,9 +159,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             user: persistedUser,
             isAuthInitialized,
             signOut,
+            prepareSignOut,
             saveUser,
         }),
-        [persistedUser, isAuthInitialized, signOut, saveUser],
+        [persistedUser, isAuthInitialized, signOut, prepareSignOut, saveUser],
     );
 
     return (
@@ -139,6 +188,6 @@ export function useAuthState() {
 }
 
 export function useAuthActions() {
-    const { signOut, saveUser } = useAuth();
-    return { signOut, saveUser };
+    const { signOut, prepareSignOut, saveUser } = useAuth();
+    return { signOut, prepareSignOut, saveUser };
 }

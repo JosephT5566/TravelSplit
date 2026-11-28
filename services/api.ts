@@ -7,15 +7,32 @@ import type {
     ExpenseWriteResult,
     DeleteExpenseResponse,
     TodoItem,
-    CreateTodoItemInput,
-    CreateTodosResponse,
-    UpdateTodoRequest,
-    UpdateTodoResponse,
-    DeleteTodoResponse,
 } from "../src/types";
 import logger from "@/src/utils/logger";
 import { getSelectedSheetId } from "@/src/utils/sheetSelection";
-import { normalizeTodoCategory } from "@/src/utils/todoList";
+import {
+    TODO_SYNC_MAX_OPS,
+    type TodoSyncOp,
+    type TodoSyncOpResultStatus,
+    type TodoSyncResponse,
+} from "@/src/utils/todoOutbox";
+
+export const TODO_SYNC_TIMEOUT_MS = 15_000;
+
+export type SyncTodosOptions = {
+    keepalive?: boolean;
+    signal?: AbortSignal;
+    canReplayWrite?: () => boolean;
+    timeoutMs?: number;
+};
+
+export interface TodoSyncTransport {
+    syncTodos(
+        sheetId: string,
+        ops: readonly TodoSyncOp[],
+        options?: SyncTodosOptions,
+    ): Promise<TodoSyncResponse>;
+}
 
 export class TodoApiError extends Error {
     code: string;
@@ -246,8 +263,12 @@ function statusToTodoErrorCode(status: number): string {
             return "FORBIDDEN";
         case 404:
             return "NOT_FOUND";
+        case 408:
+            return "TIMEOUT";
         case 422:
             return "INVALID_SHEET_LAYOUT";
+        case 429:
+            return "RATE_LIMITED";
         default:
             return status >= 500 ? "INTERNAL_SERVER_ERROR" : "UNKNOWN_ERROR";
     }
@@ -303,7 +324,7 @@ async function processTodoResponse<T>(response: Response): Promise<T> {
     return envelope.data as T;
 }
 
-function getPinnedTodosUrl(sheetId: string): URL {
+function getPinnedTodosUrl(sheetId: string, suffix = ""): URL {
     const trimmedSheetId = typeof sheetId === "string" ? sheetId.trim() : "";
     if (!trimmedSheetId) {
         throw new TodoApiError(
@@ -311,7 +332,58 @@ function getPinnedTodosUrl(sheetId: string): URL {
             "INVALID_PARAMS",
         );
     }
-    return new URL(getGcfUrl("/todos", trimmedSheetId));
+    return new URL(getGcfUrl(`/todos${suffix}`, trimmedSheetId));
+}
+
+const VALID_TODO_SYNC_OP_STATUSES = new Set<TodoSyncOpResultStatus>([
+    "applied",
+    "not_found",
+    "forbidden",
+    "invalid",
+]);
+
+function isValidTodoSyncResponse(data: unknown): data is TodoSyncResponse {
+    if (typeof data !== "object" || data === null) {
+        return false;
+    }
+    const candidate = data as { results?: unknown; syncedAt?: unknown };
+    if (
+        !Array.isArray(candidate.results) ||
+        typeof candidate.syncedAt !== "string" ||
+        !candidate.syncedAt.trim()
+    ) {
+        return false;
+    }
+    for (const entry of candidate.results) {
+        if (typeof entry !== "object" || entry === null) {
+            return false;
+        }
+        const opResult = entry as {
+            opId?: unknown;
+            status?: unknown;
+            item?: unknown;
+        };
+        if (opResult.opId !== null && typeof opResult.opId !== "string") {
+            return false;
+        }
+        if (
+            typeof opResult.status !== "string" ||
+            !VALID_TODO_SYNC_OP_STATUSES.has(
+                opResult.status as TodoSyncOpResultStatus,
+            )
+        ) {
+            return false;
+        }
+        if (
+            opResult.item !== undefined &&
+            (typeof opResult.item !== "object" ||
+                opResult.item === null ||
+                typeof (opResult.item as { id?: unknown }).id !== "string")
+        ) {
+            return false;
+        }
+    }
+    return true;
 }
 
 function assertOnlineForTodoWrite() {
@@ -515,126 +587,111 @@ export const api = {
         return data;
     },
 
-    async createTodos(
+    async syncTodos(
         sheetId: string,
-        items: CreateTodoItemInput[],
-        canReplayWrite: () => boolean,
-    ): Promise<CreateTodosResponse> {
-        assertOnlineForTodoWrite();
-        const url = getPinnedTodosUrl(sheetId);
-        const payloadItems = items.map(({ text, checked, category }) => {
-            const normalizedCategory = normalizeTodoCategory(category);
-            return {
-                text,
-                ...(checked !== undefined ? { checked } : {}),
-                ...(normalizedCategory ? { category: normalizedCategory } : {}),
-            };
-        });
-
-        const response = await apiFetch(
-            url.toString(),
-            {
-                method: "POST",
-                credentials: "include",
-                body: JSON.stringify({ items: payloadItems }),
-                headers: {
-                    "Content-Type": "application/json",
-                },
-            },
-            {
-                canReplayWrite,
-                treatForbiddenAsUnauthorized: false,
-            },
-        );
-        const data = await processTodoResponse<CreateTodosResponse>(response);
-        if (!data || !Array.isArray(data.items)) {
+        ops: readonly TodoSyncOp[],
+        options: SyncTodosOptions = {},
+    ): Promise<TodoSyncResponse> {
+        if (!Array.isArray(ops) || ops.length === 0 || ops.length > TODO_SYNC_MAX_OPS) {
             throw new TodoApiError(
-                "Invalid create todos response.",
-                "INVALID_RESPONSE",
-                response.status,
+                `ops must contain between 1 and ${TODO_SYNC_MAX_OPS} operations.`,
+                "INVALID_PARAMS",
             );
         }
-        return data;
-    },
-
-    async updateTodo(
-        sheetId: string,
-        input: UpdateTodoRequest,
-        canReplayWrite: () => boolean,
-    ): Promise<UpdateTodoResponse> {
         assertOnlineForTodoWrite();
-        const url = getPinnedTodosUrl(sheetId);
-        const body: UpdateTodoRequest = {
-            id: input.id,
-            ...(input.text !== undefined ? { text: input.text } : {}),
-            ...(input.checked !== undefined ? { checked: input.checked } : {}),
-            ...(input.category !== undefined
-                ? { category: normalizeTodoCategory(input.category) }
-                : {}),
+        const url = getPinnedTodosUrl(sheetId, "/sync");
+        const keepalive = Boolean(options.keepalive);
+        const timeoutMs = options.timeoutMs ?? TODO_SYNC_TIMEOUT_MS;
+        const useTimeout = !keepalive && timeoutMs > 0;
+        const replayGuard = options.canReplayWrite ?? (() => true);
+
+        const controller = useTimeout ? new AbortController() : null;
+        let timedOut = false;
+        let timeoutId: ReturnType<typeof setTimeout> | undefined;
+        let onExternalAbort: (() => void) | undefined;
+
+        if (controller && options.signal) {
+            if (options.signal.aborted) {
+                controller.abort(options.signal.reason);
+            } else {
+                onExternalAbort = () => controller.abort(options.signal?.reason);
+                options.signal.addEventListener("abort", onExternalAbort, {
+                    once: true,
+                });
+            }
+        }
+
+        const effectiveSignal = controller ? controller.signal : options.signal;
+        const fetchInit: RequestInit = {
+            method: "POST",
+            credentials: "include",
+            body: JSON.stringify({ ops }),
+            headers: {
+                "Content-Type": "application/json",
+            },
+            ...(effectiveSignal ? { signal: effectiveSignal } : {}),
+            ...(keepalive ? { keepalive: true } : {}),
         };
 
-        const response = await apiFetch(
-            url.toString(),
-            {
-                method: "PATCH",
-                credentials: "include",
-                body: JSON.stringify(body),
-                headers: {
-                    "Content-Type": "application/json",
-                },
-            },
-            {
-                canReplayWrite,
+        const requestPromise = (async () => {
+            const response = await apiFetch(url.toString(), fetchInit, {
+                hasRetried: keepalive,
+                canReplayWrite: replayGuard,
                 treatForbiddenAsUnauthorized: false,
-            },
-        );
-        const data = await processTodoResponse<UpdateTodoResponse>(response);
-        if (
-            !data ||
-            typeof data.item !== "object" ||
-            data.item === null ||
-            typeof data.item.id !== "string"
-        ) {
-            throw new TodoApiError(
-                "Invalid update todo response.",
-                "INVALID_RESPONSE",
-                response.status,
-            );
-        }
-        return data;
-    },
+            });
+            const data = await processTodoResponse<unknown>(response);
+            if (!isValidTodoSyncResponse(data)) {
+                throw new TodoApiError(
+                    "Invalid sync todos response.",
+                    "INVALID_RESPONSE",
+                    response.status,
+                );
+            }
+            return {
+                results: data.results,
+                syncedAt: data.syncedAt,
+            };
+        })();
 
-    async deleteTodo(
-        sheetId: string,
-        id: string,
-        canReplayWrite: () => boolean,
-    ): Promise<DeleteTodoResponse> {
-        assertOnlineForTodoWrite();
-        const url = getPinnedTodosUrl(sheetId);
+        // Prevent unhandled rejection if the timeout deadline wins the race.
+        requestPromise.catch(() => {});
 
-        const response = await apiFetch(
-            url.toString(),
-            {
-                method: "DELETE",
-                credentials: "include",
-                body: JSON.stringify({ id }),
-                headers: {
-                    "Content-Type": "application/json",
-                },
-            },
-            {
-                canReplayWrite,
-                treatForbiddenAsUnauthorized: false,
-            },
-        );
-        const data = await processTodoResponse<DeleteTodoResponse>(response);
-        if (!data || typeof data.deletedId !== "string") {
-            throw new TodoApiError(
-                "Invalid delete todo response.",
-                "INVALID_RESPONSE",
-                response.status,
-            );
+        try {
+            if (!useTimeout || !controller) {
+                return await requestPromise;
+            }
+            const deadline = new Promise<never>((_, reject) => {
+                timeoutId = setTimeout(() => {
+                    timedOut = true;
+                    controller.abort();
+                    reject(
+                        new TodoApiError(
+                            "Todo sync request timed out.",
+                            "TIMEOUT",
+                        ),
+                    );
+                }, timeoutMs);
+            });
+            return await Promise.race([requestPromise, deadline]);
+        } catch (error) {
+            if (timedOut) {
+                throw new TodoApiError(
+                    "Todo sync request timed out.",
+                    "TIMEOUT",
+                );
+            }
+            throw error;
+        } finally {
+            if (timeoutId !== undefined) {
+                clearTimeout(timeoutId);
+            }
+            if (options.signal && onExternalAbort) {
+                options.signal.removeEventListener("abort", onExternalAbort);
+            }
         }
-        return data;
     },
+};
+
+export const defaultTodoSyncTransport: TodoSyncTransport = {
+    syncTodos: (sheetId, ops, options) => api.syncTodos(sheetId, ops, options),
 };

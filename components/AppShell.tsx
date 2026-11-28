@@ -2,6 +2,7 @@
 
 import React from "react";
 import { usePathname, useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import { Layout } from "./Layout";
 import { LoginView } from "./LoginView";
 import { useAuthState } from "../src/stores/AuthStore";
@@ -11,16 +12,40 @@ import {
 } from "@/src/utils/sheetSelection";
 import { useSelectedSheetId } from "@/src/hooks/useSelectedSheetId";
 import { isPublicTravelBookPath } from "@/src/travel/registry";
+import { todoSyncManager } from "@/services/todoSyncManager";
 import { StartupLoading } from "./StartupLoading";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
-    const { isAuthInitialized, isSignedIn } = useAuthState();
+    const { isAuthInitialized, isSignedIn, user } = useAuthState();
+    const queryClient = useQueryClient();
     const pathname = usePathname();
     const router = useRouter();
     const selectedSheetId = useSelectedSheetId();
     const isPublicTravelBook = isPublicTravelBookPath(pathname);
     const [isSheetSelectionReady, setIsSheetSelectionReady] =
         React.useState(false);
+
+    React.useEffect(() => {
+        if (isPublicTravelBook || !isAuthInitialized) {
+            return;
+        }
+        if (isSignedIn && user?.email && selectedSheetId) {
+            void todoSyncManager.activateScope(
+                { sheetId: selectedSheetId, ownerEmail: user.email },
+                queryClient,
+            );
+            return;
+        }
+        // Passive sign-out or unselected sheet: stop timers/listeners, preserve IDB outbox.
+        todoSyncManager.disposeActiveEngine();
+    }, [
+        isAuthInitialized,
+        isPublicTravelBook,
+        isSignedIn,
+        queryClient,
+        selectedSheetId,
+        user?.email,
+    ]);
 
     React.useEffect(() => {
         if (isPublicTravelBook) {

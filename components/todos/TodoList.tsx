@@ -1,32 +1,22 @@
 "use client";
 
 import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
 import { ChevronDown, Pencil } from "lucide-react";
 import { useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
-import {
-    useCreateTodos,
-    useDeleteTodo,
-    useTodosQuery,
-    useUpdateTodo,
-} from "@/services/dataFetcher";
-import { getTodosQueryKey } from "@/services/todoCache";
 import { useOnlineStatus } from "@/src/hooks/useOnlineStatus";
+import { useTodoView } from "@/src/hooks/useTodoView";
 import type { TodoItem } from "@/src/types";
 import {
     getCompletionStats,
     getTodoCategories,
-    getTodoErrorMessage,
     groupTodosByCategory,
     isForbiddenError,
-    isNotFoundError,
-    isOfflineError,
     normalizeTodoCategory,
     sortTodos,
-    type TodoAction,
     type TodoCompletionStats,
 } from "@/src/utils/todoList";
+import type { TodoOutboxPatch } from "@/src/utils/todoOutbox";
 import { TodoAddRow } from "./TodoAddRow";
 import { TodoExportButton } from "./TodoExportButton";
 import { TodoRow, type TodoRowEditUpdates } from "./TodoRow";
@@ -73,8 +63,6 @@ type PendingFocus =
     | null;
 
 interface TodoListCardProps {
-    sheetId: string;
-    ownerEmail: string;
     canEdit: boolean;
     ownerName?: string;
     isOnline: boolean;
@@ -88,6 +76,9 @@ interface TodoListCardProps {
     error: unknown;
     isFetching: boolean;
     onRetry: () => void;
+    onCreate: (text: string, category?: string) => Promise<unknown>;
+    onUpdate: (id: string, patch: TodoOutboxPatch) => Promise<unknown>;
+    onRemove: (id: string) => Promise<unknown>;
     readOnlyTopAction?:
         | React.ReactNode
         | ((context: ReadOnlyTopActionContext) => React.ReactNode);
@@ -95,8 +86,6 @@ interface TodoListCardProps {
 }
 
 function TodoListCard({
-    sheetId,
-    ownerEmail,
     canEdit,
     ownerName,
     isOnline,
@@ -110,28 +99,23 @@ function TodoListCard({
     error,
     isFetching,
     onRetry,
+    onCreate,
+    onUpdate,
+    onRemove,
     readOnlyTopAction,
     onBackToMine,
 }: TodoListCardProps) {
     const showToast = useToast();
-    const queryClient = useQueryClient();
     const groupIdPrefix = useId();
-
-    const createTodosMutation = useCreateTodos(sheetId, ownerEmail);
-    const updateTodoMutation = useUpdateTodo(sheetId, ownerEmail);
-    const deleteTodoMutation = useDeleteTodo(sheetId, ownerEmail);
 
     const [activeRowAction, setActiveRowAction] =
         useState<ActiveRowAction>(null);
-    const [pendingIds, setPendingIds] = useState<Set<string>>(() => new Set());
-    const [isAdding, setIsAdding] = useState(false);
     const [pendingFocus, setPendingFocus] = useState<PendingFocus>(null);
     const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(
         () => new Set(),
     );
 
     const activeRowActionRef = useRef<ActiveRowAction>(null);
-    const pendingIdsRef = useRef<Set<string>>(new Set());
     const addInputRef = useRef<HTMLInputElement>(null);
     const textButtonRefs = useRef<Map<string, HTMLButtonElement>>(new Map());
     const deleteButtonRefs = useRef<Map<string, HTMLButtonElement>>(new Map());
@@ -162,17 +146,11 @@ function TodoListCard({
         [],
     );
 
-    // True when keyboard focus can safely be restored for a settled request:
+    // True when keyboard focus can safely be restored for a settled action:
     // the user has not moved on to a different row in the meantime.
     const canRestoreFocusFor = (id: string) =>
         activeRowActionRef.current === null ||
         activeRowActionRef.current.id === id;
-
-    // A row whose save/delete is in flight must stay mounted so that a failure
-    // can keep its draft and inline error.
-    const isActiveRowBusy = () =>
-        activeRowActionRef.current !== null &&
-        pendingIdsRef.current.has(activeRowActionRef.current.id);
 
     useEffect(() => {
         if (!pendingFocus) return;
@@ -239,20 +217,6 @@ function TodoListCard({
         [],
     );
 
-    const startRowPending = useCallback((id: string) => {
-        if (pendingIdsRef.current.has(id)) {
-            return false;
-        }
-        pendingIdsRef.current.add(id);
-        setPendingIds(new Set(pendingIdsRef.current));
-        return true;
-    }, []);
-
-    const endRowPending = useCallback((id: string) => {
-        pendingIdsRef.current.delete(id);
-        setPendingIds(new Set(pendingIdsRef.current));
-    }, []);
-
     const expandGroup = useCallback((groupKey: string) => {
         setCollapsedGroups((current) => {
             if (!current.has(groupKey)) {
@@ -267,11 +231,7 @@ function TodoListCard({
     const handleToggleGroup = useCallback(
         (groupKey: string) => {
             const willCollapse = !collapsedGroups.has(groupKey);
-            if (
-                willCollapse &&
-                activeRowActionRef.current &&
-                !isActiveRowBusy()
-            ) {
+            if (willCollapse && activeRowActionRef.current) {
                 const activeId = activeRowActionRef.current.id;
                 const activeItem = sortedTodos.find(
                     (candidate) => candidate.id === activeId,
@@ -315,98 +275,37 @@ function TodoListCard({
         });
     }, [groups, showGroupHeaders]);
 
-    const notifyWriteError = useCallback(
-        (err: unknown, action: Exclude<TodoAction, "load">) => {
-            const message = getTodoErrorMessage(err, action);
-            showToast({
-                kind: isOfflineError(err) ? "warning" : "error",
-                message,
-            });
-            if (isNotFoundError(err)) {
-                // The mutation's own onError may already have started a refetch.
-                void queryClient.invalidateQueries(
-                    {
-                        queryKey: getTodosQueryKey(sheetId, ownerEmail),
-                        exact: true,
-                    },
-                    { cancelRefetch: false },
-                );
-            }
-            return message;
-        },
-        [ownerEmail, queryClient, sheetId, showToast],
-    );
-
     const handleAdd = useCallback(
         async (text: string, category: string): Promise<boolean> => {
             if (!canEdit) return false;
             const normalizedCategory = normalizeTodoCategory(category);
             if (!normalizedCategory) return false;
-            setIsAdding(true);
-            try {
-                const payload = [{ text, category: normalizedCategory }];
-                const response =
-                    await createTodosMutation.mutateAsync(payload);
-                const createdCategory =
-                    response.items[0] !== undefined
-                        ? normalizeTodoCategory(response.items[0].category)
-                        : normalizedCategory;
-                expandGroup(createdCategory);
-                showToast({ kind: "success", message: "已新增待辦" });
-                return true;
-            } catch (err) {
-                notifyWriteError(err, "create");
-                return false;
-            } finally {
-                setIsAdding(false);
-            }
+            await onCreate(text, normalizedCategory);
+            expandGroup(normalizedCategory);
+            showToast({ kind: "success", message: "已新增待辦" });
+            return true;
         },
-        [
-            canEdit,
-            createTodosMutation,
-            expandGroup,
-            notifyWriteError,
-            showToast,
-        ],
+        [canEdit, expandGroup, onCreate, showToast],
     );
 
     const handleToggleCheck = useCallback(
-        async (item: TodoItem) => {
-            if (!canEdit || !isOnline || !startRowPending(item.id)) {
+        (item: TodoItem) => {
+            if (!canEdit) {
                 return;
             }
-            try {
-                await updateTodoMutation.mutateAsync({
-                    id: item.id,
-                    checked: !item.checked,
-                });
-            } catch (err) {
-                notifyWriteError(err, "update");
-            } finally {
-                endRowPending(item.id);
-            }
+            void onUpdate(item.id, { checked: !item.checked });
         },
-        [
-            canEdit,
-            endRowPending,
-            isOnline,
-            notifyWriteError,
-            startRowPending,
-            updateTodoMutation,
-        ],
+        [canEdit, onUpdate],
     );
 
     const handleStartEdit = useCallback(
         (item: TodoItem) => {
-            if (!canEdit || !isOnline || pendingIdsRef.current.has(item.id)) {
-                return;
-            }
-            if (isActiveRowBusy() && activeRowActionRef.current?.id !== item.id) {
+            if (!canEdit) {
                 return;
             }
             updateActiveRowAction({ id: item.id, mode: "edit" });
         },
-        [canEdit, isOnline, updateActiveRowAction],
+        [canEdit, updateActiveRowAction],
     );
 
     const handleCancelEdit = useCallback(
@@ -424,60 +323,43 @@ function TodoListCard({
             id: string,
             updates: TodoRowEditUpdates,
         ): Promise<string | null> => {
-            if (!canEdit || !startRowPending(id)) {
+            if (!canEdit) {
                 return null;
             }
-            try {
-                const response = await updateTodoMutation.mutateAsync({
-                    id,
-                    ...updates,
-                });
-                const savedCategory = normalizeTodoCategory(
-                    response.item.category,
-                );
+            await onUpdate(id, updates);
+            const savedCategory =
+                updates.category !== undefined
+                    ? normalizeTodoCategory(updates.category)
+                    : undefined;
+            if (savedCategory !== undefined) {
                 expandGroup(savedCategory);
-                const restoreFocus = canRestoreFocusFor(id);
-                updateActiveRowAction((current) =>
-                    current?.id === id && current.mode === "edit"
-                        ? null
-                        : current,
-                );
-                if (restoreFocus) {
-                    setPendingFocus({
-                        target: "text",
-                        id,
-                        expectedCategory: savedCategory,
-                    });
-                }
-                return null;
-            } catch (err) {
-                return notifyWriteError(err, "update");
-            } finally {
-                endRowPending(id);
             }
+            const restoreFocus = canRestoreFocusFor(id);
+            updateActiveRowAction((current) =>
+                current?.id === id && current.mode === "edit" ? null : current,
+            );
+            if (restoreFocus) {
+                setPendingFocus({
+                    target: "text",
+                    id,
+                    ...(savedCategory !== undefined
+                        ? { expectedCategory: savedCategory }
+                        : {}),
+                });
+            }
+            return null;
         },
-        [
-            canEdit,
-            endRowPending,
-            expandGroup,
-            notifyWriteError,
-            startRowPending,
-            updateActiveRowAction,
-            updateTodoMutation,
-        ],
+        [canEdit, expandGroup, onUpdate, updateActiveRowAction],
     );
 
     const handleStartDelete = useCallback(
         (item: TodoItem) => {
-            if (!canEdit || !isOnline || pendingIdsRef.current.has(item.id)) {
-                return;
-            }
-            if (isActiveRowBusy() && activeRowActionRef.current?.id !== item.id) {
+            if (!canEdit) {
                 return;
             }
             updateActiveRowAction({ id: item.id, mode: "delete" });
         },
-        [canEdit, isOnline, updateActiveRowAction],
+        [canEdit, updateActiveRowAction],
     );
 
     const handleCancelDelete = useCallback(
@@ -494,7 +376,7 @@ function TodoListCard({
 
     const handleConfirmDelete = useCallback(
         async (item: TodoItem) => {
-            if (!canEdit || !startRowPending(item.id)) {
+            if (!canEdit) {
                 return;
             }
             const visibleItems = groups.flatMap((group) =>
@@ -517,49 +399,26 @@ function TodoListCard({
                       ? { target: "text", id: prevItem.id }
                       : { target: "add" };
 
-            try {
-                await deleteTodoMutation.mutateAsync(item.id);
-                const restoreFocus = canRestoreFocusFor(item.id);
-                updateActiveRowAction((current) =>
-                    current?.id === item.id ? null : current,
-                );
-                showToast({ kind: "success", message: "已刪除待辦" });
-                if (restoreFocus) {
-                    setPendingFocus({
-                        ...focusAfterRowGone(),
-                        waitUntilAbsentId: item.id,
-                    });
-                }
-            } catch (err) {
-                notifyWriteError(err, "delete");
-                const restoreFocus = canRestoreFocusFor(item.id);
-                updateActiveRowAction((current) =>
-                    current?.id === item.id ? null : current,
-                );
-                if (restoreFocus) {
-                    setPendingFocus(
-                        isNotFoundError(err)
-                            ? {
-                                  ...focusAfterRowGone(),
-                                  waitUntilAbsentId: item.id,
-                              }
-                            : { target: "delete", id: item.id },
-                    );
-                }
-            } finally {
-                endRowPending(item.id);
+            await onRemove(item.id);
+            const restoreFocus = canRestoreFocusFor(item.id);
+            updateActiveRowAction((current) =>
+                current?.id === item.id ? null : current,
+            );
+            showToast({ kind: "success", message: "已刪除待辦" });
+            if (restoreFocus) {
+                setPendingFocus({
+                    ...focusAfterRowGone(),
+                    waitUntilAbsentId: item.id,
+                });
             }
         },
         [
             canEdit,
             collapsedGroups,
-            deleteTodoMutation,
-            endRowPending,
             groups,
-            notifyWriteError,
+            onRemove,
             showGroupHeaders,
             showToast,
-            startRowPending,
             updateActiveRowAction,
         ],
     );
@@ -580,11 +439,8 @@ function TodoListCard({
                 key={item.id}
                 item={item}
                 canEdit={canEdit}
-                isOnline={isOnline}
-                isPending={pendingIds.has(item.id)}
                 mode={mode}
                 existingCategories={existingCategories}
-                offlineBannerId={offlineBannerId}
                 setTextButtonRef={setTextButtonRef}
                 setDeleteButtonRef={setDeleteButtonRef}
                 onToggleCheck={handleToggleCheck}
@@ -620,10 +476,7 @@ function TodoListCard({
                 <>
                     {canEdit ? (
                         <TodoAddRow
-                            isOnline={isOnline}
-                            isSubmitting={isAdding}
                             existingCategories={existingCategories}
-                            offlineBannerId={offlineBannerId}
                             inputRef={addInputRef}
                             onAdd={handleAdd}
                         />
@@ -729,7 +582,7 @@ function TodoListCard({
                                 </ul>
                             )}
 
-                            {canEdit && isOnline && (
+                            {canEdit && (
                                 <p className="flex items-center gap-1.5 border-t border-border/60 bg-background/40 px-4 py-2 text-[11px] text-text-main/55 forest:text-text-main/68 ocean:text-text-main/65">
                                     <Pencil
                                         aria-hidden="true"
@@ -784,14 +637,14 @@ export function TodoList({
     const isOnline = useOnlineStatus();
     const offlineBannerId = useId();
 
-    const todosQuery = useTodosQuery(sheetId, ownerEmail);
+    const todoView = useTodoView(sheetId, ownerEmail, { readOnly: !canEdit });
 
     const sortedTodos = useMemo(
-        () => (todosQuery.data ? sortTodos(todosQuery.data) : []),
-        [todosQuery.data],
+        () => (todoView.items ? sortTodos(todoView.items) : []),
+        [todoView.items],
     );
 
-    const hasData = todosQuery.data !== undefined;
+    const hasData = todoView.items !== undefined;
     const stats = useMemo(
         () => getCompletionStats(sortedTodos),
         [sortedTodos],
@@ -799,17 +652,17 @@ export function TodoList({
 
     const isOfflineNoCache =
         !hasData &&
-        todosQuery.status === "pending" &&
-        (todosQuery.fetchStatus === "paused" || !isOnline);
+        todoView.status === "pending" &&
+        (todoView.fetchStatus === "paused" || !isOnline);
     const isInitialLoading =
         !hasData &&
-        todosQuery.status === "pending" &&
-        todosQuery.fetchStatus !== "paused" &&
+        todoView.status === "pending" &&
+        todoView.fetchStatus !== "paused" &&
         isOnline;
     const showReadOnlyBanner =
         !canEdit &&
         Boolean(ownerName) &&
-        !(todosQuery.isError && isForbiddenError(todosQuery.error));
+        !(todoView.isError && isForbiddenError(todoView.error));
 
     return (
         <section
@@ -861,8 +714,6 @@ export function TodoList({
 
             <TodoListCard
                 key={JSON.stringify([sheetId, ownerEmail, canEdit])}
-                sheetId={sheetId}
-                ownerEmail={ownerEmail}
                 canEdit={canEdit}
                 ownerName={ownerName}
                 isOnline={isOnline}
@@ -872,16 +723,19 @@ export function TodoList({
                 stats={stats}
                 isOfflineNoCache={isOfflineNoCache}
                 isInitialLoading={isInitialLoading}
-                isError={todosQuery.isError}
-                error={todosQuery.error}
-                isFetching={todosQuery.isFetching}
+                isError={todoView.isError}
+                error={todoView.error}
+                isFetching={todoView.isFetching}
+                onCreate={todoView.create}
+                onUpdate={todoView.update}
+                onRemove={todoView.remove}
                 readOnlyTopAction={readOnlyTopAction}
                 onBackToMine={onBackToMine}
                 onRetry={() => {
                     if (!isOnline) {
                         return;
                     }
-                    void todosQuery.refetch();
+                    void todoView.refetch();
                 }}
             />
         </section>

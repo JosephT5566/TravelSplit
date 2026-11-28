@@ -4,7 +4,6 @@ import React, { useEffect, useId, useLayoutEffect, useRef, useState } from "reac
 import {
     Check,
     CircleAlert,
-    Loader2,
     Tag,
     Trash2,
     TriangleAlert,
@@ -37,11 +36,8 @@ export type TodoRowEditUpdates = {
 interface TodoRowProps {
     item: TodoItem;
     canEdit: boolean;
-    isOnline: boolean;
-    isPending: boolean;
     mode: TodoRowMode;
     existingCategories: readonly string[];
-    offlineBannerId?: string;
     setTextButtonRef: (id: string, node: HTMLButtonElement | null) => void;
     setDeleteButtonRef: (id: string, node: HTMLButtonElement | null) => void;
     onToggleCheck: (item: TodoItem) => void;
@@ -58,13 +54,11 @@ interface TodoRowProps {
 
 function TodoEditRow({
     item,
-    isOnline,
     existingCategories,
     onCancel,
     onSave,
 }: {
     item: TodoItem;
-    isOnline: boolean;
     existingCategories: readonly string[];
     onCancel: () => void;
     onSave: (updates: TodoRowEditUpdates) => Promise<string | null>;
@@ -93,7 +87,7 @@ function TodoEditRow({
     const categoryCounter = getCategoryCounter(
         countUnicodeCodePoints(customCategoryInput),
     );
-    const inputsDisabled = isSaving || !isOnline;
+    const inputsDisabled = isSaving;
 
     useEffect(() => {
         const el = textareaRef.current;
@@ -121,7 +115,7 @@ function TodoEditRow({
     }, []);
 
     const handleSave = async () => {
-        if (savingRef.current || isSaving || !isOnline) {
+        if (savingRef.current || isSaving) {
             return;
         }
 
@@ -443,26 +437,14 @@ function TodoEditRow({
                     </button>
                     <button
                         type="button"
-                        disabled={isSaving || !isOnline}
+                        disabled={isSaving}
                         onClick={() => {
                             void handleSave();
                         }}
                         className="inline-flex min-h-11 items-center justify-center gap-1 rounded-xl bg-primary px-3.5 text-sm font-semibold whitespace-nowrap text-gray-950 ocean:text-white transition-colors hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-surface disabled:opacity-55 motion-reduce:transition-none"
                     >
-                        {isSaving ? (
-                            <>
-                                <Loader2
-                                    aria-hidden="true"
-                                    className="size-4 animate-spin motion-reduce:animate-none"
-                                />
-                                <span>儲存中…</span>
-                            </>
-                        ) : (
-                            <>
-                                <Check aria-hidden="true" className="size-4" />
-                                <span>儲存</span>
-                            </>
-                        )}
+                        <Check aria-hidden="true" className="size-4" />
+                        <span>儲存</span>
                     </button>
                 </div>
             </div>
@@ -472,14 +454,10 @@ function TodoEditRow({
 
 function TodoDeleteConfirmRow({
     item,
-    isOnline,
-    isDeleting,
     onCancel,
     onConfirm,
 }: {
     item: TodoItem;
-    isOnline: boolean;
-    isDeleting: boolean;
     onCancel: () => void;
     onConfirm: () => void;
 }) {
@@ -490,7 +468,7 @@ function TodoDeleteConfirmRow({
     }, []);
 
     const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
-        if (event.key === "Escape" && !isDeleting) {
+        if (event.key === "Escape") {
             event.preventDefault();
             onCancel();
         }
@@ -514,7 +492,6 @@ function TodoDeleteConfirmRow({
                 <button
                     ref={cancelButtonRef}
                     type="button"
-                    disabled={isDeleting}
                     onClick={onCancel}
                     className="inline-flex min-h-11 items-center justify-center rounded-xl border border-border bg-surface px-4 text-sm font-medium whitespace-nowrap text-text-main transition-colors hover:bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-50 motion-reduce:transition-none"
                 >
@@ -522,21 +499,10 @@ function TodoDeleteConfirmRow({
                 </button>
                 <button
                     type="button"
-                    disabled={isDeleting || !isOnline}
                     onClick={onConfirm}
                     className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl bg-red-600 px-4 text-sm font-semibold whitespace-nowrap text-white transition-colors hover:bg-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:ring-offset-2 focus-visible:ring-offset-red-50 forest:focus-visible:ring-offset-red-950 disabled:opacity-60 motion-reduce:transition-none"
                 >
-                    {isDeleting ? (
-                        <>
-                            <Loader2
-                                aria-hidden="true"
-                                className="size-4 animate-spin motion-reduce:animate-none"
-                            />
-                            <span>刪除中…</span>
-                        </>
-                    ) : (
-                        <span>刪除</span>
-                    )}
+                    <span>刪除</span>
                 </button>
             </div>
         </div>
@@ -546,11 +512,8 @@ function TodoDeleteConfirmRow({
 export function TodoRow({
     item,
     canEdit,
-    isOnline,
-    isPending,
     mode,
     existingCategories,
-    offlineBannerId,
     setTextButtonRef,
     setDeleteButtonRef,
     onToggleCheck,
@@ -566,7 +529,6 @@ export function TodoRow({
             <li>
                 <TodoEditRow
                     item={item}
-                    isOnline={isOnline}
                     existingCategories={existingCategories}
                     onCancel={() => onCancelEdit(item.id)}
                     onSave={(updates) => onSaveEdit(item.id, updates)}
@@ -580,8 +542,6 @@ export function TodoRow({
             <li>
                 <TodoDeleteConfirmRow
                     item={item}
-                    isOnline={isOnline}
-                    isDeleting={isPending}
                     onCancel={() => onCancelDelete(item.id)}
                     onConfirm={() => onConfirmDelete(item)}
                 />
@@ -624,39 +584,16 @@ export function TodoRow({
         );
     }
 
-    const checkboxDisabled = !canEdit || !isOnline || isPending;
-    const textDisabled = !isOnline || isPending;
-
     return (
         <li>
-            <div
-                className={cn(
-                    "flex min-h-[52px] items-start gap-1 px-1.5 py-1 transition-colors duration-150 motion-reduce:transition-none",
-                    isPending && "bg-background/55",
-                )}
-            >
-                <label
-                    className={cn(
-                        "grid size-11 shrink-0 place-items-center",
-                        isPending
-                            ? "cursor-wait"
-                            : checkboxDisabled
-                              ? "cursor-not-allowed opacity-55"
-                              : "cursor-pointer",
-                    )}
-                >
+            <div className="flex min-h-[52px] items-start gap-1 px-1.5 py-1 transition-colors duration-150 motion-reduce:transition-none">
+                <label className="grid size-11 shrink-0 cursor-pointer place-items-center">
                     <input
                         type="checkbox"
                         checked={item.checked}
-                        disabled={checkboxDisabled}
                         aria-label={item.text}
-                        aria-describedby={
-                            !isOnline ? offlineBannerId : undefined
-                        }
                         onChange={() => {
-                            if (!checkboxDisabled) {
-                                onToggleCheck(item);
-                            }
+                            onToggleCheck(item);
                         }}
                         className="peer sr-only"
                     />
@@ -664,82 +601,45 @@ export function TodoRow({
                         aria-hidden="true"
                         className={cn(
                             "grid size-[22px] place-items-center rounded-[6px] border-2 transition-colors duration-150 peer-focus-visible:ring-2 peer-focus-visible:ring-primary peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-surface motion-reduce:transition-none",
-                            isPending
-                                ? "border-primary/60 bg-primary/12 text-primary"
-                                : item.checked
-                                  ? "border-primary bg-primary text-primary-foreground"
-                                  : "border-text-main/35 bg-surface forest:border-text-main/45",
+                            item.checked
+                                ? "border-primary bg-primary text-primary-foreground"
+                                : "border-text-main/35 bg-surface forest:border-text-main/45",
                         )}
                     >
-                        {isPending ? (
-                            <Loader2 className="size-3.5 animate-spin motion-reduce:animate-none" />
-                        ) : item.checked ? (
+                        {item.checked ? (
                             <Check className="size-3.5 stroke-[3]" />
                         ) : null}
                     </span>
                 </label>
 
-                {canEdit ? (
-                    <button
-                        ref={(node) => setTextButtonRef(item.id, node)}
-                        type="button"
-                        disabled={isPending}
-                        aria-label={`編輯「${item.text}」`}
-                        aria-disabled={textDisabled ? "true" : undefined}
-                        aria-describedby={
-                            !isOnline ? offlineBannerId : undefined
-                        }
-                        onClick={() => {
-                            if (!textDisabled) {
-                                onStartEdit(item);
-                            }
-                        }}
-                        className={cn(
-                            "min-h-11 min-w-0 flex-1 rounded-xl px-1.5 py-2.5 text-left text-[15px] leading-[22px] wrap-anywhere transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary motion-reduce:transition-none",
-                            item.checked
-                                ? "text-text-main/58 line-through decoration-current/60 forest:text-text-main/72 ocean:text-text-main/68"
-                                : "text-text-main",
-                            isPending
-                                ? "cursor-wait opacity-60"
-                                : isOnline
-                                  ? "cursor-pointer hover:bg-background/80 active:bg-background"
-                                  : "cursor-default",
-                        )}
-                    >
-                        {item.text}
-                    </button>
-                ) : (
-                    <span
-                        className={cn(
-                            "min-h-11 min-w-0 flex-1 px-1.5 py-2.5 text-left text-[15px] leading-[22px] wrap-anywhere",
-                            item.checked
-                                ? "text-text-main/58 line-through decoration-current/60 forest:text-text-main/72 ocean:text-text-main/68"
-                                : "text-text-main",
-                        )}
-                    >
-                        {item.text}
-                    </span>
-                )}
+                <button
+                    ref={(node) => setTextButtonRef(item.id, node)}
+                    type="button"
+                    aria-label={`編輯「${item.text}」`}
+                    onClick={() => {
+                        onStartEdit(item);
+                    }}
+                    className={cn(
+                        "min-h-11 min-w-0 flex-1 cursor-pointer rounded-xl px-1.5 py-2.5 text-left text-[15px] leading-[22px] wrap-anywhere transition-colors hover:bg-background/80 active:bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary motion-reduce:transition-none",
+                        item.checked
+                            ? "text-text-main/58 line-through decoration-current/60 forest:text-text-main/72 ocean:text-text-main/68"
+                            : "text-text-main",
+                    )}
+                >
+                    {item.text}
+                </button>
 
-                {canEdit && (
-                    <button
-                        ref={(node) => setDeleteButtonRef(item.id, node)}
-                        type="button"
-                        disabled={!isOnline || isPending}
-                        aria-label={`刪除「${item.text}」`}
-                        aria-describedby={
-                            !isOnline ? offlineBannerId : undefined
-                        }
-                        onClick={() => {
-                            if (isOnline && !isPending) {
-                                onStartDelete(item);
-                            }
-                        }}
-                        className="grid size-11 shrink-0 place-items-center rounded-xl text-text-main/38 transition-colors hover:bg-red-50 hover:text-red-600 focus-visible:bg-red-50 focus-visible:text-red-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary forest:text-text-main/48 forest:hover:bg-red-950/55 forest:hover:text-red-300 forest:focus-visible:bg-red-950/55 forest:focus-visible:text-red-300 disabled:pointer-events-none disabled:opacity-30 motion-reduce:transition-none"
-                    >
-                        <Trash2 aria-hidden="true" className="size-[17px]" />
-                    </button>
-                )}
+                <button
+                    ref={(node) => setDeleteButtonRef(item.id, node)}
+                    type="button"
+                    aria-label={`刪除「${item.text}」`}
+                    onClick={() => {
+                        onStartDelete(item);
+                    }}
+                    className="grid size-11 shrink-0 place-items-center rounded-xl text-text-main/38 transition-colors hover:bg-red-50 hover:text-red-600 focus-visible:bg-red-50 focus-visible:text-red-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary forest:text-text-main/48 forest:hover:bg-red-950/55 forest:hover:text-red-300 forest:focus-visible:bg-red-950/55 forest:focus-visible:text-red-300 motion-reduce:transition-none"
+                >
+                    <Trash2 aria-hidden="true" className="size-[17px]" />
+                </button>
             </div>
         </li>
     );

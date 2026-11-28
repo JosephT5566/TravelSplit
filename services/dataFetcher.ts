@@ -12,12 +12,7 @@ import { api } from "./api";
 import { useAuthState } from "../src/stores/AuthStore";
 import { useConfig } from "../src/stores/ConfigStore";
 import { EXPENSES_KEY, SHEET_CONFIG_KEY } from "./cacheKeys";
-import {
-    createCreateTodosMutationOptions,
-    createDeleteTodoMutationOptions,
-    createTodosQueryOptions,
-    createUpdateTodoMutationOptions,
-} from "./todoCache";
+import { createTodosQueryOptions } from "./todoCache";
 import logger from "@/src/utils/logger";
 import {
     getActiveSheetIdOrNull,
@@ -136,17 +131,6 @@ export const useDeleteExpense = () => {
     });
 };
 
-function useIsActiveRef() {
-    const isActive = useRef(false);
-    useLayoutEffect(() => {
-        isActive.current = true;
-        return () => {
-            isActive.current = false;
-        };
-    }, []);
-    return isActive;
-}
-
 // Todos hooks
 export const useTodosQuery = (
     sheetId: string | null | undefined,
@@ -159,51 +143,6 @@ export const useTodosQuery = (
             sheetId,
             ownerEmail,
             isSignedIn,
-        }),
-    );
-};
-
-export const useCreateTodos = (sheetId: string, userEmail: string) => {
-    const queryClient = useQueryClient();
-    const isActive = useIsActiveRef();
-
-    return useMutation(
-        createCreateTodosMutationOptions({
-            queryClient,
-            sheetId,
-            userEmail,
-            canReplayWrite: () =>
-                isActive.current && getActiveSheetIdOrNull() === sheetId,
-        }),
-    );
-};
-
-export const useUpdateTodo = (sheetId: string, userEmail: string) => {
-    const queryClient = useQueryClient();
-    const isActive = useIsActiveRef();
-
-    return useMutation(
-        createUpdateTodoMutationOptions({
-            queryClient,
-            sheetId,
-            userEmail,
-            canReplayWrite: () =>
-                isActive.current && getActiveSheetIdOrNull() === sheetId,
-        }),
-    );
-};
-
-export const useDeleteTodo = (sheetId: string, userEmail: string) => {
-    const queryClient = useQueryClient();
-    const isActive = useIsActiveRef();
-
-    return useMutation(
-        createDeleteTodoMutationOptions({
-            queryClient,
-            sheetId,
-            userEmail,
-            canReplayWrite: () =>
-                isActive.current && getActiveSheetIdOrNull() === sheetId,
         }),
     );
 };
