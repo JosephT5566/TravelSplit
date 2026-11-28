@@ -11,9 +11,9 @@ The app is designed for real travel use: phones, intermittent network, outdoor r
 - Framework: Next.js App Router with TypeScript.
 - Styling: Tailwind CSS, DaisyUI, and local shadcn/Radix-style primitives.
 - State: React Context for app state and TanStack Query for server state.
-- Persistence: IndexedDB through `idb-keyval`, including persisted query cache.
+- Persistence: IndexedDB through `idb-keyval`, including the persisted TanStack Query cache (`reactQuery`) and a separate local-first todo outbox store (`tripsplit-todo-outbox`, falling back to memory when IndexedDB is unavailable).
 - Auth: Cloudflare Worker handles OAuth token exchange and session cookies.
-- API: Google Cloud Function exposes REST endpoints over Google Sheets.
+- API: Google Cloud Function exposes REST endpoints over Google Sheets (including batched `POST /todos/sync`; deploy backend `POST /todos/sync` before frontend builds that depend on it).
 - Deployment: static export to GitHub Pages with Cloudflare in front.
 - PWA: manifest, service worker, offline page, and app-shell behavior live under `public/` and root layout components.
 
@@ -30,7 +30,7 @@ The app is designed for real travel use: phones, intermittent network, outdoor r
 
 - `/`: main expense list and expense add/edit dialog (`支出` tab).
 - `/summary`: expense summary (`統計` tab).
-- `/todos`: my trip todo list with frontend-required per-user free-text category on add via always-visible category chips (or a direct `建立第一個分類` field when no categories exist yet; backend still accepts empty so existing `未分類` items remain visible/editable), collapsible section grouping, read-only travel-mate todo views, grouped copy-to-my-list flow with independent category carryover, and offline-capable GFM Markdown clipboard export from the compact header action button (`複製為 Markdown`, shortened to `Markdown` at `< 360px`) (`待辦` tab, left of `行程`; precached as `todos.html` in `public/sw.js`).
+- `/todos`: my trip todo list with local-first offline-capable editing backed by a separate IndexedDB outbox (`tripsplit-todo-outbox`) and batched `POST /todos/sync` transport, Option A quiet sync status line and per-item status dots (with retry/discard on failure), frontend-required per-user free-text category on add via always-visible category chips (or a direct `建立第一個分類` field when no categories exist yet; backend still accepts empty so existing `未分類` items remain visible/editable), collapsible section grouping, read-only travel-mate todo views, grouped copy-to-my-list flow through the outbox with independent category carryover, and offline-capable GFM Markdown clipboard export from the compact header action button (`複製為 Markdown`, shortened to `Markdown` at `< 360px`) (`待辦` tab, left of `行程`; precached as `todos.html` in `public/sw.js`).
 - `/plan`: trip plan travel books and resource list (`行程` tab).
 - `/select-sheet`: selected Google Sheet picker when multiple sheets are configured.
 - `/2026-shimanami`: public Shimanami travel book.
@@ -40,6 +40,7 @@ The app is designed for real travel use: phones, intermittent network, outdoor r
 
 - Sheet config controls users, categories, currencies, dates, resources, and allowed users.
 - User expense rows are normalized in `services/api.ts` with `mapRawExpenseToExpense`.
+- Todo writes persist in the separate `tripsplit-todo-outbox` IndexedDB store keyed by `<sheetId>::<ownerEmail>::<todoId>` and overlay onto the TanStack Query base via `useTodoView` (refetch replaces only the base; sync write-back preserves `dataUpdatedAt`; `flushNow()` supports a future #76 refresh button). Passive sign-out and `reauthenticate()` preserve the outbox for re-login, explicit sign-out attempts a final flush and prompts before clearing unsynced changes, and activating a `(sheetId, ownerEmail)` scope clears other owners' scopes on init while preserving other-sheet outboxes of the same signed-in user.
 - Travel-book registration is in `src/travel/registry.ts`.
 - Shared travel-book types live in `src/travel/types.ts`; richer itinerary data is under trip-specific files such as `src/travel/shimanami.ts` and `src/travel/hokkaido.ts`.
 - Do not put private booking sessions, sensitive personal identifiers, or full reservation documents into static client data.

@@ -18,10 +18,8 @@ import {
 } from "@/src/utils/todoList";
 
 interface TodoAddRowProps {
-    isOnline: boolean;
-    isSubmitting: boolean;
+    isSubmitting?: boolean;
     existingCategories: readonly string[];
-    offlineBannerId?: string;
     inputRef: React.RefObject<HTMLInputElement>;
     onAdd: (text: string, category: string) => Promise<boolean>;
 }
@@ -39,10 +37,8 @@ function getRequiredCategoryErrorMessage(
 }
 
 export function TodoAddRow({
-    isOnline,
-    isSubmitting,
+    isSubmitting = false,
     existingCategories,
-    offlineBannerId,
     inputRef,
     onAdd,
 }: TodoAddRowProps) {
@@ -68,7 +64,7 @@ export function TodoAddRow({
 
     const validation = validateTodoText(draft);
     const counter = getTextCounter(draft.length);
-    const isInputDisabled = !isOnline || isSubmitting;
+    const isInputDisabled = isSubmitting;
 
     const hasExistingCategories = existingCategories.length > 0;
     const effectiveSelectedCategory = hasExistingCategories
@@ -82,8 +78,7 @@ export function TodoAddRow({
             ? [...existingCategories, effectiveSelectedCategory]
             : existingCategories;
 
-    const isNewCategoryVisible =
-        hasExistingCategories && isNewCategoryOpen && isOnline;
+    const isNewCategoryVisible = hasExistingCategories && isNewCategoryOpen;
     const isCategoryInputShown = !hasExistingCategories || isNewCategoryVisible;
 
     const categoryCodePoints = countUnicodeCodePoints(categoryDraft);
@@ -110,13 +105,7 @@ export function TodoAddRow({
         isNativeButtonDisabled || !hasReadyCategory;
 
     const showRequiredHint = hasExistingCategories ? !hasCategory : true;
-    const describedByIds =
-        [
-            !isOnline ? offlineBannerId : undefined,
-            showRequiredHint ? categoryHintId : undefined,
-        ]
-            .filter(Boolean)
-            .join(" ") || undefined;
+    const describedByIds = showRequiredHint ? categoryHintId : undefined;
 
     useEffect(() => {
         if (!isSubmitting && shouldRefocusRef.current) {
@@ -124,14 +113,6 @@ export function TodoAddRow({
             inputRef.current?.focus();
         }
     }, [isSubmitting, draft, inputRef]);
-
-    useEffect(() => {
-        if (!isOnline && isNewCategoryOpen) {
-            setIsNewCategoryOpen(false);
-            setCategoryDraft("");
-            setCategoryError(null);
-        }
-    }, [isOnline, isNewCategoryOpen]);
 
     useEffect(() => {
         if (isNewCategoryVisible && shouldFocusCategoryInputRef.current) {
@@ -249,7 +230,7 @@ export function TodoAddRow({
 
     const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
         event.preventDefault();
-        if (submittingRef.current || isSubmitting || !isOnline) {
+        if (submittingRef.current || isSubmitting) {
             return;
         }
         const checked = validateTodoText(draft);
@@ -328,7 +309,7 @@ export function TodoAddRow({
                     disabled={isInputDisabled}
                     aria-label="新增待辦"
                     aria-describedby={describedByIds}
-                    placeholder={isOnline ? "新增待辦…" : "離線中，無法新增"}
+                    placeholder="新增待辦…"
                     onChange={(event) => {
                         const sanitized = sanitizeTodoLineBreaks(
                             event.target.value,

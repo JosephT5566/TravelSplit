@@ -1,25 +1,79 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import { FocusTrap } from "focus-trap-react";
-import { LogOut, FileCog, X, RefreshCw, ArrowLeftRight } from "lucide-react";
+import {
+    AlertTriangle,
+    ArrowLeftRight,
+    FileCog,
+    Loader2,
+    LogOut,
+    RefreshCw,
+    X,
+} from "lucide-react";
 import Link from "next/link";
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useAuthActions, useAuthState } from "../src/stores/AuthStore";
 import { AppConfig } from "../src/types";
 import { useUI } from "../src/stores/UIStore";
 import { useConfig } from "../src/stores/ConfigStore";
 import { format } from "date-fns";
+import { todoSyncManager } from "@/services/todoSyncManager";
 import { isSheetSelectionRequired } from "@/src/utils/sheetSelection";
 
 export const SideDrawer: React.FC = () => {
-    const { signOut } = useAuthActions();
+    const { signOut, prepareSignOut } = useAuthActions();
     const { user } = useAuthState();
     const { sheetConfig, refetchSheetConfig, isFetchingConfig } = useConfig();
     // isDrawerOpen and closeDrawer will now control the checkbox state
     const { isDrawerOpen, closeDrawer, theme, setTheme } = useUI();
+    const [isPreparingSignOut, setIsPreparingSignOut] = useState(false);
+    const [pendingSignOutUnsyncedCount, setPendingSignOutUnsyncedCount] =
+        useState<number | null>(null);
+    const [isConfirmingSignOut, setIsConfirmingSignOut] = useState(false);
 
     const handleThemeChange = (newTheme: AppConfig["theme"]) => {
         setTheme(newTheme);
+    };
+
+    const handleSignOutClick = async () => {
+        if (isPreparingSignOut || isConfirmingSignOut) {
+            return;
+        }
+        setIsPreparingSignOut(true);
+        try {
+            const result = await prepareSignOut();
+            closeDrawer();
+            if (result.canSignOutImmediately) {
+                await signOut({ clearTodoOutbox: true });
+                return;
+            }
+            setPendingSignOutUnsyncedCount(result.unsyncedCount);
+        } finally {
+            setIsPreparingSignOut(false);
+        }
+    };
+
+    const handleConfirmSignOut = async () => {
+        if (isConfirmingSignOut) {
+            return;
+        }
+        setIsConfirmingSignOut(true);
+        try {
+            await signOut({ clearTodoOutbox: true });
+            setPendingSignOutUnsyncedCount(null);
+        } finally {
+            setIsConfirmingSignOut(false);
+        }
     };
 
     if (!user) {
@@ -27,11 +81,12 @@ export const SideDrawer: React.FC = () => {
     }
 
     return (
-        /* drawer-end puts the sidebar on the right */
-        <FocusTrap
-            active={isDrawerOpen}
-            focusTrapOptions={{ onDeactivate: closeDrawer }}
-        >
+        <>
+            {/* drawer-end puts the sidebar on the right */}
+            <FocusTrap
+                active={isDrawerOpen && pendingSignOutUnsyncedCount === null}
+                focusTrapOptions={{ onDeactivate: closeDrawer }}
+            >
             <div className="drawer drawer-end">
                 {/* Using checkbox to CONTROL drawer state */}
                 <input
@@ -89,7 +144,13 @@ export const SideDrawer: React.FC = () => {
                         {isSheetSelectionRequired() && (
                             <Link
                                 href="/select-sheet"
-                                onClick={closeDrawer}
+                                onClick={() => {
+                                    void todoSyncManager
+                                        .getActiveEngine()
+                                        ?.flushNow()
+                                        .catch(() => undefined);
+                                    closeDrawer();
+                                }}
                                 className="mb-3 flex w-full items-center gap-3 rounded-lg border border-primary/30 bg-primary/10 px-4 py-3 text-sm font-semibold text-primary transition hover:border-primary hover:bg-primary/15 active:scale-[0.99]"
                             >
                                 <ArrowLeftRight size={18} />
@@ -246,18 +307,70 @@ export const SideDrawer: React.FC = () => {
                         {/* Logout Button */}
                         <button
                             type="button"
+                            disabled={isPreparingSignOut}
                             onClick={() => {
-                                signOut();
-                                closeDrawer();
+                                void handleSignOutClick();
                             }}
                             className="btn btn-primary btn-block gap-2 mt-4"
                         >
-                            <LogOut size={20} />
-                            Log out
+                            {isPreparingSignOut ? (
+                                <Loader2 size={20} className="animate-spin" />
+                            ) : (
+                                <LogOut size={20} />
+                            )}
+                            {isPreparingSignOut ? "同步中…" : "Log out"}
                         </button>
                     </div>
                 </div>
             </div>
         </FocusTrap>
+
+            <AlertDialog
+                open={pendingSignOutUnsyncedCount !== null}
+                onOpenChange={(open) => {
+                    if (!open && !isConfirmingSignOut) {
+                        setPendingSignOutUnsyncedCount(null);
+                    }
+                }}
+            >
+                <AlertDialogContent
+                    data-slot="signout-unsynced-dialog"
+                    className="rounded-2xl border border-border bg-surface text-text-main shadow-lg ring-0"
+                >
+                    <AlertDialogHeader className="gap-3 text-left">
+                        <div className="flex size-10 items-center justify-center rounded-full bg-amber-100 text-amber-700 forest:bg-amber-950/60 forest:text-amber-300">
+                            <AlertTriangle
+                                aria-hidden="true"
+                                className="size-5"
+                            />
+                        </div>
+                        <AlertDialogTitle className="text-base leading-snug font-bold text-text-main">
+                            確定要登出嗎？
+                        </AlertDialogTitle>
+                        <AlertDialogDescription className="text-sm leading-6 text-text-main/75">
+                            還有 {pendingSignOutUnsyncedCount} 項變更尚未同步，登出會遺失這些變更
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter className="border-t border-border bg-background/50">
+                        <AlertDialogCancel
+                            disabled={isConfirmingSignOut}
+                            className="min-h-11 rounded-xl border-border bg-surface text-text-main hover:bg-background"
+                        >
+                            取消
+                        </AlertDialogCancel>
+                        <AlertDialogAction
+                            disabled={isConfirmingSignOut}
+                            onClick={(event) => {
+                                event.preventDefault();
+                                void handleConfirmSignOut();
+                            }}
+                            className="min-h-11 rounded-xl bg-red-600 font-semibold text-white hover:bg-red-700"
+                        >
+                            仍要登出
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+        </>
     );
 };
