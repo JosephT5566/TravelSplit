@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useId, useRef, useState } from "react";
+import React, { useCallback, useEffect, useId, useRef, useState } from "react";
 import { Check, CircleAlert, Loader2, Plus, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -13,6 +13,7 @@ import {
     TODO_TEXT_MAX_LENGTH,
     truncateUnicodeCodePoints,
     UNCATEGORIZED_LABEL,
+    isTodoCategoryRegionVisible,
     validateRequiredTodoCategory,
     validateTodoText,
 } from "@/src/utils/todoList";
@@ -47,14 +48,20 @@ export function TodoAddRow({
     const [isNewCategoryOpen, setIsNewCategoryOpen] = useState(false);
     const [categoryDraft, setCategoryDraft] = useState("");
     const [categoryError, setCategoryError] = useState<string | null>(null);
+    // True once the user has focused/tapped anywhere in the add form; cleared by
+    // Escape, a pointerdown outside the form, or focus moving to another element.
+    // A blur with no related target (mobile taps do not focus buttons) never clears it.
+    const [isEngaged, setIsEngaged] = useState(false);
 
     const formRef = useRef<HTMLFormElement>(null);
+    const categoryRegionRef = useRef<HTMLDivElement | null>(null);
     const submittingRef = useRef(false);
     const shouldRefocusRef = useRef(false);
     const shouldFocusCategoryInputRef = useRef(false);
     const newCategoryToggleRef = useRef<HTMLButtonElement>(null);
     const categoryInputRef = useRef<HTMLInputElement>(null);
 
+    const categoryRegionId = useId();
     const categoryGroupLabelId = useId();
     const newCategoryPanelId = useId();
     const categoryInputId = useId();
@@ -104,8 +111,64 @@ export function TodoAddRow({
     const isVisuallyDisabledSubmit =
         isNativeButtonDisabled || !hasReadyCategory;
 
+    const isCategoryRegionVisible = isTodoCategoryRegionVisible({
+        focusWithin: isEngaged,
+        textDraft: draft,
+        hasCategoryError: categoryError !== null,
+    });
+
     const showRequiredHint = hasExistingCategories ? !hasCategory : true;
     const describedByIds = showRequiredHint ? categoryHintId : undefined;
+
+    // Applied in the commit phase (not a passive effect) so the block is
+    // already focusable when a keydown/submit right after typing moves focus into it.
+    const setCategoryRegionNode = useCallback(
+        (node: HTMLDivElement | null) => {
+            categoryRegionRef.current = node;
+            if (!node) return;
+            if (isCategoryRegionVisible) {
+                node.removeAttribute("inert");
+            } else {
+                node.setAttribute("inert", "");
+            }
+        },
+        [isCategoryRegionVisible],
+    );
+
+    useEffect(() => {
+        if (!isEngaged) return;
+        const handlePointerDown = (event: PointerEvent) => {
+            const form = formRef.current;
+            if (form && event.target instanceof Node && !form.contains(event.target)) {
+                setIsEngaged(false);
+            }
+        };
+        document.addEventListener("pointerdown", handlePointerDown);
+        return () => {
+            document.removeEventListener("pointerdown", handlePointerDown);
+        };
+    }, [isEngaged]);
+
+    const handleFormKeyDown = (event: React.KeyboardEvent<HTMLFormElement>) => {
+        if (
+            event.key !== "Escape" ||
+            event.defaultPrevented ||
+            event.nativeEvent.isComposing ||
+            event.keyCode === 229
+        ) {
+            return;
+        }
+        // Drafts and validation errors keep the block open.
+        if (draft.trim() !== "" || categoryError !== null) {
+            return;
+        }
+        const active = document.activeElement;
+        if (active && categoryRegionRef.current?.contains(active)) {
+            // The focused control is about to become inert; keep focus in the add row.
+            inputRef.current?.focus();
+        }
+        setIsEngaged(false);
+    };
 
     useEffect(() => {
         if (!isSubmitting && shouldRefocusRef.current) {
@@ -295,6 +358,15 @@ export function TodoAddRow({
         <form
             ref={formRef}
             onSubmit={handleSubmit}
+            onFocus={() => setIsEngaged(true)}
+            onBlur={(event) => {
+                const next = event.relatedTarget;
+                if (next instanceof Node && !event.currentTarget.contains(next)) {
+                    setIsEngaged(false);
+                }
+            }}
+            onPointerDown={() => setIsEngaged(true)}
+            onKeyDown={handleFormKeyDown}
             className="border-b border-border bg-background/55 p-2.5 min-[360px]:p-3"
         >
             <div className="flex items-center gap-2">
@@ -308,6 +380,7 @@ export function TodoAddRow({
                     value={draft}
                     disabled={isInputDisabled}
                     aria-label="新增待辦"
+                    aria-controls={categoryRegionId}
                     aria-describedby={describedByIds}
                     placeholder="新增待辦…"
                     onChange={(event) => {
@@ -351,6 +424,19 @@ export function TodoAddRow({
                 </button>
             </div>
 
+            <div
+                ref={setCategoryRegionNode}
+                id={categoryRegionId}
+                data-slot="todo-category-region"
+                data-open={isCategoryRegionVisible ? "true" : "false"}
+                className={cn(
+                    "grid transition-[grid-template-rows,opacity] duration-150 ease-out motion-reduce:transition-none",
+                    isCategoryRegionVisible
+                        ? "grid-rows-[1fr] opacity-100"
+                        : "grid-rows-[0fr] opacity-0",
+                )}
+            >
+                <div className="-mx-1 min-h-0 overflow-hidden px-1">
             {hasExistingCategories ? (
                 <div
                     className={cn(
@@ -683,6 +769,8 @@ export function TodoAddRow({
                     </p>
                 </div>
             )}
+                </div>
+            </div>
 
             {counter && (
                 <div

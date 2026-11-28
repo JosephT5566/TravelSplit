@@ -469,3 +469,20 @@ export function getTodoErrorMessage(
             return "無法完成，請重試";
     }
 }
+
+/**
+ * Whether the required-category block in the add row is shown: while focus is
+ * inside the add form, while there is a non-blank text draft, or while a
+ * category validation error is displayed. Otherwise only input + 新增 show.
+ */
+export function isTodoCategoryRegionVisible(input: {
+    focusWithin: boolean;
+    textDraft: string;
+    hasCategoryError: boolean;
+}): boolean {
+    return (
+        input.focusWithin ||
+        input.textDraft.trim() !== "" ||
+        input.hasCategoryError
+    );
+}
