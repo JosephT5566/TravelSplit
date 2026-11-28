@@ -23,7 +23,7 @@ The expense app should make it easy to:
 - Add expenses with date, category, item, payer, currency, exchange rate, and split amounts.
 - Add up a receipt with the inline calculator and apply the result to the expense total.
 - Review day-based expenses and summaries.
-- Manage a personal pre-trip and on-trip todo list on the `/todos` tab (`待辦`, placed left of `Plan` in the 4-tab bottom navigation): add, check/uncheck in place, tap text to edit inline, and confirm deletion inline, with cached offline reading and disabled writes while offline.
+- Manage pre-trip and on-trip todo lists on the `/todos` tab (`待辦`, placed left of `Plan` in the 4-tab bottom navigation): edit my todo list (add, check/uncheck in place, tap text to edit inline, and confirm deletion inline), switch to view travel-mates' lists read-only, and copy selected items to my todo list as unchecked items, with cached offline reading and disabled writes while offline.
 - Keep previously loaded data available through persisted query cache.
 
 Google Sheets remain the backend data store. The frontend should avoid inventing a parallel accounting source of truth.

@@ -16,10 +16,12 @@ import type { TodoItem } from "@/src/types";
 import {
     getCompletionStats,
     getTodoErrorMessage,
+    isForbiddenError,
     isNotFoundError,
     isOfflineError,
     sortTodos,
     type TodoAction,
+    type TodoCompletionStats,
 } from "@/src/utils/todoList";
 import { TodoAddRow } from "./TodoAddRow";
 import { TodoRow } from "./TodoRow";
@@ -29,13 +31,25 @@ import {
     TodoLoadingSkeleton,
     TodoOfflineBanner,
     TodoOfflineNoCacheState,
+    TodoReadOnlyBanner,
 } from "./TodoStates";
+
+export type ReadOnlyTopActionContext = {
+    items: TodoItem[];
+    isOnline: boolean;
+};
 
 export interface TodoListProps {
     sheetId: string;
     ownerEmail: string;
     canEdit: boolean;
+    ownerName?: string;
     headerActions?: React.ReactNode;
+    memberBar?: React.ReactNode;
+    readOnlyTopAction?:
+        | React.ReactNode
+        | ((context: ReadOnlyTopActionContext) => React.ReactNode);
+    onBackToMine?: () => void;
 }
 
 type ActiveRowAction = {
@@ -48,18 +62,50 @@ type PendingFocus =
     | { target: "add" }
     | null;
 
-export function TodoList({
+interface TodoListCardProps {
+    sheetId: string;
+    ownerEmail: string;
+    canEdit: boolean;
+    ownerName?: string;
+    isOnline: boolean;
+    offlineBannerId: string;
+    hasData: boolean;
+    sortedTodos: TodoItem[];
+    stats: TodoCompletionStats;
+    isOfflineNoCache: boolean;
+    isInitialLoading: boolean;
+    isError: boolean;
+    error: unknown;
+    isFetching: boolean;
+    onRetry: () => void;
+    readOnlyTopAction?:
+        | React.ReactNode
+        | ((context: ReadOnlyTopActionContext) => React.ReactNode);
+    onBackToMine?: () => void;
+}
+
+function TodoListCard({
     sheetId,
     ownerEmail,
     canEdit,
-    headerActions,
-}: TodoListProps) {
-    const isOnline = useOnlineStatus();
+    ownerName,
+    isOnline,
+    offlineBannerId,
+    hasData,
+    sortedTodos,
+    stats,
+    isOfflineNoCache,
+    isInitialLoading,
+    isError,
+    error,
+    isFetching,
+    onRetry,
+    readOnlyTopAction,
+    onBackToMine,
+}: TodoListCardProps) {
     const showToast = useToast();
     const queryClient = useQueryClient();
-    const offlineBannerId = useId();
 
-    const todosQuery = useTodosQuery(sheetId, ownerEmail);
     const createTodosMutation = useCreateTodos(sheetId, ownerEmail);
     const updateTodoMutation = useUpdateTodo(sheetId, ownerEmail);
     const deleteTodoMutation = useDeleteTodo(sheetId, ownerEmail);
@@ -153,13 +199,13 @@ export function TodoList({
     }, []);
 
     const notifyWriteError = useCallback(
-        (error: unknown, action: Exclude<TodoAction, "load">) => {
-            const message = getTodoErrorMessage(error, action);
+        (err: unknown, action: Exclude<TodoAction, "load">) => {
+            const message = getTodoErrorMessage(err, action);
             showToast({
-                kind: isOfflineError(error) ? "warning" : "error",
+                kind: isOfflineError(err) ? "warning" : "error",
                 message,
             });
-            if (isNotFoundError(error)) {
+            if (isNotFoundError(err)) {
                 // The mutation's own onError may already have started a refetch.
                 void queryClient.invalidateQueries(
                     {
@@ -174,17 +220,6 @@ export function TodoList({
         [ownerEmail, queryClient, sheetId, showToast],
     );
 
-    const sortedTodos = useMemo(
-        () => (todosQuery.data ? sortTodos(todosQuery.data) : []),
-        [todosQuery.data],
-    );
-
-    const hasData = todosQuery.data !== undefined;
-    const stats = useMemo(
-        () => getCompletionStats(sortedTodos),
-        [sortedTodos],
-    );
-
     const handleAdd = useCallback(
         async (text: string): Promise<boolean> => {
             if (!canEdit) return false;
@@ -193,8 +228,8 @@ export function TodoList({
                 await createTodosMutation.mutateAsync([{ text }]);
                 showToast({ kind: "success", message: "已新增待辦" });
                 return true;
-            } catch (error) {
-                notifyWriteError(error, "create");
+            } catch (err) {
+                notifyWriteError(err, "create");
                 return false;
             } finally {
                 setIsAdding(false);
@@ -213,8 +248,8 @@ export function TodoList({
                     id: item.id,
                     checked: !item.checked,
                 });
-            } catch (error) {
-                notifyWriteError(error, "update");
+            } catch (err) {
+                notifyWriteError(err, "update");
             } finally {
                 endRowPending(item.id);
             }
@@ -239,7 +274,7 @@ export function TodoList({
             }
             updateActiveRowAction({ id: item.id, mode: "edit" });
         },
-        [canEdit, isOnline],
+        [canEdit, isOnline, updateActiveRowAction],
     );
 
     const handleCancelEdit = useCallback(
@@ -269,8 +304,8 @@ export function TodoList({
                     setPendingFocus({ target: "text", id });
                 }
                 return null;
-            } catch (error) {
-                return notifyWriteError(error, "update");
+            } catch (err) {
+                return notifyWriteError(err, "update");
             } finally {
                 endRowPending(id);
             }
@@ -295,7 +330,7 @@ export function TodoList({
             }
             updateActiveRowAction({ id: item.id, mode: "delete" });
         },
-        [canEdit, isOnline],
+        [canEdit, isOnline, updateActiveRowAction],
     );
 
     const handleCancelDelete = useCallback(
@@ -340,15 +375,15 @@ export function TodoList({
                 if (restoreFocus) {
                     setPendingFocus(focusAfterRowGone());
                 }
-            } catch (error) {
-                notifyWriteError(error, "delete");
+            } catch (err) {
+                notifyWriteError(err, "delete");
                 const restoreFocus = canRestoreFocusFor(item.id);
                 updateActiveRowAction((current) =>
                     current?.id === item.id ? null : current,
                 );
                 if (restoreFocus) {
                     setPendingFocus(
-                        isNotFoundError(error)
+                        isNotFoundError(err)
                             ? focusAfterRowGone()
                             : { target: "delete", id: item.id },
                     );
@@ -369,6 +404,150 @@ export function TodoList({
         ],
     );
 
+    const renderedReadOnlyTopAction =
+        !canEdit && hasData && sortedTodos.length > 0 && readOnlyTopAction
+            ? typeof readOnlyTopAction === "function"
+                ? readOnlyTopAction({ items: sortedTodos, isOnline })
+                : readOnlyTopAction
+            : null;
+
+    return (
+        <div className="overflow-hidden rounded-2xl border border-border bg-surface shadow-sm">
+            {hasData && stats.total > 0 && (
+                <div
+                    role="progressbar"
+                    aria-label="待辦完成進度"
+                    aria-valuenow={stats.completed}
+                    aria-valuemin={0}
+                    aria-valuemax={stats.total}
+                    className="h-1 w-full bg-border/60"
+                >
+                    <div
+                        className="h-full bg-primary transition-[width] duration-300 ease-out motion-reduce:transition-none"
+                        style={{ width: `${stats.percent}%` }}
+                    />
+                </div>
+            )}
+
+            {hasData ? (
+                <>
+                    {canEdit ? (
+                        <TodoAddRow
+                            isOnline={isOnline}
+                            isSubmitting={isAdding}
+                            offlineBannerId={offlineBannerId}
+                            inputRef={addInputRef}
+                            onAdd={handleAdd}
+                        />
+                    ) : (
+                        renderedReadOnlyTopAction
+                    )}
+
+                    {sortedTodos.length === 0 ? (
+                        <TodoEmptyState
+                            ownerName={ownerName}
+                            readOnly={!canEdit}
+                        />
+                    ) : (
+                        <>
+                            <ul className="divide-y divide-border/75">
+                                {sortedTodos.map((item) => {
+                                    const mode =
+                                        activeRowAction?.id === item.id
+                                            ? activeRowAction.mode
+                                            : "normal";
+
+                                    return (
+                                        <TodoRow
+                                            key={item.id}
+                                            item={item}
+                                            canEdit={canEdit}
+                                            isOnline={isOnline}
+                                            isPending={pendingIds.has(item.id)}
+                                            mode={mode}
+                                            offlineBannerId={offlineBannerId}
+                                            setTextButtonRef={setTextButtonRef}
+                                            setDeleteButtonRef={
+                                                setDeleteButtonRef
+                                            }
+                                            onToggleCheck={handleToggleCheck}
+                                            onStartEdit={handleStartEdit}
+                                            onCancelEdit={handleCancelEdit}
+                                            onSaveEdit={handleSaveEdit}
+                                            onStartDelete={handleStartDelete}
+                                            onCancelDelete={handleCancelDelete}
+                                            onConfirmDelete={
+                                                handleConfirmDelete
+                                            }
+                                        />
+                                    );
+                                })}
+                            </ul>
+
+                            {canEdit && isOnline && (
+                                <p className="flex items-center gap-1.5 border-t border-border/60 bg-background/40 px-4 py-2 text-[11px] text-text-main/55 forest:text-text-main/68 ocean:text-text-main/65">
+                                    <Pencil
+                                        aria-hidden="true"
+                                        className="size-3 shrink-0"
+                                    />
+                                    <span>點項目文字即可編輯</span>
+                                </p>
+                            )}
+                        </>
+                    )}
+                </>
+            ) : isOfflineNoCache ? (
+                <TodoOfflineNoCacheState
+                    ownerName={ownerName}
+                    readOnly={!canEdit}
+                />
+            ) : isInitialLoading ? (
+                <TodoLoadingSkeleton
+                    readOnly={!canEdit}
+                    ownerName={ownerName}
+                />
+            ) : isError ? (
+                <TodoLoadErrorState
+                    error={error}
+                    isOnline={isOnline}
+                    isRetrying={isFetching}
+                    offlineBannerId={offlineBannerId}
+                    ownerName={ownerName}
+                    readOnly={!canEdit}
+                    onBackToMine={onBackToMine}
+                    onRetry={onRetry}
+                />
+            ) : null}
+        </div>
+    );
+}
+
+export function TodoList({
+    sheetId,
+    ownerEmail,
+    canEdit,
+    ownerName,
+    headerActions,
+    memberBar,
+    readOnlyTopAction,
+    onBackToMine,
+}: TodoListProps) {
+    const isOnline = useOnlineStatus();
+    const offlineBannerId = useId();
+
+    const todosQuery = useTodosQuery(sheetId, ownerEmail);
+
+    const sortedTodos = useMemo(
+        () => (todosQuery.data ? sortTodos(todosQuery.data) : []),
+        [todosQuery.data],
+    );
+
+    const hasData = todosQuery.data !== undefined;
+    const stats = useMemo(
+        () => getCompletionStats(sortedTodos),
+        [sortedTodos],
+    );
+
     const isOfflineNoCache =
         !hasData &&
         todosQuery.status === "pending" &&
@@ -378,6 +557,10 @@ export function TodoList({
         todosQuery.status === "pending" &&
         todosQuery.fetchStatus !== "paused" &&
         isOnline;
+    const showReadOnlyBanner =
+        !canEdit &&
+        Boolean(ownerName) &&
+        !(todosQuery.isError && isForbiddenError(todosQuery.error));
 
     return (
         <section
@@ -407,118 +590,44 @@ export function TodoList({
                 </div>
             </div>
 
-            {!isOnline && <TodoOfflineBanner id={offlineBannerId} />}
+            {memberBar}
 
-            <div className="overflow-hidden rounded-2xl border border-border bg-surface shadow-sm">
-                {hasData && stats.total > 0 && (
-                    <div
-                        role="progressbar"
-                        aria-label="待辦完成進度"
-                        aria-valuenow={stats.completed}
-                        aria-valuemin={0}
-                        aria-valuemax={stats.total}
-                        className="h-1 w-full bg-border/60"
-                    >
-                        <div
-                            className="h-full bg-primary transition-[width] duration-300 ease-out motion-reduce:transition-none"
-                            style={{ width: `${stats.percent}%` }}
-                        />
-                    </div>
-                )}
+            {showReadOnlyBanner && ownerName && (
+                <TodoReadOnlyBanner
+                    ownerName={ownerName}
+                    onBackToMine={onBackToMine}
+                />
+            )}
 
-                {hasData ? (
-                    <>
-                        {canEdit && (
-                            <TodoAddRow
-                                isOnline={isOnline}
-                                isSubmitting={isAdding}
-                                offlineBannerId={offlineBannerId}
-                                inputRef={addInputRef}
-                                onAdd={handleAdd}
-                            />
-                        )}
+            {!isOnline && (
+                <TodoOfflineBanner id={offlineBannerId} readOnly={!canEdit} />
+            )}
 
-                        {sortedTodos.length === 0 ? (
-                            <TodoEmptyState />
-                        ) : (
-                            <>
-                                <ul className="divide-y divide-border/75">
-                                    {sortedTodos.map((item) => {
-                                        const mode =
-                                            activeRowAction?.id === item.id
-                                                ? activeRowAction.mode
-                                                : "normal";
-
-                                        return (
-                                            <TodoRow
-                                                key={item.id}
-                                                item={item}
-                                                canEdit={canEdit}
-                                                isOnline={isOnline}
-                                                isPending={pendingIds.has(
-                                                    item.id,
-                                                )}
-                                                mode={mode}
-                                                offlineBannerId={
-                                                    offlineBannerId
-                                                }
-                                                setTextButtonRef={
-                                                    setTextButtonRef
-                                                }
-                                                setDeleteButtonRef={
-                                                    setDeleteButtonRef
-                                                }
-                                                onToggleCheck={
-                                                    handleToggleCheck
-                                                }
-                                                onStartEdit={handleStartEdit}
-                                                onCancelEdit={handleCancelEdit}
-                                                onSaveEdit={handleSaveEdit}
-                                                onStartDelete={
-                                                    handleStartDelete
-                                                }
-                                                onCancelDelete={
-                                                    handleCancelDelete
-                                                }
-                                                onConfirmDelete={
-                                                    handleConfirmDelete
-                                                }
-                                            />
-                                        );
-                                    })}
-                                </ul>
-
-                                {canEdit && isOnline && (
-                                    <p className="flex items-center gap-1.5 border-t border-border/60 bg-background/40 px-4 py-2 text-[11px] text-text-main/55 forest:text-text-main/68 ocean:text-text-main/65">
-                                        <Pencil
-                                            aria-hidden="true"
-                                            className="size-3 shrink-0"
-                                        />
-                                        <span>點項目文字即可編輯</span>
-                                    </p>
-                                )}
-                            </>
-                        )}
-                    </>
-                ) : isOfflineNoCache ? (
-                    <TodoOfflineNoCacheState />
-                ) : isInitialLoading ? (
-                    <TodoLoadingSkeleton />
-                ) : todosQuery.isError ? (
-                    <TodoLoadErrorState
-                        error={todosQuery.error}
-                        isOnline={isOnline}
-                        isRetrying={todosQuery.isFetching}
-                        offlineBannerId={offlineBannerId}
-                        onRetry={() => {
-                            if (!isOnline) {
-                                return;
-                            }
-                            void todosQuery.refetch();
-                        }}
-                    />
-                ) : null}
-            </div>
+            <TodoListCard
+                key={JSON.stringify([sheetId, ownerEmail, canEdit])}
+                sheetId={sheetId}
+                ownerEmail={ownerEmail}
+                canEdit={canEdit}
+                ownerName={ownerName}
+                isOnline={isOnline}
+                offlineBannerId={offlineBannerId}
+                hasData={hasData}
+                sortedTodos={sortedTodos}
+                stats={stats}
+                isOfflineNoCache={isOfflineNoCache}
+                isInitialLoading={isInitialLoading}
+                isError={todosQuery.isError}
+                error={todosQuery.error}
+                isFetching={todosQuery.isFetching}
+                readOnlyTopAction={readOnlyTopAction}
+                onBackToMine={onBackToMine}
+                onRetry={() => {
+                    if (!isOnline) {
+                        return;
+                    }
+                    void todosQuery.refetch();
+                }}
+            />
         </section>
     );
 }
