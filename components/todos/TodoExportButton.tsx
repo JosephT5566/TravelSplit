@@ -18,13 +18,11 @@ import { formatTodosAsMarkdown } from "@/src/utils/todoMarkdown";
 export interface TodoExportButtonProps {
     items: readonly TodoItem[];
     ownerDisplayName: string;
-    className?: string;
 }
 
 export function TodoExportButton({
     items,
     ownerDisplayName,
-    className,
 }: TodoExportButtonProps) {
     const showToast = useToast();
     const buttonRef = useRef<HTMLButtonElement>(null);
@@ -66,7 +64,6 @@ export function TodoExportButton({
                 }}
                 className={cn(
                     "inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-primary/55 bg-surface px-4 text-sm font-semibold whitespace-nowrap text-text-main shadow-2xs transition-colors hover:border-primary hover:bg-primary/6 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-surface forest:border-primary/70 forest:hover:bg-primary/14 ocean:border-primary/60 motion-reduce:transition-none",
-                    className,
                 )}
             >
                 <ClipboardCopy
@@ -106,7 +103,7 @@ export function TodoExportButton({
                             複製為 Markdown
                         </DialogTitle>
                         <DialogDescription className="text-xs leading-5 text-text-main/68 forest:text-text-main/75">
-                            請長按全選並複製
+                            請長按或使用系統複製
                         </DialogDescription>
                     </DialogHeader>
 
@@ -118,9 +115,17 @@ export function TodoExportButton({
                         aria-label="待辦清單 Markdown 內容"
                         onFocus={(event) => {
                             event.currentTarget.select();
+                            event.currentTarget.setSelectionRange(
+                                0,
+                                event.currentTarget.value.length,
+                            );
                         }}
                         onClick={(event) => {
                             event.currentTarget.select();
+                            event.currentTarget.setSelectionRange(
+                                0,
+                                event.currentTarget.value.length,
+                            );
                         }}
                         className="w-full resize-none rounded-xl border border-border bg-background p-3 font-mono text-xs leading-5 text-text-main focus-visible:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/25"
                     />

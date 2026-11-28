@@ -208,21 +208,25 @@ export function TodoAddRow({
             return;
         }
 
-        if (!hasCategory) {
-            openTrayAndFocusInput();
-            return;
-        }
-
         const rawCategory =
             isTrayOpen && hasDraftInput
                 ? categoryDraft
                 : effectiveSelectedCategory;
+        if (!rawCategory.trim()) {
+            openTrayAndFocusInput();
+            return;
+        }
         const checkedCategory = validateRequiredTodoCategory(rawCategory);
         if (!checkedCategory.ok) {
             setCategoryError(
                 getRequiredCategoryErrorMessage(checkedCategory.reason),
             );
-            openTrayAndFocusInput();
+            if (isTrayOpen) {
+                categoryInputRef.current?.focus();
+            } else {
+                shouldFocusCategoryInputRef.current = true;
+                setIsPickerOpen(true);
+            }
             return;
         }
         const resolvedCategory = snapToExistingCategory(
@@ -293,16 +297,14 @@ export function TodoAddRow({
                         if (isInputDisabled) {
                             return;
                         }
-                        setIsPickerOpen((open) => {
-                            if (open) {
-                                setCategoryDraft("");
-                                setCategoryError(null);
-                                return false;
-                            }
-                            shouldFocusCategoryInputRef.current = true;
-                            setCategoryError(null);
-                            return true;
-                        });
+                        setCategoryError(null);
+                        if (isTrayOpen) {
+                            setCategoryDraft("");
+                            setIsPickerOpen(false);
+                            return;
+                        }
+                        shouldFocusCategoryInputRef.current = true;
+                        setIsPickerOpen(true);
                     }}
                     className={cn(
                         "inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center gap-1 rounded-xl px-2 text-xs whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:cursor-not-allowed disabled:opacity-50 min-[360px]:px-2.5 min-[360px]:text-[13px] motion-reduce:transition-none",

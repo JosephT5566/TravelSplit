@@ -354,3 +354,17 @@ test("copyTextToClipboard handles missing navigator.clipboard API", async () => 
     });
     assert.equal(noDomResult, "failed");
 });
+
+test("formatTodosAsMarkdown keeps the ### header for a single categorized group, escapes backslashes in item/category text, and flattens owner name line breaks", () => {
+    const out = formatTodosAsMarkdown(
+        [
+            { text: "路徑 C:\\temp", checked: false, category: "行李\\箱", createdAt: "2026-11-27T01:00:00.000Z" },
+            { text: "護照", checked: true, category: "行李\\箱", createdAt: "2026-11-27T02:00:00.000Z" },
+        ],
+        { ownerDisplayName: "小\n安" },
+    );
+    assert.equal(
+        out,
+        "## 小 安 的待辦清單\n\n### 行李\\\\箱\n- [ ] 路徑 C:\\\\temp\n- [x] 護照\n",
+    );
+});

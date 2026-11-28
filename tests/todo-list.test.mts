@@ -631,3 +631,15 @@ test("validateRequiredTodoCategory rejects empty, whitespace, newline-only, 未�
     assert.deepEqual(validateTodoCategory(""), { ok: true, category: "" });
     assert.deepEqual(validateTodoCategory("未分類"), { ok: true, category: "" });
 });
+
+test("validateRequiredTodoCategory followed by snapToExistingCategory aligns spelling to the existing category and rejects blank or 未分類", () => {
+    const existing = ["Food", "行李"];
+    const checked = validateRequiredTodoCategory("  food\n");
+    assert.deepEqual(checked, { ok: true, category: "food" });
+    assert.equal(
+        snapToExistingCategory(checked.ok ? checked.category : "", existing),
+        "Food",
+    );
+    assert.equal(validateRequiredTodoCategory("  未分類 ").ok, false);
+    assert.equal(validateRequiredTodoCategory(" \n ").ok, false);
+});
