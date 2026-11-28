@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Check, CircleAlert, Loader2, TriangleAlert } from "lucide-react";
 import {
@@ -18,9 +18,12 @@ import {
     buildCopyCandidates,
     buildCopyItems,
     chunkCopyItems,
+    groupCopyCandidatesByCategory,
     summarizeCopyResult,
     TODO_COPY_BATCH_SIZE,
+    toggleGroupSelection,
     type CopyResultSummary,
+    type TodoCopyCandidate,
 } from "@/src/utils/todoCopy";
 import { sortTodos } from "@/src/utils/todoList";
 
@@ -71,6 +74,7 @@ function TodoCopyDrawerBody({
     const queryClient = useQueryClient();
     const myTodosQuery = useTodosQuery(sheetId, myEmail);
     const createTodosMutation = useCreateTodos(sheetId, myEmail);
+    const groupHeadingPrefix = useId();
 
     const [activeItems, setActiveItems] = useState<TodoItem[]>(() =>
         sortTodos(sourceItems),
@@ -85,12 +89,15 @@ function TodoCopyDrawerBody({
     );
 
     const candidates = useMemo(
-        () =>
-            buildCopyCandidates(
-                activeItems,
-                isPartialRetryMode ? undefined : myTodosQuery.data,
-            ),
-        [activeItems, isPartialRetryMode, myTodosQuery.data],
+        () => buildCopyCandidates(activeItems, myTodosQuery.data),
+        [activeItems, myTodosQuery.data],
+    );
+    const candidateGroups = useMemo(
+        () => groupCopyCandidatesByCategory(candidates),
+        [candidates],
+    );
+    const hasCategoryHeaders = candidateGroups.some(
+        (group) => group.showHeader,
     );
 
     const [selectedIds, setSelectedIds] = useState<Set<string>>(() => {
@@ -174,6 +181,16 @@ function TodoCopyDrawerBody({
             }
             return next;
         });
+    };
+
+    const handleToggleGroup = (groupItemIds: readonly string[]) => {
+        if (sendingRef.current || isSending || groupItemIds.length === 0) {
+            return;
+        }
+        hasUserToggledRef.current = true;
+        setSelectedIds((current) =>
+            toggleGroupSelection(current, groupItemIds),
+        );
     };
 
     const handleToggleSelectAll = () => {
@@ -297,6 +314,56 @@ function TodoCopyDrawerBody({
         failureState !== null &&
         (failureState.isPartial || failureState.isUnconfirmed);
 
+    const renderCandidateRow = (candidate: TodoCopyCandidate) => {
+        const isChecked = selectedIds.has(candidate.id);
+        return (
+            <li key={candidate.id}>
+                <label
+                    className={cn(
+                        "flex min-h-[52px] items-start gap-1 py-1 pr-3 pl-1.5 transition-colors motion-reduce:transition-none",
+                        isSending
+                            ? "cursor-not-allowed opacity-60"
+                            : "cursor-pointer hover:bg-background/60",
+                    )}
+                >
+                    <span className="grid size-11 shrink-0 place-items-center">
+                        <input
+                            type="checkbox"
+                            checked={isChecked}
+                            disabled={isSending}
+                            onChange={() => handleToggleItem(candidate.id)}
+                            className="peer sr-only"
+                        />
+                        <span
+                            aria-hidden="true"
+                            className={cn(
+                                "grid size-[22px] place-items-center rounded-[6px] border-2 transition-colors duration-150 peer-focus-visible:ring-2 peer-focus-visible:ring-primary peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-surface motion-reduce:transition-none",
+                                isChecked
+                                    ? "border-primary bg-primary text-primary-foreground"
+                                    : "border-text-main/35 bg-surface forest:border-text-main/45",
+                            )}
+                        >
+                            {isChecked && (
+                                <Check className="size-3.5 stroke-[3]" />
+                            )}
+                        </span>
+                    </span>
+
+                    <span className="flex min-w-0 flex-1 flex-col gap-1 px-1 py-2.5">
+                        <span className="text-[15px] leading-[22px] text-text-main wrap-anywhere">
+                            {candidate.text}
+                        </span>
+                        {candidate.isDuplicate && !isPartialRetryMode && (
+                            <span className="inline-flex self-start items-center rounded-md border border-amber-600/35 bg-amber-50 px-1.5 py-0.5 text-[11px] font-semibold text-amber-900 forest:border-amber-400/40 forest:bg-amber-950/60 forest:text-amber-200">
+                                已在我的清單
+                            </span>
+                        )}
+                    </span>
+                </label>
+            </li>
+        );
+    };
+
     return (
         <>
             <DrawerHeader className="shrink-0 px-4 pt-3 pb-2 text-left">
@@ -305,7 +372,9 @@ function TodoCopyDrawerBody({
                 </DrawerTitle>
                 <DrawerDescription className="mt-1 text-[13px] leading-[1.45] text-text-main/62 forest:text-text-main/72 ocean:text-text-main/68">
                     {selectedCount > 0
-                        ? `將新增 ${selectedCount} 項到我的清單，項目會以未完成狀態加入。`
+                        ? hasCategoryHeaders
+                            ? `將新增 ${selectedCount} 項到我的清單，項目會以未完成狀態加入並保留分類。`
+                            : `將新增 ${selectedCount} 項到我的清單，項目會以未完成狀態加入。`
                         : "請至少選取 1 個項目。"}
                 </DrawerDescription>
             </DrawerHeader>
@@ -325,60 +394,113 @@ function TodoCopyDrawerBody({
             </div>
 
             <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
-                <ul className="divide-y divide-border/75">
-                    {candidates.map((candidate) => {
-                        const isChecked = selectedIds.has(candidate.id);
-                        return (
-                            <li key={candidate.id}>
-                                <label
-                                    className={cn(
-                                        "flex min-h-[52px] items-start gap-1 py-1 pr-3 pl-1.5 transition-colors motion-reduce:transition-none",
-                                        isSending
-                                            ? "cursor-not-allowed opacity-60"
-                                            : "cursor-pointer hover:bg-background/60",
-                                    )}
-                                >
-                                    <span className="grid size-11 shrink-0 place-items-center">
-                                        <input
-                                            type="checkbox"
-                                            checked={isChecked}
-                                            disabled={isSending}
-                                            onChange={() =>
-                                                handleToggleItem(candidate.id)
-                                            }
-                                            className="peer sr-only"
-                                        />
-                                        <span
-                                            aria-hidden="true"
-                                            className={cn(
-                                                "grid size-[22px] place-items-center rounded-[6px] border-2 transition-colors duration-150 peer-focus-visible:ring-2 peer-focus-visible:ring-primary peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-surface motion-reduce:transition-none",
-                                                isChecked
-                                                    ? "border-primary bg-primary text-primary-foreground"
-                                                    : "border-text-main/35 bg-surface forest:border-text-main/45",
-                                            )}
-                                        >
-                                            {isChecked && (
-                                                <Check className="size-3.5 stroke-[3]" />
-                                            )}
-                                        </span>
-                                    </span>
+                {hasCategoryHeaders ? (
+                    <div>
+                        {candidateGroups.map((group, groupIndex) => {
+                            const headingId = `${groupHeadingPrefix}-group-${groupIndex}`;
+                            const groupItemIds = group.items.map(
+                                (item) => item.id,
+                            );
+                            const groupSelectedCount = group.items.reduce(
+                                (count, item) =>
+                                    selectedIds.has(item.id)
+                                        ? count + 1
+                                        : count,
+                                0,
+                            );
+                            const allGroupSelected =
+                                group.items.length > 0 &&
+                                groupSelectedCount === group.items.length;
 
-                                    <span className="flex min-w-0 flex-1 flex-col gap-1 px-1 py-2.5">
-                                        <span className="text-[15px] leading-[22px] text-text-main wrap-anywhere">
-                                            {candidate.text}
-                                        </span>
-                                        {candidate.isDuplicate &&
-                                            !isPartialRetryMode && (
-                                                <span className="inline-flex self-start items-center rounded-md border border-amber-600/35 bg-amber-50 px-1.5 py-0.5 text-[11px] font-semibold text-amber-900 forest:border-amber-400/40 forest:bg-amber-950/60 forest:text-amber-200">
-                                                    已在我的清單
+                            const representative = group.items[0];
+                            const categoryHint =
+                                !group.isUncategorized &&
+                                myTodosQuery.data !== undefined &&
+                                representative
+                                    ? representative.categoryMatchKind ===
+                                      "merged"
+                                        ? `併入我的「${representative.category}」`
+                                        : representative.categoryMatchKind ===
+                                            "new"
+                                          ? "新分類"
+                                          : null
+                                    : null;
+
+                            return (
+                                <section
+                                    key={
+                                        group.isUncategorized
+                                            ? "uncategorized"
+                                            : `category:${group.key}`
+                                    }
+                                    aria-labelledby={headingId}
+                                    className="border-t border-border first:border-t-0"
+                                >
+                                    <div className="flex min-h-11 items-center justify-between gap-2 border-b border-border/75 bg-background/75 pr-2.5 pl-4">
+                                        <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-1.5 gap-y-0.5 py-2">
+                                            <h3
+                                                id={headingId}
+                                                className={cn(
+                                                    "text-[13px] leading-[18px] wrap-anywhere",
+                                                    group.isUncategorized
+                                                        ? "font-semibold text-text-main/62 forest:text-text-main/72 ocean:text-text-main/68"
+                                                        : "font-bold text-text-main",
+                                                )}
+                                            >
+                                                {group.label}
+                                            </h3>
+                                            {categoryHint && (
+                                                <span className="text-[11px] leading-4 font-medium wrap-anywhere text-text-main/62 forest:text-text-main/72 ocean:text-text-main/68">
+                                                    {categoryHint}
                                                 </span>
                                             )}
-                                    </span>
-                                </label>
-                            </li>
-                        );
-                    })}
-                </ul>
+                                        </div>
+
+                                        <div className="flex shrink-0 items-center gap-1">
+                                            <span className="text-[11px] leading-4 font-semibold whitespace-nowrap tabular-nums text-text-main/62 forest:text-text-main/72 ocean:text-text-main/68">
+                                                已選 {groupSelectedCount} /{" "}
+                                                {group.total}
+                                            </span>
+                                            <button
+                                                type="button"
+                                                disabled={isSending}
+                                                aria-label={`${
+                                                    allGroupSelected
+                                                        ? "取消全選"
+                                                        : "全選"
+                                                }「${group.label}」`}
+                                                onClick={() =>
+                                                    handleToggleGroup(
+                                                        groupItemIds,
+                                                    )
+                                                }
+                                                className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg px-1.5 text-xs font-semibold whitespace-nowrap text-text-main underline decoration-primary/70 underline-offset-4 transition-colors hover:bg-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:cursor-not-allowed disabled:no-underline disabled:opacity-45 motion-reduce:transition-none"
+                                            >
+                                                {allGroupSelected
+                                                    ? "取消全選"
+                                                    : "全選"}
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <ul className="divide-y divide-border/75">
+                                        {group.items.map(renderCandidateRow)}
+                                    </ul>
+                                </section>
+                            );
+                        })}
+                    </div>
+                ) : (
+                    <ul className="divide-y divide-border/75">
+                        {candidates.map(renderCandidateRow)}
+                    </ul>
+                )}
+
+                {candidates.length > 0 && (
+                    <p className="border-t border-border/75 px-4 py-3 text-center text-xs leading-[18px] text-text-main/62 forest:text-text-main/72 ocean:text-text-main/68">
+                        複製後與對方的清單互不影響
+                    </p>
+                )}
             </div>
 
             <div className="flex shrink-0 flex-col gap-2.5 border-t border-border bg-surface px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom,0px))]">

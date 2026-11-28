@@ -1,7 +1,12 @@
 import {
+    countUnicodeCodePoints,
     getTodoErrorKind,
+    groupTodosByCategory,
+    normalizeTodoCategory,
     normalizeTodoText,
     sortTodos,
+    TODO_CATEGORY_MAX_LENGTH,
+    truncateUnicodeCodePoints,
 } from "./todoList.ts";
 
 export const TODO_COPY_BATCH_SIZE = 100;
@@ -17,17 +22,45 @@ export type TodoCopySourceItem = {
     id: string;
     text: string;
     createdAt: string;
+    category?: string;
+};
+
+export type CopyCategoryMatchKind =
+    | "uncategorized"
+    | "exact"
+    | "merged"
+    | "new"
+    | "unknown";
+
+export type ResolvedCopyCategory = {
+    sourceCategory: string;
+    targetCategory: string;
+    matchKind: CopyCategoryMatchKind;
 };
 
 export type TodoCopyCandidate = {
     id: string;
     text: string;
+    createdAt: string;
+    sourceCategory: string;
+    category: string;
+    categoryMatchKind: CopyCategoryMatchKind;
     isDuplicate: boolean;
+};
+
+export type TodoCopyCandidateGroup = {
+    key: string;
+    label: string;
+    isUncategorized: boolean;
+    showHeader: boolean;
+    items: TodoCopyCandidate[];
+    total: number;
 };
 
 export type TodoCopyPayloadItem = {
     text: string;
     checked: false;
+    category?: string;
 };
 
 export type CopyErrorClassification = "definitely-not-sent" | "unconfirmed";
@@ -127,42 +160,281 @@ export function buildMemberOptions(
     return options;
 }
 
+function sanitizeCopyCategory(raw: string | null | undefined): string {
+    const normalized = normalizeTodoCategory(raw);
+    if (!normalized) {
+        return "";
+    }
+    if (countUnicodeCodePoints(normalized) <= TODO_CATEGORY_MAX_LENGTH) {
+        return normalized;
+    }
+    return normalizeTodoCategory(
+        truncateUnicodeCodePoints(normalized, TODO_CATEGORY_MAX_LENGTH),
+    );
+}
+
+type ExistingCategoryIndex = {
+    exact: Set<string>;
+    byLower: Map<string, string>;
+};
+
+function buildExistingCategoryMap(
+    myItems: readonly { createdAt?: string; category?: string }[],
+): ExistingCategoryIndex {
+    const ordered = sortTodos(
+        myItems.map((item) => ({
+            createdAt: item.createdAt ?? "",
+            category: item.category,
+        })),
+    );
+    const exact = new Set<string>();
+    const byLower = new Map<string, string>();
+    for (const item of ordered) {
+        const category = normalizeTodoCategory(item.category);
+        if (
+            !category ||
+            countUnicodeCodePoints(category) > TODO_CATEGORY_MAX_LENGTH
+        ) {
+            continue;
+        }
+        exact.add(category);
+        const lower = category.toLowerCase();
+        if (!byLower.has(lower)) {
+            byLower.set(lower, category);
+        }
+    }
+    return { exact, byLower };
+}
+
+function snapToMyCategory(
+    writeBase: string,
+    myCategories: ExistingCategoryIndex | null,
+): string | undefined {
+    if (myCategories === null) {
+        return undefined;
+    }
+    if (myCategories.exact.has(writeBase)) {
+        return writeBase;
+    }
+    return myCategories.byLower.get(writeBase.toLowerCase());
+}
+
 /**
- * Sorts source todos by createdAt ascending (stable) and flags duplicates against myItems
- * using case-sensitive normalizeTodoText equality. Nothing is flagged when myItems is undefined.
+ * Resolves each normalized source category to its target write category and match kind.
+ * - Normalizes line breaks/edges and truncates overlong legacy categories to 30 code points.
+ * - Case-insensitively snaps to existing spellings in myItems when available.
+ * - For brand-new categories differing only in case within the batch, first spelling wins
+ *   in source createdAt order.
+ * - Uncategorized items remain uncategorized ("").
+ */
+export function resolveCopyCategories(
+    sourceItems: readonly { createdAt: string; category?: string }[],
+    myItems?: readonly { createdAt?: string; category?: string }[] | undefined,
+): Map<string, ResolvedCopyCategory> {
+    const sorted = sortTodos(sourceItems);
+    const myCategories =
+        myItems === undefined ? null : buildExistingCategoryMap(myItems);
+    const batchSpellingByLower = new Map<string, string>();
+    const resolved = new Map<string, ResolvedCopyCategory>();
+
+    for (const item of sorted) {
+        const sourceCategory = normalizeTodoCategory(item.category);
+        if (resolved.has(sourceCategory)) {
+            continue;
+        }
+
+        const writeBase = sanitizeCopyCategory(item.category);
+        if (!writeBase) {
+            resolved.set(sourceCategory, {
+                sourceCategory: "",
+                targetCategory: "",
+                matchKind: "uncategorized",
+            });
+            continue;
+        }
+
+        const lower = writeBase.toLowerCase();
+        if (myCategories !== null) {
+            const myExisting = snapToMyCategory(writeBase, myCategories);
+            if (myExisting !== undefined) {
+                resolved.set(sourceCategory, {
+                    sourceCategory,
+                    targetCategory: myExisting,
+                    matchKind:
+                        myExisting === sourceCategory ? "exact" : "merged",
+                });
+                continue;
+            }
+            const firstInBatch = batchSpellingByLower.get(lower);
+            if (firstInBatch !== undefined) {
+                resolved.set(sourceCategory, {
+                    sourceCategory,
+                    targetCategory: firstInBatch,
+                    matchKind: "new",
+                });
+            } else {
+                batchSpellingByLower.set(lower, writeBase);
+                resolved.set(sourceCategory, {
+                    sourceCategory,
+                    targetCategory: writeBase,
+                    matchKind: "new",
+                });
+            }
+            continue;
+        }
+
+        const firstInBatch = batchSpellingByLower.get(lower);
+        if (firstInBatch !== undefined) {
+            resolved.set(sourceCategory, {
+                sourceCategory,
+                targetCategory: firstInBatch,
+                matchKind: "unknown",
+            });
+        } else {
+            batchSpellingByLower.set(lower, writeBase);
+            resolved.set(sourceCategory, {
+                sourceCategory,
+                targetCategory: writeBase,
+                matchKind: "unknown",
+            });
+        }
+    }
+
+    return resolved;
+}
+
+/**
+ * Sorts source todos by createdAt ascending (stable), resolves target categories,
+ * and flags duplicates against myItems using case-sensitive normalizeTodoText equality
+ * (ignoring category). Nothing is flagged as duplicate when myItems is undefined.
  */
 export function buildCopyCandidates(
     sourceItems: readonly TodoCopySourceItem[],
-    myItems?: readonly { text: string }[] | undefined,
+    myItems?:
+        | readonly { text: string; createdAt?: string; category?: string }[]
+        | undefined,
 ): TodoCopyCandidate[] {
     const sorted = sortTodos(sourceItems);
+    const myCategories =
+        myItems === undefined ? null : buildExistingCategoryMap(myItems);
     const myNormalizedTexts =
         myItems === undefined
             ? null
             : new Set(myItems.map((item) => normalizeTodoText(item.text)));
 
-    return sorted.map((item) => ({
-        id: item.id,
-        text: item.text,
-        isDuplicate:
-            myNormalizedTexts !== null &&
-            myNormalizedTexts.has(normalizeTodoText(item.text)),
+    return sorted.map((item) => {
+        const sourceCategory = normalizeTodoCategory(item.category);
+        const writeBase = sanitizeCopyCategory(item.category);
+        let category = "";
+        let categoryMatchKind: TodoCopyCandidate["categoryMatchKind"] =
+            sourceCategory ? "unknown" : "uncategorized";
+        if (!writeBase) {
+            category = "";
+            categoryMatchKind = "uncategorized";
+        } else {
+            const myExisting = snapToMyCategory(writeBase, myCategories);
+            if (myExisting !== undefined) {
+                category = myExisting;
+                categoryMatchKind =
+                    myExisting === sourceCategory ? "exact" : "merged";
+            } else {
+                category = writeBase;
+                categoryMatchKind =
+                    myCategories === null ? "unknown" : "new";
+            }
+        }
+        return {
+            id: item.id,
+            text: item.text,
+            createdAt: item.createdAt,
+            sourceCategory,
+            category,
+            categoryMatchKind,
+            isDuplicate:
+                myNormalizedTexts !== null &&
+                myNormalizedTexts.has(normalizeTodoText(item.text)),
+        };
+    });
+}
+
+/**
+ * Groups copy candidates by their normalized source category using the same group
+ * ordering as groupTodosByCategory (earliest createdAt first, "未分類" last,
+ * showHeader=false when only "未分類" exists).
+ */
+export function groupCopyCandidatesByCategory(
+    candidates: readonly TodoCopyCandidate[],
+): TodoCopyCandidateGroup[] {
+    const wrapped = candidates.map((candidate) => ({
+        createdAt: candidate.createdAt,
+        category: candidate.sourceCategory,
+        checked: false,
+        candidate,
+    }));
+    return groupTodosByCategory(wrapped).map((group) => ({
+        key: group.key,
+        label: group.label,
+        isUncategorized: group.isUncategorized,
+        showHeader: group.showHeader,
+        items: group.items.map((entry) => entry.candidate),
+        total: group.total,
     }));
 }
 
 /**
- * Builds POST /todos payload items for selected candidates in source order.
- * Copied items are always unchecked and omit id, ownerEmail, and timestamps.
+ * Toggles selection for all items in a group without mutating selectedIds.
+ * If every item in groupItemIds is currently selected, deselects them all;
+ * otherwise selects every item in groupItemIds (including duplicates).
+ */
+export function toggleGroupSelection(
+    selectedIds: ReadonlySet<string>,
+    groupItemIds: readonly string[],
+): Set<string> {
+    const next = new Set(selectedIds);
+    if (groupItemIds.length === 0) {
+        return next;
+    }
+    const allSelected = groupItemIds.every((id) => selectedIds.has(id));
+    if (allSelected) {
+        for (const id of groupItemIds) {
+            next.delete(id);
+        }
+    } else {
+        for (const id of groupItemIds) {
+            next.add(id);
+        }
+    }
+    return next;
+}
+
+/**
+ * Builds POST /todos payload items for selected candidates in source creation order.
+ * Copied items are always unchecked, omit id/ownerEmail/timestamps, and carry a normalized,
+ * 30-code-point-capped category when non-empty (first spelling in the batch wins on case ties).
  */
 export function buildCopyItems(
-    candidates: readonly { id: string; text: string }[],
+    candidates: readonly { id: string; text: string; category?: string }[],
     selectedIds: ReadonlySet<string>,
 ): TodoCopyPayloadItem[] {
     const result: TodoCopyPayloadItem[] = [];
+    const batchSpellingByLower = new Map<string, string>();
+
     for (const candidate of candidates) {
-        if (selectedIds.has(candidate.id)) {
-            result.push({ text: candidate.text, checked: false });
+        if (!selectedIds.has(candidate.id)) {
+            continue;
         }
+        const sanitized = sanitizeCopyCategory(candidate.category);
+        if (!sanitized) {
+            result.push({ text: candidate.text, checked: false });
+            continue;
+        }
+        const lower = sanitized.toLowerCase();
+        const existingInBatch = batchSpellingByLower.get(lower);
+        const category = existingInBatch ?? sanitized;
+        if (!existingInBatch) {
+            batchSpellingByLower.set(lower, category);
+        }
+        result.push({ text: candidate.text, checked: false, category });
     }
     return result;
 }

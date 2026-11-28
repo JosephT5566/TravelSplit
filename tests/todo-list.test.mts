@@ -1,17 +1,27 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
+    countUnicodeCodePoints,
+    getCategoryCounter,
     getCompletionStats,
     getTextCounter,
+    getTodoCategories,
     getTodoErrorKind,
     getTodoErrorMessage,
+    groupTodosByCategory,
     isForbiddenError,
     isNotFoundError,
     isOfflineError,
+    normalizeTodoCategory,
     normalizeTodoText,
     sanitizeTodoLineBreaks,
+    snapToExistingCategory,
     sortTodos,
+    TODO_CATEGORY_MAX_LENGTH,
     TODO_TEXT_MAX_LENGTH,
+    truncateUnicodeCodePoints,
+    UNCATEGORIZED_LABEL,
+    validateTodoCategory,
     validateTodoText,
 } from "../src/utils/todoList.ts";
 
@@ -299,4 +309,255 @@ test("getTodoErrorMessage and predicates map every code/action and never leak se
             assert.equal(msg.includes(secretServerMessage), false);
         }
     }
+});
+
+test("normalizeTodoCategory handles empty, whitespace, line breaks, 未分類, case preservation, and overlong legacy values", () => {
+    assert.equal(TODO_CATEGORY_MAX_LENGTH, 30);
+    assert.equal(UNCATEGORIZED_LABEL, "未分類");
+
+    assert.equal(normalizeTodoCategory(undefined), "");
+    assert.equal(normalizeTodoCategory(null), "");
+    assert.equal(normalizeTodoCategory(""), "");
+    assert.equal(normalizeTodoCategory("   \t\r\n  "), "");
+    assert.equal(normalizeTodoCategory("未分類"), "");
+    assert.equal(normalizeTodoCategory("  未分類  "), "");
+    assert.equal(normalizeTodoCategory("\n未分類\r\n"), "");
+
+    assert.equal(normalizeTodoCategory("  行李  "), "行李");
+    assert.equal(normalizeTodoCategory("第一\n第二\r\n第三\r第四"), "第一 第二 第三 第四");
+    assert.equal(normalizeTodoCategory("a\u2028b\u2029c"), "a b c");
+    assert.equal(normalizeTodoCategory("a  b   c"), "a  b   c");
+    assert.equal(normalizeTodoCategory("Food"), "Food");
+    assert.equal(normalizeTodoCategory("food"), "food");
+
+    // Display normalization never truncates overlong legacy values.
+    const overlong = "長".repeat(35);
+    assert.equal(normalizeTodoCategory(`  ${overlong}\n`), overlong);
+});
+
+test("validateTodoCategory and code-point helpers enforce 30 Unicode code points including emoji/surrogates", () => {
+    assert.equal(countUnicodeCodePoints("行李"), 2);
+    assert.equal(countUnicodeCodePoints("😀".repeat(30)), 30);
+    assert.equal("😀".repeat(30).length, 60);
+    assert.equal(truncateUnicodeCodePoints("😀".repeat(31), 30), "😀".repeat(30));
+    assert.equal(truncateUnicodeCodePoints("行李", 0), "");
+
+    assert.deepEqual(validateTodoCategory(undefined), { ok: true, category: "" });
+    assert.deepEqual(validateTodoCategory(""), { ok: true, category: "" });
+    assert.deepEqual(validateTodoCategory("   "), { ok: true, category: "" });
+    assert.deepEqual(validateTodoCategory("未分類"), { ok: true, category: "" });
+
+    const exact30Cjk = "字".repeat(30);
+    assert.deepEqual(validateTodoCategory(`  ${exact30Cjk}  `), {
+        ok: true,
+        category: exact30Cjk,
+    });
+    assert.deepEqual(validateTodoCategory("字".repeat(31)), {
+        ok: false,
+        reason: "too_long",
+    });
+
+    const exact30Emoji = "🎒".repeat(30);
+    assert.deepEqual(validateTodoCategory(exact30Emoji), {
+        ok: true,
+        category: exact30Emoji,
+    });
+    assert.deepEqual(validateTodoCategory("🎒".repeat(31)), {
+        ok: false,
+        reason: "too_long",
+    });
+});
+
+test("getCategoryCounter applies 24, 28, and 30 thresholds", () => {
+    assert.equal(getCategoryCounter(0), null);
+    assert.equal(getCategoryCounter(23), null);
+    assert.deepEqual(getCategoryCounter(24), {
+        label: "24 / 30",
+        level: "normal",
+    });
+    assert.deepEqual(getCategoryCounter(27), {
+        label: "27 / 30",
+        level: "normal",
+    });
+    assert.deepEqual(getCategoryCounter(28), {
+        label: "28 / 30",
+        level: "warn",
+    });
+    assert.deepEqual(getCategoryCounter(29), {
+        label: "29 / 30",
+        level: "warn",
+    });
+    assert.deepEqual(getCategoryCounter(30), {
+        label: "已達上限 30 / 30",
+        level: "limit",
+    });
+});
+
+test("snapToExistingCategory matches case-insensitively after normalization without merging synonyms", () => {
+    const existing = ["行李", "Food", "JR Pass"];
+
+    assert.equal(snapToExistingCategory("food", existing), "Food");
+    assert.equal(snapToExistingCategory("  FOOD\n ", existing), "Food");
+    assert.equal(snapToExistingCategory("jr pass", existing), "JR Pass");
+    assert.equal(snapToExistingCategory("行李", existing), "行李");
+    assert.equal(snapToExistingCategory("行李箱", existing), "行李箱");
+    assert.equal(snapToExistingCategory("交通", existing), "交通");
+    assert.equal(snapToExistingCategory("未分類", existing), "");
+    assert.equal(snapToExistingCategory("   ", existing), "");
+    assert.equal(snapToExistingCategory(undefined, existing), "");
+});
+
+test("getTodoCategories returns unique non-empty categories in earliest-item group order", () => {
+    const items = [
+        { createdAt: "2026-11-27T01:00:00.000Z" },
+        { createdAt: "2026-11-27T04:00:00.000Z", category: "購物" },
+        { createdAt: "2026-11-27T02:00:00.000Z", category: "行李" },
+        { createdAt: "2026-11-27T03:00:00.000Z", category: "  證件\n" },
+        { createdAt: "2026-11-27T05:00:00.000Z", category: "行李" },
+        { createdAt: "2026-11-27T06:00:00.000Z", category: "未分類" },
+    ];
+
+    assert.deepEqual(getTodoCategories(items), ["行李", "證件", "購物"]);
+});
+
+test("groupTodosByCategory hides header when all items are uncategorized, including legacy items without category", () => {
+    assert.deepEqual(groupTodosByCategory([]), []);
+
+    const uncategorizedOnly = [
+        { id: "u2", createdAt: "2026-11-27T02:00:00.000Z", checked: true, category: "" },
+        { id: "u1", createdAt: "2026-11-27T01:00:00.000Z", checked: false },
+        { id: "u3", createdAt: "2026-11-27T03:00:00.000Z", checked: false, category: "未分類" },
+        { id: "u4", createdAt: "2026-11-27T04:00:00.000Z", checked: true, category: "   " },
+    ];
+
+    const groups = groupTodosByCategory(uncategorizedOnly);
+    assert.equal(groups.length, 1);
+    assert.equal(groups[0].key, "");
+    assert.equal(groups[0].label, "未分類");
+    assert.equal(groups[0].isUncategorized, true);
+    assert.equal(groups[0].showHeader, false);
+    assert.equal(groups[0].completed, 2);
+    assert.equal(groups[0].total, 4);
+    assert.deepEqual(
+        groups[0].items.map((item) => item.id),
+        ["u1", "u2", "u3", "u4"],
+    );
+});
+
+test("groupTodosByCategory orders groups by earliest createdAt, keeps 未分類 last, preserves intra-group order, and computes per-group stats", () => {
+    const items = [
+        // Oldest item overall is uncategorized, yet 未分類 must stay last.
+        { id: "none-1", createdAt: "2026-11-27T00:30:00.000Z", checked: false },
+        { id: "shop-2", createdAt: "2026-11-27T05:00:00.000Z", checked: false, category: "購物" },
+        { id: "docs-1", createdAt: "2026-11-27T02:00:00.000Z", checked: true, category: "證件" },
+        { id: "luggage-2", createdAt: "2026-11-27T04:00:00.000Z", checked: false, category: "行李" },
+        { id: "luggage-1", createdAt: "2026-11-27T01:00:00.000Z", checked: true, category: "  行李  " },
+        { id: "shop-1", createdAt: "2026-11-27T03:00:00.000Z", checked: true, category: "購物" },
+        { id: "docs-2", createdAt: "2026-11-27T02:30:00.000Z", checked: true, category: "證件" },
+        { id: "none-2", createdAt: "2026-11-27T06:00:00.000Z", checked: true, category: "未分類" },
+    ];
+    const snapshot = items.map((item) => ({ ...item }));
+
+    const groups = groupTodosByCategory(items);
+
+    assert.deepEqual(items, snapshot);
+    assert.deepEqual(
+        groups.map((g) => ({
+            key: g.key,
+            label: g.label,
+            isUncategorized: g.isUncategorized,
+            showHeader: g.showHeader,
+            completed: g.completed,
+            total: g.total,
+            ids: g.items.map((item) => item.id),
+        })),
+        [
+            {
+                key: "行李",
+                label: "行李",
+                isUncategorized: false,
+                showHeader: true,
+                completed: 1,
+                total: 2,
+                ids: ["luggage-1", "luggage-2"],
+            },
+            {
+                key: "證件",
+                label: "證件",
+                isUncategorized: false,
+                showHeader: true,
+                completed: 2,
+                total: 2,
+                ids: ["docs-1", "docs-2"],
+            },
+            {
+                key: "購物",
+                label: "購物",
+                isUncategorized: false,
+                showHeader: true,
+                completed: 1,
+                total: 2,
+                ids: ["shop-1", "shop-2"],
+            },
+            {
+                key: "",
+                label: "未分類",
+                isUncategorized: true,
+                showHeader: true,
+                completed: 1,
+                total: 2,
+                ids: ["none-1", "none-2"],
+            },
+        ],
+    );
+
+    // Toggling checked never alters group order or intra-group item order.
+    const toggled = items.map((item) =>
+        item.id === "luggage-1" ? { ...item, checked: false } : item,
+    );
+    const toggledGroups = groupTodosByCategory(toggled);
+    assert.deepEqual(
+        toggledGroups.map((g) => g.key),
+        ["行李", "證件", "購物", ""],
+    );
+    assert.deepEqual(
+        toggledGroups[0].items.map((item) => item.id),
+        ["luggage-1", "luggage-2"],
+    );
+    assert.equal(toggledGroups[0].completed, 0);
+
+    // Single categorized group still shows its header.
+    const singleCategorized = groupTodosByCategory([
+        { id: "only-1", createdAt: "2026-11-27T01:00:00.000Z", checked: false, category: "行李" },
+    ]);
+    assert.equal(singleCategorized.length, 1);
+    assert.equal(singleCategorized[0].showHeader, true);
+
+    // Tied timestamps preserve input order for groups.
+    const tiedGroups = groupTodosByCategory([
+        { id: "b1", createdAt: "2026-11-27T01:00:00.000Z", checked: false, category: "Beta" },
+        { id: "a1", createdAt: "2026-11-27T01:00:00.000Z", checked: false, category: "Alpha" },
+    ]);
+    assert.deepEqual(
+        tiedGroups.map((g) => g.key),
+        ["Beta", "Alpha"],
+    );
+});
+
+test("snapToExistingCategory prefers an exact match over an earlier case variant", () => {
+    const existing = ["food", "Food", "FOOD"];
+    assert.equal(snapToExistingCategory("Food", existing), "Food");
+    assert.equal(snapToExistingCategory("food", existing), "food");
+    assert.equal(snapToExistingCategory("FOOD", existing), "FOOD");
+    assert.equal(snapToExistingCategory("FoOd", existing), "food");
+});
+
+test("getTodoCategories omits legacy categories longer than 30 code points", () => {
+    const long = "🎒".repeat(31);
+    const items = [
+        { createdAt: "2026-11-27T01:00:00.000Z", category: long },
+        { createdAt: "2026-11-27T02:00:00.000Z", category: "行李" },
+        { createdAt: "2026-11-27T03:00:00.000Z", category: "a".repeat(30) },
+    ];
+    assert.deepEqual(getTodoCategories(items), ["行李", "a".repeat(30)]);
 });

@@ -1864,3 +1864,270 @@ test("AC10 (F1): restore-then-signed-out clears hydrated todos and expenses whil
     );
     assert.equal(persistedSignedIn.length, 0);
 });
+
+test("Category API contract: createTodos sends normalized non-empty category and omits empty/未分類 without adding query keys", async () => {
+    const queryClient = createTestQueryClient();
+    const cacheKey = getTodosQueryKey(SHEET_A, USER_AN);
+    assert.deepEqual(cacheKey, [TODOS_KEY, SHEET_A, USER_AN]);
+    queryClient.setQueryData(cacheKey, []);
+
+    const serverItems: TodoItem[] = [
+        makeTodo({ id: "cat-1", text: "行動電源", category: "行李" }),
+        makeTodo({ id: "cat-2", text: "開 eSIM", category: "" }),
+        makeTodo({ id: "cat-3", text: "下載地圖", category: "" }),
+        makeTodo({ id: "cat-4", text: "買保險", checked: false, category: "" }),
+    ];
+    const calls = mockFetch(() => gcfOk({ items: serverItems }, 201));
+
+    await executeMutation(
+        queryClient,
+        createCreateTodosMutationOptions({
+            queryClient,
+            sheetId: SHEET_A,
+            userEmail: USER_AN,
+            canReplayWrite: () => true,
+        }),
+        [
+            { text: "行動電源", category: "  行李\n " },
+            { text: "開 eSIM", category: "" },
+            { text: "下載地圖", category: "未分類" },
+            { text: "買保險", checked: false, category: "   " },
+        ],
+    );
+
+    assert.equal(calls.length, 1);
+    const parsedBody = JSON.parse(String(calls[0].init?.body));
+    assert.deepEqual(parsedBody, {
+        items: [
+            { text: "行動電源", category: "行李" },
+            { text: "開 eSIM" },
+            { text: "下載地圖" },
+            { text: "買保險", checked: false },
+        ],
+    });
+    assert.equal("category" in parsedBody.items[1], false);
+    assert.equal("category" in parsedBody.items[2], false);
+    assert.equal("category" in parsedBody.items[3], false);
+    assert.deepEqual(queryClient.getQueryData(cacheKey), serverItems);
+});
+
+test("Category API contract: updateTodo sends category (incl. '' clear), omits when undefined, is non-optimistic, and replaces cache with server item", async () => {
+    const queryClient = createTestQueryClient();
+    const cacheKey = getTodosQueryKey(SHEET_A, USER_AN);
+
+    // Legacy cached item without category property
+    const legacyTodo = makeTodo({
+        id: "todo-legacy",
+        text: "確認護照",
+        checked: false,
+    });
+    assert.equal("category" in legacyTodo, false);
+    queryClient.setQueryData(cacheKey, [legacyTodo]);
+
+    // 1. Category-only PATCH is NOT optimistic before response, sends only { id, category }, and replaces cache on 200.
+    let resolveAssign!: (res: Response) => void;
+    const assignCalls = mockFetch(
+        () =>
+            new Promise<Response>((resolve) => {
+                resolveAssign = resolve;
+            }),
+    );
+
+    const assignPromise = executeMutation(
+        queryClient,
+        createUpdateTodoMutationOptions({
+            queryClient,
+            sheetId: SHEET_A,
+            userEmail: USER_AN,
+            canReplayWrite: () => true,
+        }),
+        { id: "todo-legacy", category: "  證件\n" },
+    );
+
+    await new Promise((r) => setTimeout(r, 0));
+    assert.equal(
+        queryClient.getQueryData<TodoItem[]>(cacheKey)?.[0].category,
+        undefined,
+    );
+
+    const serverAssigned: TodoItem = {
+        ...legacyTodo,
+        category: "證件",
+        updatedAt: "2026-11-28T01:00:00.000Z",
+    };
+    resolveAssign(gcfOk({ item: serverAssigned }, 200));
+    await assignPromise;
+
+    assert.equal(assignCalls.length, 1);
+    assert.deepEqual(JSON.parse(String(assignCalls[0].init?.body)), {
+        id: "todo-legacy",
+        category: "證件",
+    });
+    assert.deepEqual(queryClient.getQueryData(cacheKey), [serverAssigned]);
+
+    // 2. Clearing category sends category: "" explicitly (and omits text/checked).
+    const serverCleared: TodoItem = {
+        ...serverAssigned,
+        category: "",
+        updatedAt: "2026-11-28T02:00:00.000Z",
+    };
+    const clearCalls = mockFetch(() => gcfOk({ item: serverCleared }, 200));
+
+    await executeMutation(
+        queryClient,
+        createUpdateTodoMutationOptions({
+            queryClient,
+            sheetId: SHEET_A,
+            userEmail: USER_AN,
+            canReplayWrite: () => true,
+        }),
+        { id: "todo-legacy", category: "" },
+    );
+
+    assert.equal(clearCalls.length, 1);
+    assert.deepEqual(JSON.parse(String(clearCalls[0].init?.body)), {
+        id: "todo-legacy",
+        category: "",
+    });
+    assert.deepEqual(queryClient.getQueryData(cacheKey), [serverCleared]);
+
+    // 3. Text-only PATCH omits category completely.
+    const serverTextOnly: TodoItem = {
+        ...serverCleared,
+        text: "確認護照效期",
+        updatedAt: "2026-11-28T03:00:00.000Z",
+    };
+    const textCalls = mockFetch(() => gcfOk({ item: serverTextOnly }, 200));
+
+    await executeMutation(
+        queryClient,
+        createUpdateTodoMutationOptions({
+            queryClient,
+            sheetId: SHEET_A,
+            userEmail: USER_AN,
+            canReplayWrite: () => true,
+        }),
+        { id: "todo-legacy", text: "確認護照效期" },
+    );
+
+    const parsedTextBody = JSON.parse(String(textCalls[0].init?.body));
+    assert.deepEqual(parsedTextBody, {
+        id: "todo-legacy",
+        text: "確認護照效期",
+    });
+    assert.equal("category" in parsedTextBody, false);
+
+    // 4. Combined checked + category PATCH is NOT optimistic (only checked-only is optimistic).
+    let resolveCombined!: (res: Response) => void;
+    mockFetch(
+        () =>
+            new Promise<Response>((resolve) => {
+                resolveCombined = resolve;
+            }),
+    );
+    const combinedPromise = executeMutation(
+        queryClient,
+        createUpdateTodoMutationOptions({
+            queryClient,
+            sheetId: SHEET_A,
+            userEmail: USER_AN,
+            canReplayWrite: () => true,
+        }),
+        { id: "todo-legacy", checked: true, category: "行李" },
+    );
+
+    await new Promise((r) => setTimeout(r, 0));
+    assert.equal(
+        queryClient.getQueryData<TodoItem[]>(cacheKey)?.[0].checked,
+        false,
+    );
+    const serverCombined: TodoItem = {
+        ...serverTextOnly,
+        checked: true,
+        category: "行李",
+        updatedAt: "2026-11-28T04:00:00.000Z",
+    };
+    resolveCombined(gcfOk({ item: serverCombined }, 200));
+    await combinedPromise;
+    assert.deepEqual(queryClient.getQueryData(cacheKey), [serverCombined]);
+});
+
+test("Category API contract: updateTodo normalizes 未分類/whitespace to empty string, and a failed category PATCH leaves the cache unchanged", async () => {
+    const queryClient = createTestQueryClient();
+    const cacheKey = getTodosQueryKey(SHEET_A, USER_AN);
+    const existing = makeTodo({
+        id: "todo-cat",
+        text: "充電器",
+        category: "行李",
+        checked: false,
+    });
+    queryClient.setQueryData(cacheKey, [existing]);
+
+    const serverCleared: TodoItem = {
+        ...existing,
+        category: "",
+        updatedAt: "2026-11-28T05:00:00.000Z",
+    };
+    const clearCalls = mockFetch(() => gcfOk({ item: serverCleared }, 200));
+    await executeMutation(
+        queryClient,
+        createUpdateTodoMutationOptions({
+            queryClient,
+            sheetId: SHEET_A,
+            userEmail: USER_AN,
+            canReplayWrite: () => true,
+        }),
+        { id: "todo-cat", category: "未分類" },
+    );
+    assert.deepEqual(JSON.parse(String(clearCalls[0].init?.body)), {
+        id: "todo-cat",
+        category: "",
+    });
+    assert.deepEqual(queryClient.getQueryData(cacheKey), [serverCleared]);
+
+    const spaceCalls = mockFetch(() =>
+        gcfOk(
+            {
+                item: {
+                    ...serverCleared,
+                    updatedAt: "2026-11-28T06:00:00.000Z",
+                },
+            },
+            200,
+        ),
+    );
+    await executeMutation(
+        queryClient,
+        createUpdateTodoMutationOptions({
+            queryClient,
+            sheetId: SHEET_A,
+            userEmail: USER_AN,
+            canReplayWrite: () => true,
+        }),
+        { id: "todo-cat", category: "   " },
+    );
+    assert.deepEqual(JSON.parse(String(spaceCalls[0].init?.body)), {
+        id: "todo-cat",
+        category: "",
+    });
+
+    mockFetch(() => gcfError(500, "INTERNAL_SERVER_ERROR", "Sheets backend failed"));
+    const beforeFailure = queryClient.getQueryData(cacheKey);
+    await assert.rejects(
+        executeMutation(
+            queryClient,
+            createUpdateTodoMutationOptions({
+                queryClient,
+                sheetId: SHEET_A,
+                userEmail: USER_AN,
+                canReplayWrite: () => true,
+            }),
+            { id: "todo-cat", category: "證件" },
+        ),
+        (err: unknown) =>
+            err instanceof TodoApiError &&
+            err.code === "INTERNAL_SERVER_ERROR" &&
+            err.status === 500,
+    );
+    assert.deepEqual(queryClient.getQueryData(cacheKey), beforeFailure);
+});

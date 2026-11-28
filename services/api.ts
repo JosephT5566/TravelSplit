@@ -15,6 +15,7 @@ import type {
 } from "../src/types";
 import logger from "@/src/utils/logger";
 import { getSelectedSheetId } from "@/src/utils/sheetSelection";
+import { normalizeTodoCategory } from "@/src/utils/todoList";
 
 export class TodoApiError extends Error {
     code: string;
@@ -521,9 +522,14 @@ export const api = {
     ): Promise<CreateTodosResponse> {
         assertOnlineForTodoWrite();
         const url = getPinnedTodosUrl(sheetId);
-        const payloadItems = items.map(({ text, checked }) =>
-            checked === undefined ? { text } : { text, checked },
-        );
+        const payloadItems = items.map(({ text, checked, category }) => {
+            const normalizedCategory = normalizeTodoCategory(category);
+            return {
+                text,
+                ...(checked !== undefined ? { checked } : {}),
+                ...(normalizedCategory ? { category: normalizedCategory } : {}),
+            };
+        });
 
         const response = await apiFetch(
             url.toString(),
@@ -562,6 +568,9 @@ export const api = {
             id: input.id,
             ...(input.text !== undefined ? { text: input.text } : {}),
             ...(input.checked !== undefined ? { checked: input.checked } : {}),
+            ...(input.category !== undefined
+                ? { category: normalizeTodoCategory(input.category) }
+                : {}),
         };
 
         const response = await apiFetch(

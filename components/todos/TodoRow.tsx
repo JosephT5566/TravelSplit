@@ -5,6 +5,7 @@ import {
     Check,
     CircleAlert,
     Loader2,
+    Tag,
     Trash2,
     TriangleAlert,
     X,
@@ -12,13 +13,26 @@ import {
 import { cn } from "@/lib/utils";
 import type { TodoItem } from "@/src/types";
 import {
+    countUnicodeCodePoints,
+    getCategoryCounter,
     getTextCounter,
+    normalizeTodoCategory,
     sanitizeTodoLineBreaks,
+    snapToExistingCategory,
+    TODO_CATEGORY_MAX_LENGTH,
     TODO_TEXT_MAX_LENGTH,
+    truncateUnicodeCodePoints,
+    UNCATEGORIZED_LABEL,
+    validateTodoCategory,
     validateTodoText,
 } from "@/src/utils/todoList";
 
 export type TodoRowMode = "normal" | "edit" | "delete";
+
+export type TodoRowEditUpdates = {
+    text?: string;
+    category?: string;
+};
 
 interface TodoRowProps {
     item: TodoItem;
@@ -26,13 +40,17 @@ interface TodoRowProps {
     isOnline: boolean;
     isPending: boolean;
     mode: TodoRowMode;
+    existingCategories: readonly string[];
     offlineBannerId?: string;
     setTextButtonRef: (id: string, node: HTMLButtonElement | null) => void;
     setDeleteButtonRef: (id: string, node: HTMLButtonElement | null) => void;
     onToggleCheck: (item: TodoItem) => void;
     onStartEdit: (item: TodoItem) => void;
     onCancelEdit: (id: string) => void;
-    onSaveEdit: (id: string, text: string) => Promise<string | null>;
+    onSaveEdit: (
+        id: string,
+        updates: TodoRowEditUpdates,
+    ) => Promise<string | null>;
     onStartDelete: (item: TodoItem) => void;
     onCancelDelete: (id: string) => void;
     onConfirmDelete: (item: TodoItem) => void;
@@ -41,21 +59,41 @@ interface TodoRowProps {
 function TodoEditRow({
     item,
     isOnline,
+    existingCategories,
     onCancel,
     onSave,
 }: {
     item: TodoItem;
     isOnline: boolean;
+    existingCategories: readonly string[];
     onCancel: () => void;
-    onSave: (text: string) => Promise<string | null>;
+    onSave: (updates: TodoRowEditUpdates) => Promise<string | null>;
 }) {
+    const initialCategory = normalizeTodoCategory(item.category);
     const [draft, setDraft] = useState(item.text);
+    const [selectedCategory, setSelectedCategory] = useState(initialCategory);
+    const [customCategoryInput, setCustomCategoryInput] = useState("");
     const [inlineError, setInlineError] = useState<string | null>(null);
     const [isSaving, setIsSaving] = useState(false);
+
     const savingRef = useRef(false);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
+    const categoryInputRef = useRef<HTMLInputElement>(null);
     const errorId = useId();
     const counter = getTextCounter(draft.length);
+
+    const hasCustomInput = customCategoryInput.trim().length > 0;
+    const rawCategoryDraft = hasCustomInput
+        ? customCategoryInput
+        : selectedCategory;
+    const effectiveCategory = snapToExistingCategory(
+        rawCategoryDraft,
+        existingCategories,
+    );
+    const categoryCounter = getCategoryCounter(
+        countUnicodeCodePoints(customCategoryInput),
+    );
+    const inputsDisabled = isSaving || !isOnline;
 
     useEffect(() => {
         const el = textareaRef.current;
@@ -98,16 +136,44 @@ function TodoEditRow({
             return;
         }
 
-        if (validation.text === item.text) {
+        const normalizedDraftCategory = normalizeTodoCategory(rawCategoryDraft);
+        const nextCategory =
+            normalizedDraftCategory === initialCategory
+                ? initialCategory
+                : snapToExistingCategory(
+                      normalizedDraftCategory,
+                      existingCategories,
+                  );
+        const textChanged = validation.text !== item.text;
+        const categoryChanged = nextCategory !== initialCategory;
+
+        if (categoryChanged) {
+            const categoryValidation = validateTodoCategory(nextCategory);
+            if (!categoryValidation.ok) {
+                setInlineError(`分類不可超過 ${TODO_CATEGORY_MAX_LENGTH} 字`);
+                categoryInputRef.current?.focus();
+                return;
+            }
+        }
+
+        if (!textChanged && !categoryChanged) {
             onCancel();
             return;
+        }
+
+        const updates: TodoRowEditUpdates = {};
+        if (textChanged) {
+            updates.text = validation.text;
+        }
+        if (categoryChanged) {
+            updates.category = nextCategory;
         }
 
         savingRef.current = true;
         setIsSaving(true);
         setInlineError(null);
         try {
-            const errorMessage = await onSave(validation.text);
+            const errorMessage = await onSave(updates);
             if (errorMessage !== null) {
                 setInlineError(errorMessage);
             }
@@ -142,6 +208,34 @@ function TodoEditRow({
         }
     };
 
+    const handleCategoryKeyDown = (
+        event: React.KeyboardEvent<HTMLInputElement>,
+    ) => {
+        if (event.nativeEvent.isComposing || event.keyCode === 229) {
+            return;
+        }
+        if (event.key === "Escape") {
+            event.preventDefault();
+            if (!isSaving) {
+                onCancel();
+            }
+            return;
+        }
+        if (event.key === "Enter") {
+            event.preventDefault();
+            void handleSave();
+        }
+    };
+
+    const handleClearCategory = () => {
+        if (inputsDisabled) return;
+        setSelectedCategory("");
+        setCustomCategoryInput("");
+        if (inlineError) {
+            setInlineError(null);
+        }
+    };
+
     return (
         <div className="border-l-[3px] border-l-primary bg-primary/6 px-3 py-3 transition-colors duration-150 forest:bg-primary/14 motion-reduce:transition-none">
             <textarea
@@ -149,7 +243,7 @@ function TodoEditRow({
                 rows={1}
                 maxLength={TODO_TEXT_MAX_LENGTH}
                 value={draft}
-                disabled={isSaving}
+                disabled={inputsDisabled}
                 aria-label="編輯待辦內容"
                 aria-invalid={inlineError ? "true" : undefined}
                 aria-describedby={inlineError ? errorId : undefined}
@@ -170,7 +264,134 @@ function TodoEditRow({
                         : "border-primary focus-visible:ring-primary/25",
                 )}
             />
-            <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+
+            <div
+                role="group"
+                aria-label="變更或清除分類"
+                className="mt-2.5 border-t border-dashed border-primary/25 pt-2"
+            >
+                <div className="flex items-center justify-between gap-2">
+                    <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-text-main/62 forest:text-text-main/72 ocean:text-text-main/68">
+                        <Tag aria-hidden="true" className="size-3.5 shrink-0" />
+                        <span>分類</span>
+                        {categoryCounter && (
+                            <span
+                                aria-live="polite"
+                                className={cn(
+                                    "ml-1 text-[11px] font-semibold tabular-nums",
+                                    categoryCounter.level === "limit"
+                                        ? "text-red-700 forest:text-red-200"
+                                        : categoryCounter.level === "warn"
+                                          ? "text-accent"
+                                          : "text-text-main/62 forest:text-text-main/72",
+                                )}
+                            >
+                                {categoryCounter.label}
+                            </span>
+                        )}
+                    </span>
+
+                    {(effectiveCategory || customCategoryInput) && (
+                        <button
+                            type="button"
+                            disabled={inputsDisabled}
+                            onClick={handleClearCategory}
+                            className="inline-flex min-h-11 -my-2.5 -mr-1.5 shrink-0 items-center rounded-lg px-2 text-xs font-semibold whitespace-nowrap text-text-main/62 underline decoration-border underline-offset-3 transition-colors hover:bg-surface/70 hover:text-text-main focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:cursor-not-allowed disabled:opacity-45 forest:text-text-main/72 ocean:text-text-main/68 motion-reduce:transition-none"
+                        >
+                            清除為未分類
+                        </button>
+                    )}
+                </div>
+
+                <div
+                    role="group"
+                    aria-label="選擇分類"
+                    className="mt-0.5 flex flex-nowrap items-center gap-2 overflow-x-auto pb-0.5"
+                >
+                    <button
+                        type="button"
+                        disabled={inputsDisabled}
+                        aria-pressed={effectiveCategory === ""}
+                        onClick={handleClearCategory}
+                        className="inline-flex min-h-11 shrink-0 items-center py-1 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50 group"
+                    >
+                        <span
+                            className={cn(
+                                "inline-flex min-h-8 items-center rounded-full border px-3 py-1 text-[13px] whitespace-nowrap transition-colors group-focus-visible:ring-2 group-focus-visible:ring-primary motion-reduce:transition-none",
+                                effectiveCategory === ""
+                                    ? "border-text-main/55 bg-background font-semibold text-text-main"
+                                    : "border-dashed border-border bg-surface font-medium text-text-main/62 hover:bg-background forest:text-text-main/72",
+                            )}
+                        >
+                            {UNCATEGORIZED_LABEL}
+                        </span>
+                    </button>
+
+                    {existingCategories.map((category) => {
+                        const isSelected = effectiveCategory === category;
+                        return (
+                            <button
+                                key={category}
+                                type="button"
+                                disabled={inputsDisabled}
+                                aria-pressed={isSelected}
+                                onClick={() => {
+                                    if (inputsDisabled) return;
+                                    setSelectedCategory(category);
+                                    setCustomCategoryInput("");
+                                    if (inlineError) {
+                                        setInlineError(null);
+                                    }
+                                }}
+                                className="inline-flex min-h-11 shrink-0 items-center py-1 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50 group"
+                            >
+                                <span
+                                    className={cn(
+                                        "inline-flex min-h-8 max-w-[220px] items-center gap-1 rounded-full border px-3 py-1 text-[13px] whitespace-nowrap transition-colors group-focus-visible:ring-2 group-focus-visible:ring-primary motion-reduce:transition-none",
+                                        isSelected
+                                            ? "border-primary bg-primary/12 font-semibold text-text-main forest:bg-primary/22"
+                                            : "border-border bg-surface font-medium text-text-main hover:bg-background",
+                                    )}
+                                >
+                                    {isSelected && (
+                                        <Check
+                                            aria-hidden="true"
+                                            className="size-3.5 shrink-0"
+                                        />
+                                    )}
+                                    <span className="truncate">{category}</span>
+                                </span>
+                            </button>
+                        );
+                    })}
+                </div>
+
+                <div className="mt-1">
+                    <input
+                        ref={categoryInputRef}
+                        type="text"
+                        autoComplete="off"
+                        value={customCategoryInput}
+                        disabled={inputsDisabled}
+                        placeholder={`或輸入新分類（最多 ${TODO_CATEGORY_MAX_LENGTH} 字）…`}
+                        aria-label="輸入新分類"
+                        onChange={(event) => {
+                            const sanitized = truncateUnicodeCodePoints(
+                                sanitizeTodoLineBreaks(event.target.value),
+                                TODO_CATEGORY_MAX_LENGTH,
+                            );
+                            setCustomCategoryInput(sanitized);
+                            if (inlineError) {
+                                setInlineError(null);
+                            }
+                        }}
+                        onKeyDown={handleCategoryKeyDown}
+                        className="min-h-11 w-full rounded-[10px] border border-border bg-surface px-3 text-sm text-text-main placeholder:text-text-main/45 transition-colors focus-visible:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/25 disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transition-none"
+                    />
+                </div>
+            </div>
+
+            <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2">
                 <div className="min-w-0 flex-1">
                     {inlineError ? (
                         <p
@@ -328,6 +549,7 @@ export function TodoRow({
     isOnline,
     isPending,
     mode,
+    existingCategories,
     offlineBannerId,
     setTextButtonRef,
     setDeleteButtonRef,
@@ -345,8 +567,9 @@ export function TodoRow({
                 <TodoEditRow
                     item={item}
                     isOnline={isOnline}
+                    existingCategories={existingCategories}
                     onCancel={() => onCancelEdit(item.id)}
-                    onSave={(text) => onSaveEdit(item.id, text)}
+                    onSave={(updates) => onSaveEdit(item.id, updates)}
                 />
             </li>
         );
