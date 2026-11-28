@@ -63,14 +63,17 @@ export function TodoExportButton({
                     void handleExport();
                 }}
                 className={cn(
-                    "inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-primary/55 bg-surface px-4 text-sm font-semibold whitespace-nowrap text-text-main shadow-2xs transition-colors hover:border-primary hover:bg-primary/6 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-surface forest:border-primary/70 forest:hover:bg-primary/14 ocean:border-primary/60 motion-reduce:transition-none",
+                    "inline-flex min-h-11 shrink-0 items-center justify-center gap-1.5 rounded-xl border border-border bg-surface px-2.5 text-xs font-semibold whitespace-nowrap text-text-main shadow-2xs transition-colors hover:border-primary/40 hover:bg-background active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-surface min-[360px]:px-3 min-[360px]:text-[13px] forest:hover:border-primary/70 ocean:hover:border-primary/60 motion-reduce:transition-none",
                 )}
             >
                 <ClipboardCopy
                     aria-hidden="true"
-                    className="size-4 shrink-0 text-primary forest:text-text-main"
+                    className="size-[15px] shrink-0 text-primary forest:text-text-main"
                 />
-                <span>複製為 Markdown</span>
+                <span>
+                    <span className="max-[359px]:hidden">複製為 </span>
+                    Markdown
+                </span>
             </button>
 
             <Dialog
