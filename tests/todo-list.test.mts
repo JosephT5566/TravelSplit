@@ -543,3 +543,21 @@ test("groupTodosByCategory orders groups by earliest createdAt, keeps 未分類 
         ["Beta", "Alpha"],
     );
 });
+
+test("snapToExistingCategory prefers an exact match over an earlier case variant", () => {
+    const existing = ["food", "Food", "FOOD"];
+    assert.equal(snapToExistingCategory("Food", existing), "Food");
+    assert.equal(snapToExistingCategory("food", existing), "food");
+    assert.equal(snapToExistingCategory("FOOD", existing), "FOOD");
+    assert.equal(snapToExistingCategory("FoOd", existing), "food");
+});
+
+test("getTodoCategories omits legacy categories longer than 30 code points", () => {
+    const long = "🎒".repeat(31);
+    const items = [
+        { createdAt: "2026-11-27T01:00:00.000Z", category: long },
+        { createdAt: "2026-11-27T02:00:00.000Z", category: "行李" },
+        { createdAt: "2026-11-27T03:00:00.000Z", category: "a".repeat(30) },
+    ];
+    assert.deepEqual(getTodoCategories(items), ["行李", "a".repeat(30)]);
+});

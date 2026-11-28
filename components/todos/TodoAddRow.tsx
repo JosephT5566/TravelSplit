@@ -62,6 +62,10 @@ export function TodoAddRow({
         Boolean(snappedDraftCategory) &&
         existingCategories.includes(snappedDraftCategory);
     const hasDraftInput = categoryDraft.trim().length > 0;
+    const effectiveSelectedCategory = snapToExistingCategory(
+        selectedCategory,
+        existingCategories,
+    );
 
     useEffect(() => {
         if (!isSubmitting && shouldRefocusRef.current) {
@@ -73,6 +77,7 @@ export function TodoAddRow({
     useEffect(() => {
         if (!isOnline && isPickerOpen) {
             setIsPickerOpen(false);
+            setCategoryDraft("");
         }
     }, [isOnline, isPickerOpen]);
 
@@ -122,6 +127,7 @@ export function TodoAddRow({
         }
         if (event.key === "Escape") {
             event.preventDefault();
+            setCategoryDraft("");
             setIsPickerOpen(false);
             triggerButtonRef.current?.focus();
         }
@@ -138,7 +144,9 @@ export function TodoAddRow({
         }
 
         const rawCategory =
-            isTrayOpen && hasDraftInput ? categoryDraft : selectedCategory;
+            isTrayOpen && hasDraftInput
+                ? categoryDraft
+                : effectiveSelectedCategory;
         const checkedCategory = validateTodoCategory(rawCategory);
         if (!checkedCategory.ok) {
             categoryInputRef.current?.focus();
@@ -198,26 +206,33 @@ export function TodoAddRow({
                     aria-expanded={isTrayOpen}
                     aria-controls={pickerId}
                     aria-label={
-                        selectedCategory
-                            ? `選擇分類（目前：${selectedCategory}）`
+                        effectiveSelectedCategory
+                            ? `選擇分類（目前：${effectiveSelectedCategory}）`
                             : `選擇分類（目前：${UNCATEGORIZED_LABEL}）`
                     }
                     aria-describedby={!isOnline ? offlineBannerId : undefined}
                     onClick={() => {
-                        if (!isInputDisabled) {
-                            setIsPickerOpen((open) => !open);
+                        if (isInputDisabled) {
+                            return;
                         }
+                        setIsPickerOpen((open) => {
+                            if (open) {
+                                setCategoryDraft("");
+                                return false;
+                            }
+                            return true;
+                        });
                     }}
                     className={cn(
                         "inline-flex min-h-11 min-w-11 max-w-[84px] min-[360px]:max-w-[96px] shrink-0 items-center justify-center gap-1 rounded-xl border px-2.5 text-[13px] whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transition-none",
-                        isTrayOpen || selectedCategory
+                        isTrayOpen || effectiveSelectedCategory
                             ? "border-primary bg-primary/12 font-semibold text-text-main forest:bg-primary/20"
                             : "border-border bg-surface font-medium text-text-main/62 hover:bg-background hover:text-text-main forest:text-text-main/72 ocean:text-text-main/68",
                     )}
                 >
                     <Tag aria-hidden="true" className="size-[15px] shrink-0" />
-                    {selectedCategory ? (
-                        <span className="truncate">{selectedCategory}</span>
+                    {effectiveSelectedCategory ? (
+                        <span className="truncate">{effectiveSelectedCategory}</span>
                     ) : (
                         <span className="hidden truncate min-[360px]:inline">
                             分類
@@ -247,7 +262,7 @@ export function TodoAddRow({
                 </button>
             </div>
 
-            {selectedCategory && !isTrayOpen && (
+            {effectiveSelectedCategory && !isTrayOpen && (
                 <div className="mt-2 flex items-center justify-between gap-2">
                     <span className="inline-flex min-w-0 items-center gap-1.5 rounded-full border border-primary/35 bg-primary/10 px-2.5 py-1 text-xs font-semibold text-text-main forest:border-primary/45 forest:bg-primary/18">
                         <Tag
@@ -255,13 +270,13 @@ export function TodoAddRow({
                             className="size-3.5 shrink-0 text-primary forest:text-text-main"
                         />
                         <span className="min-w-0 truncate">
-                            分類：{selectedCategory}
+                            分類：{effectiveSelectedCategory}
                         </span>
                     </span>
                     <button
                         type="button"
                         disabled={isInputDisabled}
-                        aria-label={`清除分類「${selectedCategory}」`}
+                        aria-label={`清除分類「${effectiveSelectedCategory}」`}
                         onClick={handleClearCategory}
                         className="inline-flex min-h-11 -my-2 -mr-1.5 shrink-0 items-center gap-1 rounded-lg px-2 text-xs font-semibold whitespace-nowrap text-text-main/62 transition-colors hover:bg-surface hover:text-text-main focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:cursor-not-allowed disabled:opacity-45 forest:text-text-main/72 ocean:text-text-main/68 motion-reduce:transition-none"
                     >
@@ -308,7 +323,6 @@ export function TodoAddRow({
                             id={categoryInputId}
                             type="text"
                             autoComplete="off"
-                            maxLength={TODO_CATEGORY_MAX_LENGTH}
                             value={categoryDraft}
                             disabled={isInputDisabled}
                             placeholder="輸入新分類名稱…"
@@ -360,14 +374,14 @@ export function TodoAddRow({
                         <button
                             type="button"
                             disabled={isInputDisabled}
-                            aria-pressed={selectedCategory === ""}
+                            aria-pressed={effectiveSelectedCategory === ""}
                             onClick={handleClearCategory}
                             className="inline-flex min-h-11 shrink-0 items-center py-1 focus-visible:outline-none group"
                         >
                             <span
                                 className={cn(
                                     "inline-flex min-h-8 items-center rounded-full border px-3 py-1 text-[13px] whitespace-nowrap transition-colors group-focus-visible:ring-2 group-focus-visible:ring-primary motion-reduce:transition-none",
-                                    selectedCategory === ""
+                                    effectiveSelectedCategory === ""
                                         ? "border-text-main/55 bg-background font-semibold text-text-main"
                                         : "border-dashed border-border bg-surface font-medium text-text-main/62 hover:bg-background forest:text-text-main/72",
                                 )}
@@ -377,7 +391,7 @@ export function TodoAddRow({
                         </button>
 
                         {existingCategories.map((category) => {
-                            const isSelected = selectedCategory === category;
+                            const isSelected = effectiveSelectedCategory === category;
                             return (
                                 <button
                                     key={category}

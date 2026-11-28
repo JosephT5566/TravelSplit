@@ -62,8 +62,13 @@ type ActiveRowAction = {
 } | null;
 
 type PendingFocus =
-    | { target: "text" | "delete"; id: string }
-    | { target: "add" }
+    | {
+          target: "text" | "delete";
+          id: string;
+          expectedCategory?: string;
+          waitUntilAbsentId?: string;
+      }
+    | { target: "add"; waitUntilAbsentId?: string }
     | null;
 
 interface TodoListCardProps {
@@ -170,19 +175,46 @@ function TodoListCard({
 
     useEffect(() => {
         if (!pendingFocus) return;
+
+        if (
+            pendingFocus.waitUntilAbsentId &&
+            sortedTodos.some((item) => item.id === pendingFocus.waitUntilAbsentId)
+        ) {
+            return;
+        }
+
+        if (
+            pendingFocus.target !== "add" &&
+            pendingFocus.expectedCategory !== undefined
+        ) {
+            const focusedItem = sortedTodos.find(
+                (item) => item.id === pendingFocus.id,
+            );
+            if (
+                !focusedItem ||
+                normalizeTodoCategory(focusedItem.category) !==
+                    pendingFocus.expectedCategory
+            ) {
+                return;
+            }
+        }
+
         const target =
             pendingFocus.target === "add"
                 ? null
                 : pendingFocus.target === "text"
                   ? textButtonRefs.current.get(pendingFocus.id)
                   : deleteButtonRefs.current.get(pendingFocus.id);
+        if (pendingFocus.target !== "add" && !target) {
+            return;
+        }
         const focusTarget = target ?? addInputRef.current;
         focusTarget?.focus();
         if (target) {
             target.scrollIntoView({ block: "nearest" });
         }
         setPendingFocus(null);
-    }, [pendingFocus]);
+    }, [pendingFocus, sortedTodos, collapsedGroups, showGroupHeaders]);
 
     const setTextButtonRef = useCallback(
         (id: string, node: HTMLButtonElement | null) => {
@@ -262,6 +294,25 @@ function TodoListCard({
         },
         [collapsedGroups, sortedTodos, updateActiveRowAction],
     );
+
+    useEffect(() => {
+        setCollapsedGroups((current) => {
+            if (!showGroupHeaders) {
+                return current.size === 0 ? current : new Set();
+            }
+            const validKeys = new Set(groups.map((group) => group.key));
+            let changed = false;
+            const next = new Set<string>();
+            for (const key of current) {
+                if (validKeys.has(key)) {
+                    next.add(key);
+                } else {
+                    changed = true;
+                }
+            }
+            return changed ? next : current;
+        });
+    }, [groups, showGroupHeaders]);
 
     const notifyWriteError = useCallback(
         (err: unknown, action: Exclude<TodoAction, "load">) => {
@@ -381,9 +432,10 @@ function TodoListCard({
                     id,
                     ...updates,
                 });
-                if (updates.category !== undefined) {
-                    expandGroup(normalizeTodoCategory(response.item.category));
-                }
+                const savedCategory = normalizeTodoCategory(
+                    response.item.category,
+                );
+                expandGroup(savedCategory);
                 const restoreFocus = canRestoreFocusFor(id);
                 updateActiveRowAction((current) =>
                     current?.id === id && current.mode === "edit"
@@ -391,7 +443,11 @@ function TodoListCard({
                         : current,
                 );
                 if (restoreFocus) {
-                    setPendingFocus({ target: "text", id });
+                    setPendingFocus({
+                        target: "text",
+                        id,
+                        expectedCategory: savedCategory,
+                    });
                 }
                 return null;
             } catch (err) {
@@ -454,7 +510,7 @@ function TodoListCard({
             const prevItem =
                 currentIndex > 0 ? visibleItems[currentIndex - 1] : undefined;
 
-            const focusAfterRowGone = (): PendingFocus =>
+            const focusAfterRowGone = (): Exclude<PendingFocus, null> =>
                 nextItem
                     ? { target: "text", id: nextItem.id }
                     : prevItem
@@ -469,7 +525,10 @@ function TodoListCard({
                 );
                 showToast({ kind: "success", message: "已刪除待辦" });
                 if (restoreFocus) {
-                    setPendingFocus(focusAfterRowGone());
+                    setPendingFocus({
+                        ...focusAfterRowGone(),
+                        waitUntilAbsentId: item.id,
+                    });
                 }
             } catch (err) {
                 notifyWriteError(err, "delete");
@@ -480,7 +539,10 @@ function TodoListCard({
                 if (restoreFocus) {
                     setPendingFocus(
                         isNotFoundError(err)
-                            ? focusAfterRowGone()
+                            ? {
+                                  ...focusAfterRowGone(),
+                                  waitUntilAbsentId: item.id,
+                              }
                             : { target: "delete", id: item.id },
                     );
                 }
@@ -590,8 +652,9 @@ function TodoListCard({
                                         return (
                                             <div
                                                 key={
-                                                    group.key ||
-                                                    "__uncategorized__"
+                                                    group.isUncategorized
+                                                        ? "uncategorized"
+                                                        : `category:${group.key}`
                                                 }
                                                 className="border-t border-border first:border-t-0"
                                             >

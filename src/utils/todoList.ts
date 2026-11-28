@@ -190,13 +190,20 @@ export function snapToExistingCategory(
         return "";
     }
     const needle = normalized.toLowerCase();
+    let caseInsensitiveMatch = "";
     for (const entry of existing) {
         const candidate = normalizeTodoCategory(entry);
-        if (candidate && candidate.toLowerCase() === needle) {
+        if (!candidate) {
+            continue;
+        }
+        if (candidate === normalized) {
             return candidate;
         }
+        if (!caseInsensitiveMatch && candidate.toLowerCase() === needle) {
+            caseInsensitiveMatch = candidate;
+        }
     }
-    return normalized;
+    return caseInsensitiveMatch || normalized;
 }
 
 /**
@@ -211,7 +218,11 @@ export function getTodoCategories(
     const categories: string[] = [];
     for (const item of sorted) {
         const category = normalizeTodoCategory(item.category);
-        if (category && !seen.has(category)) {
+        if (
+            category &&
+            !seen.has(category) &&
+            countUnicodeCodePoints(category) <= TODO_CATEGORY_MAX_LENGTH
+        ) {
             seen.add(category);
             categories.push(category);
         }

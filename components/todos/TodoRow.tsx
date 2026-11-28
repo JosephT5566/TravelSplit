@@ -371,7 +371,6 @@ function TodoEditRow({
                         ref={categoryInputRef}
                         type="text"
                         autoComplete="off"
-                        maxLength={TODO_CATEGORY_MAX_LENGTH}
                         value={customCategoryInput}
                         disabled={inputsDisabled}
                         placeholder={`或輸入新分類（最多 ${TODO_CATEGORY_MAX_LENGTH} 字）…`}

@@ -551,3 +551,55 @@ test("toggleGroupSelection handles none, partial, and all selected without mutat
     const afterEmpty = toggleGroupSelection(initial, []);
     assert.deepEqual([...afterEmpty], ["other-1"]);
 });
+
+test("resolveCopyCategories does not merge into a truncated legacy >30-code-point category in my list", () => {
+    const legacy = "a".repeat(35);
+    const source = [
+        { id: "s1", createdAt: "2026-11-27T01:00:00.000Z", category: "A".repeat(30) },
+    ];
+    const myItems = [
+        { createdAt: "2026-11-26T01:00:00.000Z", category: legacy },
+        { createdAt: "2026-11-26T02:00:00.000Z", category: "Food" },
+    ];
+    const resolved = resolveCopyCategories(source, myItems);
+    assert.deepEqual(resolved.get("A".repeat(30)), {
+        sourceCategory: "A".repeat(30),
+        targetCategory: "A".repeat(30),
+        matchKind: "new",
+    });
+});
+
+test("resolveCopyCategories prefers exact spelling when my list has multiple case variants", () => {
+    const source = [
+        { id: "s1", createdAt: "2026-11-27T01:00:00.000Z", category: "Food" },
+        { id: "s2", createdAt: "2026-11-27T02:00:00.000Z", category: "food" },
+    ];
+    const myItems = [
+        { createdAt: "2026-11-26T01:00:00.000Z", category: "food" },
+        { createdAt: "2026-11-26T02:00:00.000Z", category: "Food" },
+    ];
+    const resolved = resolveCopyCategories(source, myItems);
+    assert.equal(resolved.get("Food")?.targetCategory, "Food");
+    assert.equal(resolved.get("Food")?.matchKind, "exact");
+    assert.equal(resolved.get("food")?.targetCategory, "food");
+    assert.equal(resolved.get("food")?.matchKind, "exact");
+});
+
+test("buildCopyCandidates keeps a selected item's own new spelling; unselected siblings do not hijack it", () => {
+    const source = [
+        { id: "s1", text: "護照", createdAt: "2026-11-27T01:00:00.000Z", category: "Cafe" },
+        { id: "s2", text: "找咖啡廳", createdAt: "2026-11-27T02:00:00.000Z", category: "cafe" },
+    ];
+    const candidates = buildCopyCandidates(source, []);
+    assert.equal(candidates.find((c) => c.id === "s1")?.category, "Cafe");
+    assert.equal(candidates.find((c) => c.id === "s2")?.category, "cafe");
+    assert.equal(candidates.find((c) => c.id === "s2")?.categoryMatchKind, "new");
+
+    const payload = buildCopyItems(candidates, new Set(["s2"]));
+    assert.deepEqual(payload, [
+        { text: "找咖啡廳", checked: false, category: "cafe" },
+    ]);
+
+    const both = buildCopyItems(candidates, new Set(["s1", "s2"]));
+    assert.deepEqual(both.map((item) => item.category), ["Cafe", "Cafe"]);
+});

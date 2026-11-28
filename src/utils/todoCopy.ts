@@ -173,27 +173,50 @@ function sanitizeCopyCategory(raw: string | null | undefined): string {
     );
 }
 
+type ExistingCategoryIndex = {
+    exact: Set<string>;
+    byLower: Map<string, string>;
+};
+
 function buildExistingCategoryMap(
     myItems: readonly { createdAt?: string; category?: string }[],
-): Map<string, string> {
+): ExistingCategoryIndex {
     const ordered = sortTodos(
         myItems.map((item) => ({
             createdAt: item.createdAt ?? "",
             category: item.category,
         })),
     );
-    const map = new Map<string, string>();
+    const exact = new Set<string>();
+    const byLower = new Map<string, string>();
     for (const item of ordered) {
-        const sanitized = sanitizeCopyCategory(item.category);
-        if (!sanitized) {
+        const category = normalizeTodoCategory(item.category);
+        if (
+            !category ||
+            countUnicodeCodePoints(category) > TODO_CATEGORY_MAX_LENGTH
+        ) {
             continue;
         }
-        const lower = sanitized.toLowerCase();
-        if (!map.has(lower)) {
-            map.set(lower, sanitized);
+        exact.add(category);
+        const lower = category.toLowerCase();
+        if (!byLower.has(lower)) {
+            byLower.set(lower, category);
         }
     }
-    return map;
+    return { exact, byLower };
+}
+
+function snapToMyCategory(
+    writeBase: string,
+    myCategories: ExistingCategoryIndex | null,
+): string | undefined {
+    if (myCategories === null) {
+        return undefined;
+    }
+    if (myCategories.exact.has(writeBase)) {
+        return writeBase;
+    }
+    return myCategories.byLower.get(writeBase.toLowerCase());
 }
 
 /**
@@ -209,7 +232,7 @@ export function resolveCopyCategories(
     myItems?: readonly { createdAt?: string; category?: string }[] | undefined,
 ): Map<string, ResolvedCopyCategory> {
     const sorted = sortTodos(sourceItems);
-    const myCategoryByLower =
+    const myCategories =
         myItems === undefined ? null : buildExistingCategoryMap(myItems);
     const batchSpellingByLower = new Map<string, string>();
     const resolved = new Map<string, ResolvedCopyCategory>();
@@ -231,8 +254,8 @@ export function resolveCopyCategories(
         }
 
         const lower = writeBase.toLowerCase();
-        if (myCategoryByLower !== null) {
-            const myExisting = myCategoryByLower.get(lower);
+        if (myCategories !== null) {
+            const myExisting = snapToMyCategory(writeBase, myCategories);
             if (myExisting !== undefined) {
                 resolved.set(sourceCategory, {
                     sourceCategory,
@@ -292,7 +315,8 @@ export function buildCopyCandidates(
         | undefined,
 ): TodoCopyCandidate[] {
     const sorted = sortTodos(sourceItems);
-    const resolutions = resolveCopyCategories(sorted, myItems);
+    const myCategories =
+        myItems === undefined ? null : buildExistingCategoryMap(myItems);
     const myNormalizedTexts =
         myItems === undefined
             ? null
@@ -300,16 +324,32 @@ export function buildCopyCandidates(
 
     return sorted.map((item) => {
         const sourceCategory = normalizeTodoCategory(item.category);
-        const resolution = resolutions.get(sourceCategory);
+        const writeBase = sanitizeCopyCategory(item.category);
+        let category = "";
+        let categoryMatchKind: TodoCopyCandidate["categoryMatchKind"] =
+            sourceCategory ? "unknown" : "uncategorized";
+        if (!writeBase) {
+            category = "";
+            categoryMatchKind = "uncategorized";
+        } else {
+            const myExisting = snapToMyCategory(writeBase, myCategories);
+            if (myExisting !== undefined) {
+                category = myExisting;
+                categoryMatchKind =
+                    myExisting === sourceCategory ? "exact" : "merged";
+            } else {
+                category = writeBase;
+                categoryMatchKind =
+                    myCategories === null ? "unknown" : "new";
+            }
+        }
         return {
             id: item.id,
             text: item.text,
             createdAt: item.createdAt,
             sourceCategory,
-            category: resolution?.targetCategory ?? "",
-            categoryMatchKind:
-                resolution?.matchKind ??
-                (sourceCategory ? "unknown" : "uncategorized"),
+            category,
+            categoryMatchKind,
             isDuplicate:
                 myNormalizedTexts !== null &&
                 myNormalizedTexts.has(normalizeTodoText(item.text)),

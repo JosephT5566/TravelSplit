@@ -19,7 +19,6 @@ import {
     buildCopyItems,
     chunkCopyItems,
     groupCopyCandidatesByCategory,
-    resolveCopyCategories,
     summarizeCopyResult,
     TODO_COPY_BATCH_SIZE,
     toggleGroupSelection,
@@ -96,10 +95,6 @@ function TodoCopyDrawerBody({
     const candidateGroups = useMemo(
         () => groupCopyCandidatesByCategory(candidates),
         [candidates],
-    );
-    const categoryResolutions = useMemo(
-        () => resolveCopyCategories(activeItems, myTodosQuery.data),
-        [activeItems, myTodosQuery.data],
     );
     const hasCategoryHeaders = candidateGroups.some(
         (group) => group.showHeader,
@@ -417,23 +412,27 @@ function TodoCopyDrawerBody({
                                 group.items.length > 0 &&
                                 groupSelectedCount === group.items.length;
 
-                            const resolution = categoryResolutions.get(
-                                group.key,
-                            );
+                            const representative = group.items[0];
                             const categoryHint =
                                 !group.isUncategorized &&
                                 myTodosQuery.data !== undefined &&
-                                resolution
-                                    ? resolution.matchKind === "merged"
-                                        ? `併入我的「${resolution.targetCategory}」`
-                                        : resolution.matchKind === "new"
+                                representative
+                                    ? representative.categoryMatchKind ===
+                                      "merged"
+                                        ? `併入我的「${representative.category}」`
+                                        : representative.categoryMatchKind ===
+                                            "new"
                                           ? "新分類"
                                           : null
                                     : null;
 
                             return (
                                 <section
-                                    key={group.key || "__uncategorized__"}
+                                    key={
+                                        group.isUncategorized
+                                            ? "uncategorized"
+                                            : `category:${group.key}`
+                                    }
                                     aria-labelledby={headingId}
                                     className="border-t border-border first:border-t-0"
                                 >
