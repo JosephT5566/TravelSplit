@@ -281,6 +281,8 @@ function createHarness(options: {
         call: SyncCall,
         server: ReturnType<typeof createFakeTodoServer>,
     ) => Promise<TodoSyncResponse> | TodoSyncResponse;
+    cancelBaseQuery?: () => Promise<void>;
+    onSetBaseItems?: (items: TodoItem[]) => void;
     initialOnline?: boolean;
     clock?: FakeClock;
     locks?: {
@@ -325,7 +327,9 @@ function createHarness(options: {
         getBaseItems: () => baseItems,
         setBaseItems: (items) => {
             baseItems = items;
+            options.onSetBaseItems?.(items);
         },
+        cancelBaseQuery: options.cancelBaseQuery,
         isOnline: () => online,
         now: clock.now,
         random: () => 0.5, // zero jitter (multiplier = 1.0)
@@ -1122,4 +1126,623 @@ test("scope isolation and sign-out plumbing: other scopes cleared and never sent
     assert.equal(sentCalls.length, 1);
     assert.equal(sentCalls[0].sheetId, SHEET_B);
     manager.disposeActiveEngine();
+});
+
+test("TodoSyncEngine and TodoSyncManager cancel in-flight GET /todos before sending and before setBaseItems on commit", async () => {
+    // Part A: verify exact ordering of cancelBaseQuery before send and before setBaseItems.
+    const item = makeTodo({ id: "t-cancel-order", checked: false });
+    const events: string[] = [];
+    let releaseFirstCancel!: () => void;
+    let releaseSecondCancel!: () => void;
+    let cancelCount = 0;
+
+    const h = createHarness({
+        initialBase: [item],
+        cancelBaseQuery: () => {
+            cancelCount += 1;
+            const seq = cancelCount;
+            events.push(`cancel:start:${seq}`);
+            return new Promise<void>((resolve) => {
+                const finish = () => {
+                    events.push(`cancel:end:${seq}`);
+                    resolve();
+                };
+                if (seq === 1) {
+                    releaseFirstCancel = finish;
+                } else {
+                    releaseSecondCancel = finish;
+                }
+            });
+        },
+        onSync: (call, server) => {
+            events.push("sync:send");
+            return server.applyOps(call.ops);
+        },
+        onSetBaseItems: () => {
+            events.push("base:set");
+        },
+    });
+    await h.engine.init();
+
+    await h.engine.update(item.id, { checked: true });
+    const flushPromise = h.engine.flushNow();
+    await h.clock.flushMicrotasks();
+
+    // Sync must NOT be sent until pre-send cancelBaseQuery settles.
+    assert.deepEqual(events, ["cancel:start:1"]);
+    assert.equal(h.calls.length, 0);
+
+    releaseFirstCancel();
+    await h.clock.flushMicrotasks();
+
+    // setBaseItems must NOT be called until commit cancelBaseQuery settles.
+    assert.deepEqual(events, [
+        "cancel:start:1",
+        "cancel:end:1",
+        "sync:send",
+        "cancel:start:2",
+    ]);
+
+    releaseSecondCancel();
+    await flushPromise;
+
+    assert.deepEqual(events, [
+        "cancel:start:1",
+        "cancel:end:1",
+        "sync:send",
+        "cancel:start:2",
+        "cancel:end:2",
+        "base:set",
+    ]);
+
+    // Part B: real QueryClient + TodoSyncManager cancels stale GET /todos on reconnect
+    // and preserves dataUpdatedAt on setBaseItems.
+    const queryClient = new QueryClient({
+        defaultOptions: { queries: { retry: false } },
+    });
+    const clock = new FakeClock(1_732_780_500_000);
+    const store = createInMemoryTodoOutboxStore();
+    const queryKey = getTodosQueryKey(SHEET_A, USER_AN);
+    const initialUpdatedAt = 1_732_780_400_000;
+    const staleItem = makeTodo({ id: "t-race-get", checked: false });
+    const server = createFakeTodoServer([staleItem], USER_AN);
+    queryClient.setQueryData<TodoItem[]>(queryKey, [staleItem], {
+        updatedAt: initialUpdatedAt,
+    });
+
+    let online = false;
+    const manager = createTodoSyncManager({
+        store,
+        queryClient,
+        transport: {
+            async syncTodos(_sheetId, ops) {
+                return server.applyOps(ops);
+            },
+        },
+        getActiveSheetId: () => SHEET_A,
+        getStoredUserEmail: () => USER_AN,
+        isOnline: () => online,
+        now: clock.now,
+        random: () => 0.5,
+        timers: clock.timers,
+        locks: null,
+        attachBrowserEvents: false,
+    });
+
+    const engine = (await manager.activateScope({
+        sheetId: SHEET_A,
+        ownerEmail: USER_AN,
+    }))!;
+    await engine.update(staleItem.id, { checked: true });
+
+    // Start an in-flight GET /todos (simulating refetchOnReconnect) that would return stale data.
+    let resolveStaleGet!: (items: TodoItem[]) => void;
+    let getAborted = false;
+    const staleGetPromise = queryClient
+        .fetchQuery({
+            queryKey,
+            queryFn: ({ signal }) =>
+                new Promise<TodoItem[]>((resolve) => {
+                    signal.addEventListener("abort", () => {
+                        getAborted = true;
+                    });
+                    resolveStaleGet = resolve;
+                }),
+        })
+        .catch(() => null);
+
+    // Come online: handleOnline flushes POST /todos/sync and cancels the stale GET /todos.
+    online = true;
+    engine.handleOnline();
+    await clock.flushMicrotasks();
+
+    assert.equal(getAborted, true);
+    // Even if the stale network response resolves after sync committed, cache must NOT revert.
+    resolveStaleGet([{ ...staleItem, checked: false }]);
+    await staleGetPromise;
+    await clock.flushMicrotasks();
+
+    const cached = queryClient.getQueryData<TodoItem[]>(queryKey);
+    assert.equal(cached?.[0].checked, true);
+    assert.equal(
+        queryClient.getQueryState(queryKey)?.dataUpdatedAt,
+        initialUpdatedAt,
+    );
+    manager.disposeActiveEngine();
+});
+
+test("flushKeepalive 401 does not set authExpired and returns entries to pending without burning attempts", async () => {
+    let keepaliveCalls = 0;
+    let foregroundCalls = 0;
+
+    const h = createHarness({
+        initialBase: [],
+        onSync: (call, server) => {
+            if (call.keepalive) {
+                keepaliveCalls += 1;
+                throw new TodoApiError("Token expired", "UNAUTHORIZED", 401);
+            }
+            foregroundCalls += 1;
+            return server.applyOps(call.ops);
+        },
+    });
+    await h.engine.init();
+
+    await h.engine.create("背景編輯項目", "行李");
+    h.engine.handleVisibilityChange("hidden");
+    await h.clock.flushMicrotasks();
+
+    assert.equal(keepaliveCalls, 1);
+    const afterKeepalive401 = h.engine.getSnapshot();
+    assert.equal(afterKeepalive401.authExpired, false);
+    assert.equal(afterKeepalive401.lastErrorKind, null);
+    assert.equal(afterKeepalive401.entries.length, 1);
+    assert.equal(afterKeepalive401.entries[0].status, "pending");
+    assert.equal(afterKeepalive401.entries[0].attempts, 0);
+
+    // Returning to foreground triggers normal sync (which runs apiFetch token refresh) and succeeds.
+    h.engine.handleVisibilityChange("visible");
+    await h.clock.flushMicrotasks();
+
+    assert.equal(foregroundCalls, 1);
+    assert.equal(h.engine.getSnapshot().entries.length, 0);
+    assert.equal(h.engine.getSnapshot().authExpired, false);
+    assert.equal(h.getBase()?.length, 1);
+});
+
+test("flushKeepalive skips persistence after dispose or rev change and preserves inflight state across concurrent local edits", async () => {
+    const scope = { sheetId: SHEET_A, ownerEmail: USER_AN };
+
+    // Sub-case A: update reverts entry to null (awaiting deleteEntry) while flushKeepalive runs synchronously.
+    {
+        const backing = createInMemoryTodoOutboxStore();
+        let holdNextDelete = false;
+        let releaseDelete!: () => void;
+        const wrappedStore: ReturnType<typeof createInMemoryTodoOutboxStore> = {
+            ...backing,
+            get persistent() {
+                return backing.persistent;
+            },
+            deleteEntry: async (s, id) => {
+                if (holdNextDelete) {
+                    holdNextDelete = false;
+                    await new Promise<void>((resolve) => {
+                        releaseDelete = resolve;
+                    });
+                }
+                return backing.deleteEntry(s, id);
+            },
+        };
+
+        const item = makeTodo({ id: "t-ka-revert", checked: false });
+        let resolveKeepalive!: () => void;
+        const h = createHarness({
+            store: wrappedStore,
+            initialBase: [item],
+            onSync: (call, server) => {
+                const res = server.applyOps(call.ops);
+                if (call.keepalive) {
+                    return new Promise<TodoSyncResponse>((resolve) => {
+                        resolveKeepalive = () => resolve(res);
+                    });
+                }
+                return res;
+            },
+        });
+        await h.engine.init();
+
+        await h.engine.update(item.id, { checked: true });
+        holdNextDelete = true;
+        const revertPromise = h.engine.update(item.id, { checked: false });
+        await h.clock.flushMicrotasks(5);
+
+        // Fire keepalive while update(checked: false) is suspended awaiting deleteEntry.
+        assert.equal(h.engine.flushKeepalive(), true);
+        assert.equal(h.calls.length, 1);
+        assert.equal(h.calls[0].keepalive, true);
+
+        // Resume deleteEntry: update must see inflight state and retain rev:2 inflight empty-patch entry.
+        releaseDelete();
+        const revertResult = await revertPromise;
+        await h.clock.flushMicrotasks();
+
+        assert.ok(revertResult);
+        assert.equal(revertResult.rev, 2);
+        assert.equal(revertResult.status, "inflight");
+        assert.deepEqual(revertResult.patch, {});
+
+        // flushKeepalive's queued putEntries must NOT have overwritten rev:2 in IDB with stale rev:1.
+        const storedBeforeCommit = await backing.loadScope(scope);
+        assert.equal(storedBeforeCommit.entries.length, 1);
+        assert.equal(storedBeforeCommit.entries[0].rev, 2);
+
+        // When keepalive response arrives (server applied checked:true), engine rebases to send checked:false.
+        resolveKeepalive();
+        await h.clock.flushMicrotasks();
+
+        const snapAfterCommit = h.engine.getSnapshot();
+        assert.equal(snapAfterCommit.entries.length, 1);
+        assert.equal(snapAfterCommit.entries[0].status, "pending");
+        assert.deepEqual(snapAfterCommit.entries[0].patch, { checked: false });
+
+        // Next debounce converges server and base back to checked:false.
+        await h.clock.advanceBy(1_500);
+        assert.equal(h.server.getItems()[0].checked, false);
+        assert.equal(h.getBase()?.[0].checked, false);
+        assert.equal(h.engine.getSnapshot().entries.length, 0);
+    }
+
+    // Sub-case B: update writes rev:2 (awaiting putEntry) while flushKeepalive sends rev:1.
+    {
+        const backing = createInMemoryTodoOutboxStore();
+        let holdNextPut = false;
+        let releasePut!: () => void;
+        const wrappedStore: ReturnType<typeof createInMemoryTodoOutboxStore> = {
+            ...backing,
+            get persistent() {
+                return backing.persistent;
+            },
+            putEntry: async (s, entry) => {
+                if (holdNextPut) {
+                    holdNextPut = false;
+                    await new Promise<void>((resolve) => {
+                        releasePut = resolve;
+                    });
+                }
+                return backing.putEntry(s, entry);
+            },
+        };
+
+        const item = makeTodo({ id: "t-ka-edit", text: "v0" });
+        let resolveKeepalive!: () => void;
+        const h = createHarness({
+            store: wrappedStore,
+            initialBase: [item],
+            onSync: (call, server) => {
+                const res = server.applyOps(call.ops);
+                if (call.keepalive) {
+                    return new Promise<TodoSyncResponse>((resolve) => {
+                        resolveKeepalive = () => resolve(res);
+                    });
+                }
+                return res;
+            },
+        });
+        await h.engine.init();
+
+        await h.engine.update(item.id, { text: "v1" });
+        holdNextPut = true;
+        const editV2Promise = h.engine.update(item.id, { text: "v2" });
+        await h.clock.flushMicrotasks(5);
+
+        assert.equal(h.engine.flushKeepalive(), true);
+        releasePut();
+        const editV2 = await editV2Promise;
+        await h.clock.flushMicrotasks();
+
+        // In-memory entry stays inflight at rev:2, and IDB retains rev:2 (not clobbered by rev:1).
+        assert.equal(editV2?.rev, 2);
+        assert.equal(editV2?.status, "inflight");
+        assert.equal(h.engine.getSnapshot().entries[0].status, "inflight");
+        assert.equal(h.engine.getSnapshot().entries[0].rev, 2);
+        const stored = await backing.loadScope(scope);
+        assert.equal(stored.entries[0].rev, 2);
+        assert.equal(stored.entries[0].patch.text, "v2");
+
+        resolveKeepalive();
+        await h.clock.flushMicrotasks();
+        assert.equal(h.engine.getSnapshot().entries[0].patch.text, "v2");
+    }
+
+    // Sub-case C: dispose + sign-out clear before flushKeepalive's queued putEntries runs must not resurrect IDB entries.
+    {
+        const backing = createInMemoryTodoOutboxStore();
+        let holdNextPut = false;
+        let releasePut!: () => void;
+        const wrappedStore: ReturnType<typeof createInMemoryTodoOutboxStore> = {
+            ...backing,
+            get persistent() {
+                return backing.persistent;
+            },
+            putEntry: async (s, entry) => {
+                if (holdNextPut) {
+                    holdNextPut = false;
+                    await new Promise<void>((resolve) => {
+                        releasePut = resolve;
+                    });
+                }
+                return backing.putEntry(s, entry);
+            },
+        };
+
+        const item = makeTodo({ id: "t-ka-dispose", text: "v0" });
+        const h = createHarness({
+            store: wrappedStore,
+            initialBase: [item],
+            onSync: () => new Promise<TodoSyncResponse>(() => {}),
+        });
+        await h.engine.init();
+
+        await h.engine.update(item.id, { text: "v1" });
+        // Block writeChain with a second pending write.
+        holdNextPut = true;
+        const blockedCreate = h.engine.create("第二筆", "行李");
+        await h.clock.flushMicrotasks(5);
+
+        // Queue flushKeepalive's opId persistence behind the blocked write, then dispose and clear store.
+        assert.equal(h.engine.flushKeepalive(), true);
+        h.engine.dispose();
+        await backing.clearOwnerScopes(USER_AN);
+        releasePut();
+        await blockedCreate;
+        await h.clock.flushMicrotasks();
+
+        // Only the already-in-flight putEntry could have touched backing before dispose check;
+        // verify t-ka-dispose (rev:1 from flushKeepalive) was NEVER resurrected into backing.
+        const storedAfterDispose = await backing.loadScope(scope);
+        assert.equal(
+            storedAfterDispose.entries.some((e) => e.id === item.id),
+            false,
+        );
+    }
+});
+
+test("flushNow and handleOnline respect backoff after a transient per-op result instead of bursting 4 attempts", async () => {
+    const item = makeTodo({ id: "t-missing-op", checked: false });
+    const h = createHarness({
+        initialBase: [item],
+        onSync: () => ({
+            syncedAt: "2026-11-28T06:00:00.000Z",
+            results: [], // omit op -> per-op transient failure
+        }),
+    });
+    await h.engine.init();
+
+    await h.engine.update(item.id, { checked: true });
+    const first = await h.engine.flushNow();
+
+    assert.equal(first.sentBatches, 1);
+    assert.equal(h.calls.length, 1);
+    assert.equal(h.engine.getSnapshot().entries[0].status, "pending");
+    assert.equal(h.engine.getSnapshot().entries[0].attempts, 1);
+    assert.equal(
+        h.engine.getSnapshot().entries[0].nextAttemptAt,
+        h.clock.nowMs + 5_000,
+    );
+
+    // Coming online while backing off sends at most 1 attempt (not a 4-attempt burst).
+    h.engine.handleOnline();
+    await h.clock.flushMicrotasks();
+
+    assert.equal(h.calls.length, 2);
+    assert.equal(h.engine.getSnapshot().entries[0].status, "pending");
+    assert.equal(h.engine.getSnapshot().entries[0].attempts, 2);
+    assert.equal(
+        h.engine.getSnapshot().entries[0].nextAttemptAt,
+        h.clock.nowMs + 15_000,
+    );
+});
+
+test("reconcileWithBase rebases non-inflight patches onto refetched base, persists to store, and allows subsequent uncheck/revert", async () => {
+    const scope = { sheetId: SHEET_A, ownerEmail: USER_AN };
+    const item1 = makeTodo({ id: "t-rebase-1", text: "一號", checked: false });
+    const item2 = makeTodo({ id: "t-rebase-2", text: "A", checked: false });
+    const h = createHarness({
+        initialBase: [item1, item2],
+        initialOnline: false,
+    });
+    await h.engine.init();
+
+    await h.engine.update(item1.id, { checked: true });
+    await h.engine.update(item2.id, { checked: true });
+
+    // Refetch shows Device 2 already checked item1, and renamed item2 from "A" -> "B".
+    const refetchedBase: TodoItem[] = [
+        { ...item1, checked: true, updatedAt: "2026-11-28T06:00:00.000Z" },
+        { ...item2, text: "B", checked: false, updatedAt: "2026-11-28T06:00:00.000Z" },
+    ];
+    h.setBase(refetchedBase);
+    await h.engine.reconcileWithBase(refetchedBase);
+
+    // item1 became empty and was dropped from snapshot + store; item2 rebased base.text to "B" in snapshot + store.
+    assert.deepEqual(
+        h.engine.getSnapshot().entries.map((e) => e.id),
+        [item2.id],
+    );
+    assert.equal(h.engine.getSnapshot().entries[0].base?.text, "B");
+
+    const stored = await h.store.loadScope(scope);
+    assert.deepEqual(
+        stored.entries.map((e) => e.id),
+        [item2.id],
+    );
+    assert.equal(stored.entries[0].base?.text, "B");
+
+    // Subsequent local edits work against the rebased base instead of snapping back:
+    const unchecked1 = await h.engine.update(item1.id, { checked: false });
+    assert.ok(unchecked1);
+    assert.deepEqual(unchecked1.patch, { checked: false });
+    assert.equal(unchecked1.base?.checked, true);
+
+    const edited2 = await h.engine.update(item2.id, { text: "A" });
+    assert.ok(edited2);
+    assert.deepEqual(edited2.patch, { text: "A", checked: true });
+    assert.equal(edited2.base?.text, "B");
+});
+
+test("commitBatchResponse records lastSavedAt from client clock rather than server syncedAt under clock skew", async () => {
+    const clock = new FakeClock(1_732_780_000_000);
+    let serverSyncedAt = new Date(clock.nowMs - 3_600_000).toISOString(); // server 1h behind client
+    const h = createHarness({
+        clock,
+        initialBase: [],
+        onSync: (call, server) => ({
+            ...server.applyOps(call.ops),
+            syncedAt: serverSyncedAt,
+        }),
+    });
+    await h.engine.init();
+
+    await h.engine.create("時鐘偏移測試 1", "行前");
+    await h.clock.advanceBy(1_500);
+    assert.equal(h.engine.getSnapshot().lastSavedAt, clock.nowMs);
+    assert.equal(
+        (await h.store.loadScope({ sheetId: SHEET_A, ownerEmail: USER_AN })).meta
+            .lastSavedAt,
+        clock.nowMs,
+    );
+
+    // Server 1h ahead of client -> still uses client clock.
+    serverSyncedAt = new Date(clock.nowMs + 3_600_000).toISOString();
+    await h.engine.create("時鐘偏移測試 2", "行前");
+    await h.clock.advanceBy(1_500);
+    assert.equal(h.engine.getSnapshot().lastSavedAt, clock.nowMs);
+});
+
+test("flushNow and retry preserve failed and authExpired state when offline", async () => {
+    const scope = { sheetId: SHEET_A, ownerEmail: USER_AN };
+
+    // 1. Permanently failed entry (403) must stay failed across offline flushNow/retry and not auto-retry on reconnect.
+    const item = makeTodo({ id: "t-perm-offline", checked: false });
+    const hFailed = createHarness({
+        initialBase: [item],
+        onSync: () => {
+            throw new TodoApiError("Forbidden", "FORBIDDEN", 403);
+        },
+    });
+    await hFailed.engine.init();
+
+    await hFailed.engine.update(item.id, { checked: true });
+    await hFailed.clock.advanceBy(1_500);
+    assert.equal(hFailed.calls.length, 1);
+    assert.equal(hFailed.engine.getSnapshot().entries[0].status, "failed");
+    assert.equal(
+        hFailed.engine.getSnapshot().entries[0].lastError,
+        "沒有權限修改這個待辦",
+    );
+
+    // Go offline and invoke sign-out flushNow({ includeFailed: true }) and retry(id).
+    hFailed.setOnline(false);
+    const offlineFlush = await hFailed.engine.flushNow({ includeFailed: true });
+    assert.equal(offlineFlush.offline, true);
+    assert.equal(hFailed.engine.getSnapshot().entries[0].status, "failed");
+    assert.equal(
+        hFailed.engine.getSnapshot().entries[0].lastError,
+        "沒有權限修改這個待辦",
+    );
+
+    const offlineRetry = await hFailed.engine.retry(item.id);
+    assert.equal(offlineRetry.offline, true);
+    assert.equal(hFailed.engine.getSnapshot().entries[0].status, "failed");
+    assert.equal(
+        (await hFailed.store.loadScope(scope)).entries[0].status,
+        "failed",
+    );
+
+    // Coming back online must NOT auto-retry the permanently failed entry.
+    hFailed.setOnline(true);
+    hFailed.engine.handleOnline();
+    await hFailed.clock.flushMicrotasks();
+    assert.equal(hFailed.calls.length, 1);
+    assert.equal(hFailed.engine.getSnapshot().entries[0].status, "failed");
+
+    // 2. authExpired must remain true across offline flushNow / retry.
+    const hAuth = createHarness({
+        initialBase: [],
+        onSync: () => {
+            throw new TodoApiError("Expired", "UNAUTHORIZED", 401);
+        },
+    });
+    await hAuth.engine.init();
+
+    const created = await hAuth.engine.create("驗證過期項目", "證件");
+    await hAuth.clock.advanceBy(1_500);
+    assert.equal(hAuth.engine.getSnapshot().authExpired, true);
+
+    hAuth.setOnline(false);
+    const offlineAuthFlush = await hAuth.engine.flushNow({
+        includeFailed: true,
+    });
+    assert.equal(offlineAuthFlush.offline, true);
+    assert.equal(offlineAuthFlush.authExpired, true);
+    assert.equal(hAuth.engine.getSnapshot().authExpired, true);
+
+    const offlineAuthRetry = await hAuth.engine.retry(created.id);
+    assert.equal(offlineAuthRetry.offline, true);
+    assert.equal(offlineAuthRetry.authExpired, true);
+    assert.equal(hAuth.engine.getSnapshot().authExpired, true);
+});
+
+test("transient timeout after an in-flight revert sends an explicit patch back to base so server converges", async () => {
+    const item = makeTodo({ id: "t-timeout-revert-e2e", checked: false });
+    let rejectFirst!: (err: unknown) => void;
+    let callNumber = 0;
+
+    const h = createHarness({
+        initialBase: [item],
+        onSync: (call, server) => {
+            callNumber += 1;
+            const res = server.applyOps(call.ops);
+            if (callNumber === 1) {
+                // Server applied checked:true, then response times out.
+                return new Promise<TodoSyncResponse>((_resolve, reject) => {
+                    rejectFirst = reject;
+                });
+            }
+            return res;
+        },
+    });
+    await h.engine.init();
+
+    await h.engine.update(item.id, { checked: true });
+    await h.clock.advanceBy(1_500);
+    assert.equal(h.calls.length, 1);
+    assert.equal(h.server.getItems()[0].checked, true);
+
+    // User unchecks while first sync is still in flight -> rev:2, patch:{}
+    await h.engine.update(item.id, { checked: false });
+    assert.deepEqual(h.engine.getSnapshot().entries[0].patch, {});
+
+    // First sync times out -> must keep an explicit { checked: false } patch instead of dropping!
+    rejectFirst(new TodoApiError("Timed out", "TIMEOUT"));
+    await h.clock.flushMicrotasks();
+
+    const afterTimeout = h.engine.getSnapshot();
+    assert.equal(afterTimeout.entries.length, 1);
+    assert.equal(afterTimeout.entries[0].status, "pending");
+    assert.equal(afterTimeout.entries[0].attempts, 1);
+    assert.deepEqual(afterTimeout.entries[0].patch, { checked: false });
+
+    // Advance 5s backoff -> engine sends { checked: false }, server & base converge to checked:false.
+    await h.clock.advanceBy(5_000);
+    assert.equal(h.calls.length, 2);
+    assert.deepEqual(h.calls[1].ops[0], {
+        opId: h.calls[1].ops[0].opId,
+        type: "update",
+        id: item.id,
+        checked: false,
+    });
+    assert.equal(h.server.getItems()[0].checked, false);
+    assert.equal(h.getBase()?.[0].checked, false);
+    assert.equal(h.engine.getSnapshot().entries.length, 0);
 });

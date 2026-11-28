@@ -82,6 +82,7 @@ export type TodoSyncEngineOptions = {
     transport: TodoSyncTransport;
     getBaseItems: () => readonly TodoItem[] | undefined;
     setBaseItems: (items: TodoItem[]) => void;
+    cancelBaseQuery?: () => Promise<void>;
     onBaseCacheMissing?: () => void;
     canReplayWrite?: () => boolean;
     isOnline?: () => boolean;
@@ -273,6 +274,7 @@ export class TodoSyncEngine {
     private readonly transport: TodoSyncTransport;
     private readonly getBaseItems: () => readonly TodoItem[] | undefined;
     private readonly setBaseItems: (items: TodoItem[]) => void;
+    private readonly cancelBaseQuery?: () => Promise<void>;
     private readonly onBaseCacheMissing?: () => void;
     private readonly canReplayWrite: () => boolean;
     private readonly isOnline: () => boolean;
@@ -319,6 +321,7 @@ export class TodoSyncEngine {
         this.transport = options.transport;
         this.getBaseItems = options.getBaseItems;
         this.setBaseItems = options.setBaseItems;
+        this.cancelBaseQuery = options.cancelBaseQuery;
         this.onBaseCacheMissing = options.onBaseCacheMissing;
         this.canReplayWrite = options.canReplayWrite ?? (() => !this.disposed);
         this.isOnline = options.isOnline ?? defaultIsOnline;
@@ -744,7 +747,42 @@ export class TodoSyncEngine {
                 if (this.disposed) {
                     return null;
                 }
-                if (existingIndex >= 0) {
+                const currentIndex = this.entries.findIndex(
+                    (entry) => entry.id === id,
+                );
+                const currentAfterAwait =
+                    currentIndex >= 0 ? this.entries[currentIndex] : undefined;
+                if (currentAfterAwait?.status === "inflight") {
+                    const inflightNext = applyLocalChange(
+                        currentAfterAwait,
+                        { type: "patch", id, patch },
+                        baseItem,
+                    );
+                    if (inflightNext) {
+                        await this.store.putEntry(
+                            this.scope,
+                            toPersistedEntry(inflightNext),
+                        );
+                        if (this.disposed) {
+                            return inflightNext;
+                        }
+                        const liveIndex = this.entries.findIndex(
+                            (entry) => entry.id === id,
+                        );
+                        if (liveIndex >= 0) {
+                            const updated = [...this.entries];
+                            updated[liveIndex] = inflightNext;
+                            this.entries = updated;
+                        } else {
+                            this.entries = [...this.entries, inflightNext];
+                        }
+                        this.markLocalChangeTimestamp();
+                        this.emit();
+                        this.scheduleNextFlush();
+                        return inflightNext;
+                    }
+                }
+                if (currentIndex >= 0) {
                     this.entries = this.entries.filter(
                         (entry) => entry.id !== id,
                     );
@@ -762,17 +800,51 @@ export class TodoSyncEngine {
             if (this.disposed) {
                 return next;
             }
-            if (existingIndex >= 0) {
+            let finalNext = next;
+            const currentAfterAwait = this.entries.find(
+                (entry) => entry.id === id,
+            );
+            if (
+                currentAfterAwait?.status === "inflight" &&
+                next.status !== "inflight"
+            ) {
+                const recomputed = applyLocalChange(
+                    currentAfterAwait,
+                    { type: "patch", id, patch },
+                    baseItem,
+                );
+                if (recomputed) {
+                    finalNext = recomputed;
+                    if (
+                        !entriesEqual(
+                            toPersistedEntry(next),
+                            toPersistedEntry(finalNext),
+                        )
+                    ) {
+                        await this.store.putEntry(
+                            this.scope,
+                            toPersistedEntry(finalNext),
+                        );
+                        if (this.disposed) {
+                            return finalNext;
+                        }
+                    }
+                }
+            }
+            const liveIndex = this.entries.findIndex(
+                (entry) => entry.id === id,
+            );
+            if (liveIndex >= 0) {
                 const updated = [...this.entries];
-                updated[existingIndex] = next;
+                updated[liveIndex] = finalNext;
                 this.entries = updated;
             } else {
-                this.entries = [...this.entries, next];
+                this.entries = [...this.entries, finalNext];
             }
             this.markLocalChangeTimestamp();
             this.emit();
             this.scheduleNextFlush();
-            return next;
+            return finalNext;
         });
     }
 
@@ -807,7 +879,42 @@ export class TodoSyncEngine {
                 if (this.disposed) {
                     return null;
                 }
-                if (existingIndex >= 0) {
+                const currentIndex = this.entries.findIndex(
+                    (entry) => entry.id === id,
+                );
+                const currentAfterAwait =
+                    currentIndex >= 0 ? this.entries[currentIndex] : undefined;
+                if (currentAfterAwait?.status === "inflight") {
+                    const inflightNext = applyLocalChange(
+                        currentAfterAwait,
+                        { type: "delete", id },
+                        baseItem,
+                    );
+                    if (inflightNext) {
+                        await this.store.putEntry(
+                            this.scope,
+                            toPersistedEntry(inflightNext),
+                        );
+                        if (this.disposed) {
+                            return inflightNext;
+                        }
+                        const liveIndex = this.entries.findIndex(
+                            (entry) => entry.id === id,
+                        );
+                        if (liveIndex >= 0) {
+                            const updated = [...this.entries];
+                            updated[liveIndex] = inflightNext;
+                            this.entries = updated;
+                        } else {
+                            this.entries = [...this.entries, inflightNext];
+                        }
+                        this.markLocalChangeTimestamp();
+                        this.emit();
+                        this.scheduleNextFlush();
+                        return inflightNext;
+                    }
+                }
+                if (currentIndex >= 0) {
                     this.entries = this.entries.filter(
                         (entry) => entry.id !== id,
                     );
@@ -825,32 +932,66 @@ export class TodoSyncEngine {
             if (this.disposed) {
                 return next;
             }
-            if (existingIndex >= 0) {
+            let finalNext = next;
+            const currentAfterAwait = this.entries.find(
+                (entry) => entry.id === id,
+            );
+            if (
+                currentAfterAwait?.status === "inflight" &&
+                next.status !== "inflight"
+            ) {
+                const recomputed = applyLocalChange(
+                    currentAfterAwait,
+                    { type: "delete", id },
+                    baseItem,
+                );
+                if (recomputed) {
+                    finalNext = recomputed;
+                    if (
+                        !entriesEqual(
+                            toPersistedEntry(next),
+                            toPersistedEntry(finalNext),
+                        )
+                    ) {
+                        await this.store.putEntry(
+                            this.scope,
+                            toPersistedEntry(finalNext),
+                        );
+                        if (this.disposed) {
+                            return finalNext;
+                        }
+                    }
+                }
+            }
+            const liveIndex = this.entries.findIndex(
+                (entry) => entry.id === id,
+            );
+            if (liveIndex >= 0) {
                 const updated = [...this.entries];
-                updated[existingIndex] = next;
+                updated[liveIndex] = finalNext;
                 this.entries = updated;
             } else {
-                this.entries = [...this.entries, next];
+                this.entries = [...this.entries, finalNext];
             }
             this.markLocalChangeTimestamp();
             this.emit();
             this.scheduleNextFlush();
-            return next;
+            return finalNext;
         });
     }
 
     async discard(id: string): Promise<void> {
         await this.enqueueWrite(async () => {
             await this.init();
-            const nextEntries = discardOutboxEntry(this.entries, id);
-            if (nextEntries.length === this.entries.length) {
+            const hasEntry = this.entries.some((entry) => entry.id === id);
+            if (!hasEntry) {
                 return;
             }
             await this.store.deleteEntry(this.scope, id);
             if (this.disposed) {
                 return;
             }
-            this.entries = nextEntries;
+            this.entries = discardOutboxEntry(this.entries, id);
             if (!this.hasPendingEntriesWithoutBackoff()) {
                 this.firstChangeAt = null;
                 this.lastChangeAt = null;
@@ -948,16 +1089,47 @@ export class TodoSyncEngine {
                 return;
             }
 
-            this.entries = nextEntries;
+            const liveById = new Map(
+                this.entries.map((entry) => [entry.id, entry]),
+            );
+            const finalEntries: TodoOutboxEntry[] = [];
+            const includedIds = new Set<string>();
+            for (const entry of nextEntries) {
+                const live = liveById.get(entry.id);
+                const chosen = live && live.status === "inflight" ? live : entry;
+                finalEntries.push(chosen);
+                includedIds.add(chosen.id);
+            }
+            for (const live of this.entries) {
+                if (live.status === "inflight" && !includedIds.has(live.id)) {
+                    finalEntries.push(live);
+                }
+            }
+
+            this.entries = finalEntries;
+            if (!this.hasPendingEntriesWithoutBackoff()) {
+                this.firstChangeAt = null;
+                this.lastChangeAt = null;
+            }
             this.emit();
             this.scheduleNextFlush();
         });
     }
 
     async retry(id?: string): Promise<TodoSyncFlushResult> {
+        await this.init();
+        if (this.disposed || !this.isOnline()) {
+            return {
+                sentBatches: 0,
+                appliedCount: 0,
+                remainingCount: this.getUnsyncedCount(),
+                authExpired: this.authExpired,
+                offline: !this.isOnline(),
+            };
+        }
+
         await this.enqueueWrite(async () => {
-            await this.init();
-            if (this.disposed) {
+            if (this.disposed || !this.isOnline()) {
                 return;
             }
             const nextEntries = resetEntriesForRetry(
@@ -979,7 +1151,13 @@ export class TodoSyncEngine {
             if (this.disposed) {
                 return;
             }
-            this.entries = nextEntries;
+            const liveById = new Map(
+                this.entries.map((entry) => [entry.id, entry]),
+            );
+            this.entries = nextEntries.map((entry) => {
+                const live = liveById.get(entry.id);
+                return live && live.status === "inflight" ? live : entry;
+            });
             this.authExpired = false;
             this.emit();
         });
@@ -1011,7 +1189,7 @@ export class TodoSyncEngine {
         includeFailed: boolean;
     }): Promise<TodoSyncFlushResult> {
         await this.init();
-        if (this.disposed) {
+        if (this.disposed || !this.isOnline()) {
             return {
                 sentBatches: 0,
                 appliedCount: 0,
@@ -1023,7 +1201,7 @@ export class TodoSyncEngine {
 
         if (resetPendingBackoff || includeFailed) {
             await this.enqueueWrite(async () => {
-                if (this.disposed) {
+                if (this.disposed || !this.isOnline()) {
                     return;
                 }
                 const targetIds = includeFailed
@@ -1052,11 +1230,17 @@ export class TodoSyncEngine {
                 if (this.disposed) {
                     return;
                 }
-                this.entries = nextEntries;
+                const liveById = new Map(
+                    this.entries.map((entry) => [entry.id, entry]),
+                );
+                this.entries = nextEntries.map((entry) => {
+                    const live = liveById.get(entry.id);
+                    return live && live.status === "inflight" ? live : entry;
+                });
                 this.authExpired = false;
                 this.emit();
             });
-        } else if (this.authExpired) {
+        } else if (this.authExpired && this.isOnline()) {
             this.authExpired = false;
             this.emit();
         }
@@ -1198,9 +1382,26 @@ export class TodoSyncEngine {
 
         // Persist opIds best-effort without delaying the synchronous keepalive fetch.
         if (opIdUpdates.length > 0) {
-            void this.enqueueWrite(() =>
-                this.store.putEntries(this.scope, opIdUpdates),
-            );
+            void this.enqueueWrite(async () => {
+                if (this.disposed) {
+                    return;
+                }
+                const currentById = new Map(
+                    this.entries.map((entry) => [entry.id, entry]),
+                );
+                const stillValid = opIdUpdates.filter((entry) => {
+                    const current = currentById.get(entry.id);
+                    return (
+                        current !== undefined &&
+                        current.rev === entry.rev &&
+                        current.opId === entry.opId
+                    );
+                });
+                if (stillValid.length === 0) {
+                    return;
+                }
+                await this.store.putEntries(this.scope, stillValid);
+            });
         }
 
         let requestPromise: Promise<TodoSyncResponse>;
@@ -1221,9 +1422,15 @@ export class TodoSyncEngine {
             let appliedCount = 0;
             try {
                 const response = await requestPromise;
-                appliedCount = await this.commitBatchResponse(batch, response);
+                const committed = await this.commitBatchResponse(
+                    batch,
+                    response,
+                );
+                appliedCount = committed.appliedCount;
             } catch (error) {
-                await this.commitBatchFailure(batch, error);
+                await this.commitBatchFailure(batch, error, {
+                    fromKeepalive: true,
+                });
             } finally {
                 this.isFlushing = false;
                 this.inflightPromise = null;
@@ -1289,6 +1496,7 @@ export class TodoSyncEngine {
         const runPromise = (async (): Promise<TodoSyncFlushResult> => {
             let sentBatches = 0;
             let appliedCount = 0;
+            const transientlyFailedIds = new Set<string>();
 
             try {
                 await this.init();
@@ -1296,9 +1504,17 @@ export class TodoSyncEngine {
                     while (!this.disposed && !this.authExpired && this.isOnline()) {
                         const prepared = await this.prepareNextBatch(
                             ignoreBackoff,
+                            transientlyFailedIds,
                         );
                         if (!prepared) {
                             break;
+                        }
+
+                        if (this.cancelBaseQuery) {
+                            await this.cancelBaseQuery();
+                            if (this.disposed) {
+                                break;
+                            }
                         }
 
                         const { batch, hasMoreChunks } = prepared;
@@ -1319,10 +1535,14 @@ export class TodoSyncEngine {
                             break;
                         }
 
-                        appliedCount += await this.commitBatchResponse(
+                        const committed = await this.commitBatchResponse(
                             batch,
                             response,
                         );
+                        appliedCount += committed.appliedCount;
+                        for (const id of committed.transientIds) {
+                            transientlyFailedIds.add(id);
+                        }
 
                         if (
                             !hasMoreChunks &&
@@ -1357,15 +1577,28 @@ export class TodoSyncEngine {
 
     private prepareNextBatch(
         ignoreBackoff: boolean,
+        respectBackoffIds?: ReadonlySet<string>,
     ): Promise<{ batch: TodoSyncBatch; hasMoreChunks: boolean } | null> {
         return this.enqueueWrite(async () => {
             if (this.disposed || this.authExpired || !this.isOnline()) {
                 return null;
             }
-            const built = buildSyncBatches(this.entries, {
+            const currentNow = this.now();
+            const candidates =
+                respectBackoffIds && respectBackoffIds.size > 0
+                    ? this.entries.filter(
+                          (entry) =>
+                              !(
+                                  respectBackoffIds.has(entry.id) &&
+                                  entry.nextAttemptAt !== undefined &&
+                                  entry.nextAttemptAt > currentNow
+                              ),
+                      )
+                    : this.entries;
+            const built = buildSyncBatches(candidates, {
                 maxOps: TODO_SYNC_MAX_OPS,
                 maxBatches: 1,
-                now: this.now(),
+                now: currentNow,
                 ignoreBackoff,
                 generateOpId: this.generateOpId,
             });
@@ -1374,17 +1607,23 @@ export class TodoSyncEngine {
                 return null;
             }
 
-            const sentIds = new Set(batch.sent.map((sent) => sent.id));
+            const sentOpIdById = new Map(
+                batch.sent.map((sent) => [sent.id, sent.opId]),
+            );
             const opIdUpdates: TodoOutboxEntry[] = [];
-            const nextEntries = built.entriesWithOpIds.map((entry, index) => {
-                if (!sentIds.has(entry.id)) {
+            const nextEntries = this.entries.map((entry) => {
+                const sentOpId = sentOpIdById.get(entry.id);
+                if (sentOpId === undefined) {
                     return entry;
                 }
-                const prev = this.entries[index];
-                if (!prev || prev.opId !== entry.opId) {
-                    opIdUpdates.push(toPersistedEntry(entry));
+                const withOpId =
+                    entry.opId === sentOpId
+                        ? entry
+                        : { ...entry, opId: sentOpId };
+                if (entry.opId !== sentOpId) {
+                    opIdUpdates.push(toPersistedEntry(withOpId));
                 }
-                return { ...entry, status: "inflight" as const };
+                return { ...withOpId, status: "inflight" as const };
             });
 
             if (opIdUpdates.length > 0) {
@@ -1410,10 +1649,10 @@ export class TodoSyncEngine {
     private commitBatchResponse(
         batch: TodoSyncBatch,
         response: TodoSyncResponse,
-    ): Promise<number> {
+    ): Promise<{ appliedCount: number; transientIds: readonly string[] }> {
         return this.enqueueWrite(async () => {
             if (this.disposed) {
-                return 0;
+                return { appliedCount: 0, transientIds: [] };
             }
             const currentBase = this.getBaseItems();
             const reconciled = reconcileSyncResponse(
@@ -1430,48 +1669,78 @@ export class TodoSyncEngine {
 
             await this.persistReconciledEntries(this.entries, reconciled.entries);
             if (this.disposed) {
-                return 0;
+                return { appliedCount: 0, transientIds: [] };
             }
 
             this.entries = reconciled.entries;
             this.authExpired = false;
 
             if (reconciled.appliedIds.length > 0) {
-                const parsedSyncedAt = Date.parse(reconciled.syncedAt);
-                this.lastSavedAt =
-                    Number.isFinite(parsedSyncedAt) && parsedSyncedAt > 0
-                        ? parsedSyncedAt
-                        : this.now();
+                this.lastSavedAt = this.now();
                 await this.store.setMeta(this.scope, {
                     lastSavedAt: this.lastSavedAt,
                 });
+                if (this.disposed) {
+                    return {
+                        appliedCount: reconciled.appliedIds.length,
+                        transientIds: reconciled.transientIds,
+                    };
+                }
             }
 
             const hasNotFound = response.results.some(
                 (result) => result.status === "not_found",
             );
-            if (
-                currentBase !== undefined &&
-                (reconciled.appliedIds.length > 0 ||
-                    reconciled.droppedIds.length > 0 ||
-                    hasNotFound)
-            ) {
-                this.setBaseItems(reconciled.baseItems);
-            } else if (
-                currentBase === undefined &&
-                reconciled.appliedIds.length > 0
-            ) {
-                this.onBaseCacheMissing?.();
+            const shouldUpdateBase =
+                reconciled.appliedIds.length > 0 ||
+                reconciled.droppedIds.length > 0 ||
+                hasNotFound;
+
+            if (shouldUpdateBase) {
+                if (this.cancelBaseQuery) {
+                    await this.cancelBaseQuery();
+                    if (this.disposed) {
+                        return {
+                            appliedCount: reconciled.appliedIds.length,
+                            transientIds: reconciled.transientIds,
+                        };
+                    }
+                }
+                const latestBase = this.getBaseItems();
+                if (latestBase !== undefined) {
+                    const baseToWrite =
+                        latestBase === currentBase
+                            ? reconciled.baseItems
+                            : reconcileSyncResponse(
+                                  latestBase,
+                                  [],
+                                  batch.sent,
+                                  response,
+                                  {
+                                      now: this.now(),
+                                      random: this.random,
+                                      maxTransientAttempts:
+                                          this.maxTransientAttempts,
+                                  },
+                              ).baseItems;
+                    this.setBaseItems(baseToWrite);
+                } else if (reconciled.appliedIds.length > 0) {
+                    this.onBaseCacheMissing?.();
+                }
             }
 
             this.emit();
-            return reconciled.appliedIds.length;
+            return {
+                appliedCount: reconciled.appliedIds.length,
+                transientIds: reconciled.transientIds,
+            };
         });
     }
 
     private commitBatchFailure(
         batch: TodoSyncBatch,
         error: unknown,
+        options?: { fromKeepalive?: boolean },
     ): Promise<void> {
         return this.enqueueWrite(async () => {
             if (this.disposed) {
@@ -1494,7 +1763,7 @@ export class TodoSyncEngine {
             }
 
             this.entries = reconciled.entries;
-            if (reconciled.authExpired) {
+            if (reconciled.authExpired && !options?.fromKeepalive) {
                 this.authExpired = true;
             }
             this.emit();

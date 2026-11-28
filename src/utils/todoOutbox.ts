@@ -116,6 +116,7 @@ export type TodoSyncSentEntry = {
     rev: number;
     opId: string;
     kind: TodoOutboxKind;
+    sentFields?: readonly (keyof TodoOutboxFields)[];
 };
 
 export type TodoSyncBatch = {
@@ -909,12 +910,26 @@ export function buildSyncBatches(
         }
 
         currentOps.push(op);
-        currentSent.push({
+        const sentEntry: TodoSyncSentEntry = {
             id: entry.id,
             rev: entry.rev,
             opId,
             kind: entry.kind,
-        });
+        };
+        if (op.type === "update") {
+            const sentFields: (keyof TodoOutboxFields)[] = [];
+            if (op.text !== undefined) {
+                sentFields.push("text");
+            }
+            if (op.checked !== undefined) {
+                sentFields.push("checked");
+            }
+            if (op.category !== undefined) {
+                sentFields.push("category");
+            }
+            sentEntry.sentFields = sentFields;
+        }
+        currentSent.push(sentEntry);
         assignedOpIds.set(entry.id, opId);
     }
 
@@ -1083,6 +1098,37 @@ function getPerOpPermanentMessage(result: TodoSyncOpResult): string {
     return "待辦內容格式無效";
 }
 
+function buildRebasedDesiredFields(
+    current: TodoOutboxEntry,
+    sent: TodoSyncSentEntry,
+    newBase: TodoOutboxFields,
+): TodoOutboxFields {
+    if (!sent.sentFields) {
+        return applyPatchFields(current.base ?? newBase, current.patch);
+    }
+    const sentFieldSet = new Set(sent.sentFields);
+    return {
+        text:
+            current.patch.text !== undefined
+                ? current.patch.text
+                : sentFieldSet.has("text") && current.base !== null
+                  ? current.base.text
+                  : newBase.text,
+        checked:
+            current.patch.checked !== undefined
+                ? current.patch.checked
+                : sentFieldSet.has("checked") && current.base !== null
+                  ? current.base.checked
+                  : newBase.checked,
+        category:
+            current.patch.category !== undefined
+                ? normalizeTodoCategory(current.patch.category)
+                : sentFieldSet.has("category") && current.base !== null
+                  ? current.base.category
+                  : newBase.category,
+    };
+}
+
 function applyTransientFailureToEntry(
     current: TodoOutboxEntry,
     sent: TodoSyncSentEntry,
@@ -1090,7 +1136,30 @@ function applyTransientFailureToEntry(
     maxTransientAttempts: number,
     getDelayForAttempt: (attempt: number) => number,
 ): { nextEntry: TodoOutboxEntry | null; failed: boolean; nextAttemptAt?: number } {
-    if (current.kind === "patch" && isPatchEmpty(current.patch)) {
+    const effectivePatch: TodoOutboxPatch = { ...current.patch };
+    if (
+        current.kind === "patch" &&
+        current.rev !== sent.rev &&
+        current.base !== null &&
+        sent.sentFields &&
+        sent.sentFields.length > 0
+    ) {
+        // Server may have applied the unconfirmed sent fields before the response
+        // was lost; explicitly patch reverted sent fields back to base values.
+        for (const field of sent.sentFields) {
+            if (effectivePatch[field] === undefined) {
+                if (field === "text") {
+                    effectivePatch.text = current.base.text;
+                } else if (field === "checked") {
+                    effectivePatch.checked = current.base.checked;
+                } else if (field === "category") {
+                    effectivePatch.category = current.base.category;
+                }
+            }
+        }
+    }
+
+    if (current.kind === "patch" && isPatchEmpty(effectivePatch)) {
         return { nextEntry: null, failed: false };
     }
 
@@ -1103,7 +1172,7 @@ function applyTransientFailureToEntry(
             id: current.id,
             kind: current.kind,
             base: current.base ? { ...current.base } : null,
-            patch: { ...current.patch },
+            patch: effectivePatch,
             rev: current.rev,
             attempts: nextAttempts,
             status: "failed",
@@ -1123,7 +1192,7 @@ function applyTransientFailureToEntry(
         id: current.id,
         kind: current.kind,
         base: current.base ? { ...current.base } : null,
-        patch: { ...current.patch },
+        patch: effectivePatch,
         rev: current.rev,
         attempts: nextAttempts,
         status: "pending",
@@ -1368,7 +1437,7 @@ export function reconcileSyncResponse(
                               current.patch.category,
                           ),
                       }
-                    : applyPatchFields(current.base ?? newBase, current.patch);
+                    : buildRebasedDesiredFields(current, sent, newBase);
 
             const rebasedPatch = diffFields(newBase, desired);
             if (isPatchEmpty(rebasedPatch)) {
@@ -1417,6 +1486,10 @@ export function reconcileSyncResponse(
 
         // "forbidden" or "invalid"
         if (!current) {
+            continue;
+        }
+        if (current.kind === "patch" && isPatchEmpty(current.patch)) {
+            entryMap.delete(sent.id);
             continue;
         }
         if (sent.kind === "create" && current.kind === "delete") {
@@ -1656,8 +1729,8 @@ function extractCreatedAtFromClientId(id: string): string {
 
 /**
  * Overlays outbox entries onto server base items without mutating either input:
- * - patches apply on top of matching base items
- * - deletes hide matching base items
+ * - patches apply on top of matching base items (and non-inflight patches rebase onto updated base)
+ * - deletes hide matching base items unless status is `failed` (so retry/discard remains accessible)
  * - creates append in creation order (deduplicated if base already contains the id)
  * - patches whose base item disappeared on refetch become `dropped` with a one-time notice
  */
@@ -1666,7 +1739,10 @@ export function overlayTodos(
     entries: readonly TodoOutboxEntry[],
     options: OverlayTodosOptions = {},
 ): OverlayTodosResult {
-    const baseIdSet = new Set(baseItems.map((item) => item.id));
+    const baseById = new Map<string, TodoItem>();
+    for (const item of baseItems) {
+        baseById.set(item.id, item);
+    }
     const entryById = new Map<string, TodoOutboxEntry>();
     for (const entry of entries) {
         entryById.set(entry.id, entry);
@@ -1682,6 +1758,9 @@ export function overlayTodos(
             continue;
         }
         if (entry.kind === "delete") {
+            if (entry.status === "failed") {
+                visibleBaseItems.push(baseItem);
+            }
             statusById[entry.id] = entry.status;
             continue;
         }
@@ -1723,7 +1802,7 @@ export function overlayTodos(
 
         if (entry.kind === "create") {
             reconciledEntries.push(entry);
-            if (!baseIdSet.has(entry.id)) {
+            if (!baseById.has(entry.id)) {
                 const createdAt =
                     entry.createdAt ?? extractCreatedAtFromClientId(entry.id);
                 const item: TodoItem = {
@@ -1746,7 +1825,8 @@ export function overlayTodos(
         }
 
         if (entry.kind === "patch") {
-            if (!baseIdSet.has(entry.id)) {
+            const baseItem = baseById.get(entry.id);
+            if (!baseItem) {
                 if (isPatchEmpty(entry.patch)) {
                     // Empty in-flight patch on a disappeared item needs no notice.
                     return;
@@ -1764,12 +1844,55 @@ export function overlayTodos(
                 });
                 return;
             }
+            if (entry.status !== "inflight") {
+                const newBase = toOutboxFields(baseItem);
+                const baseChanged =
+                    !entry.base ||
+                    entry.base.text !== newBase.text ||
+                    entry.base.checked !== newBase.checked ||
+                    entry.base.category !== newBase.category;
+                if (baseChanged) {
+                    const rebasedPatch = diffFields(
+                        newBase,
+                        applyPatchFields(newBase, entry.patch),
+                    );
+                    if (isPatchEmpty(rebasedPatch)) {
+                        delete statusById[entry.id];
+                        return;
+                    }
+                    const patchChanged =
+                        rebasedPatch.text !== entry.patch.text ||
+                        rebasedPatch.checked !== entry.patch.checked ||
+                        rebasedPatch.category !== entry.patch.category;
+                    const rebased: TodoOutboxEntry = {
+                        id: entry.id,
+                        kind: entry.kind,
+                        base: newBase,
+                        patch: rebasedPatch,
+                        rev: patchChanged ? entry.rev + 1 : entry.rev,
+                        attempts: entry.attempts,
+                        status: entry.status,
+                        lastError: entry.lastError,
+                    };
+                    if (!patchChanged && entry.opId !== undefined) {
+                        rebased.opId = entry.opId;
+                    }
+                    if (entry.nextAttemptAt !== undefined) {
+                        rebased.nextAttemptAt = entry.nextAttemptAt;
+                    }
+                    if (entry.createdAt !== undefined) {
+                        rebased.createdAt = entry.createdAt;
+                    }
+                    reconciledEntries.push(rebased);
+                    return;
+                }
+            }
             reconciledEntries.push(entry);
             return;
         }
 
         // entry.kind === "delete"
-        if (!baseIdSet.has(entry.id)) {
+        if (!baseById.has(entry.id)) {
             if (entry.status === "inflight") {
                 reconciledEntries.push(entry);
             }

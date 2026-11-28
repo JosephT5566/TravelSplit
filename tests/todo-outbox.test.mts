@@ -1284,3 +1284,429 @@ test("backoffDelay follows 5/15/45/120s cap 120s with exact ±20% jitter bounds"
     assert.equal(backoffDelay(1, () => -1), 4_000);
     assert.equal(backoffDelay(1, () => 2), 6_000);
 });
+
+test("reconcileSyncResponse in-flight rev rebase preserves untouched server fields using sentFields", () => {
+    const initialBase = makeTodo({
+        id: "t-multi-device",
+        text: "原字",
+        checked: false,
+        category: "交通",
+    });
+
+    // Device 1 checks the item (rev 1) and builds an update batch.
+    const checkedEntry = applyLocalChange(
+        undefined,
+        { type: "patch", id: initialBase.id, patch: { checked: true } },
+        initialBase,
+    )!;
+    const built = buildSyncBatches([checkedEntry], {
+        generateOpId: () => "op-checked-1",
+    });
+    assert.equal(built.batches.length, 1);
+    assert.deepEqual(built.batches[0].sent[0].sentFields, ["checked"]);
+
+    // While in-flight, Device 1 changes category (never touching text).
+    const inflightEntry: TodoOutboxEntry = {
+        ...built.entriesWithOpIds[0],
+        status: "inflight",
+    };
+    const editedCategory = applyLocalChange(
+        inflightEntry,
+        { type: "patch", id: initialBase.id, patch: { category: "行李" } },
+        initialBase,
+    )!;
+    assert.equal(editedCategory.rev, 2);
+    assert.deepEqual(editedCategory.patch, { checked: true, category: "行李" });
+
+    // Meanwhile Device 2 updated text to "新字" on the server.
+    const serverItem = makeTodo({
+        id: initialBase.id,
+        text: "新字",
+        checked: true,
+        category: "交通",
+        updatedAt: "2026-11-28T06:00:00.000Z",
+    });
+
+    const rebased = reconcileSyncResponse(
+        [initialBase],
+        [editedCategory],
+        built.batches[0].sent,
+        {
+            syncedAt: "2026-11-28T06:00:00.000Z",
+            results: [
+                {
+                    opId: "op-checked-1",
+                    id: initialBase.id,
+                    status: "applied",
+                    item: serverItem,
+                },
+            ],
+        },
+    );
+
+    assert.equal(rebased.entries.length, 1);
+    assert.equal(rebased.entries[0].status, "pending");
+    assert.deepEqual(rebased.entries[0].base, {
+        text: "新字",
+        checked: true,
+        category: "交通",
+    });
+    // Must ONLY patch category — must NOT synthesize text: "原字" and clobber Device 2's "新字".
+    assert.deepEqual(rebased.entries[0].patch, { category: "行李" });
+
+    // Also verify in-flight revert of checked while Device 2 updated text:
+    // rebased patch should revert checked back to false without touching text.
+    const revertedInflight = applyLocalChange(
+        inflightEntry,
+        { type: "patch", id: initialBase.id, patch: { checked: false } },
+        initialBase,
+    )!;
+    assert.deepEqual(revertedInflight.patch, {});
+
+    const rebasedRevert = reconcileSyncResponse(
+        [initialBase],
+        [revertedInflight],
+        built.batches[0].sent,
+        {
+            syncedAt: "2026-11-28T06:00:00.000Z",
+            results: [
+                {
+                    opId: "op-checked-1",
+                    id: initialBase.id,
+                    status: "applied",
+                    item: serverItem,
+                },
+            ],
+        },
+    );
+
+    assert.equal(rebasedRevert.entries.length, 1);
+    assert.deepEqual(rebasedRevert.entries[0].base, {
+        text: "新字",
+        checked: true,
+        category: "交通",
+    });
+    assert.deepEqual(rebasedRevert.entries[0].patch, { checked: false });
+});
+
+test("overlayTodos keeps failed delete entries visible with failed status while hiding pending/inflight deletes", () => {
+    const pendingDel = makeTodo({ id: "b-pending-del", text: "待刪除" });
+    const inflightDel = makeTodo({ id: "b-inflight-del", text: "刪除中" });
+    const failedDel = makeTodo({ id: "b-failed-del", text: "刪除失敗" });
+
+    const entries: TodoOutboxEntry[] = [
+        {
+            id: pendingDel.id,
+            kind: "delete",
+            base: { text: "待刪除", checked: false, category: "交通" },
+            patch: {},
+            rev: 1,
+            attempts: 0,
+            status: "pending",
+            lastError: null,
+        },
+        {
+            id: inflightDel.id,
+            kind: "delete",
+            base: { text: "刪除中", checked: false, category: "交通" },
+            patch: {},
+            rev: 1,
+            attempts: 0,
+            status: "inflight",
+            lastError: null,
+        },
+        {
+            id: failedDel.id,
+            kind: "delete",
+            base: { text: "刪除失敗", checked: false, category: "交通" },
+            patch: {},
+            rev: 1,
+            attempts: 1,
+            status: "failed",
+            lastError: "沒有權限修改這個待辦",
+        },
+    ];
+
+    const overlay = overlayTodos(
+        [pendingDel, inflightDel, failedDel],
+        entries,
+        { ownerEmail: OWNER },
+    );
+
+    assert.deepEqual(
+        overlay.items.map((item) => item.id),
+        [failedDel.id],
+    );
+    assert.equal(overlay.statusById[failedDel.id], "failed");
+    assert.equal(overlay.statusById[pendingDel.id], "pending");
+    assert.equal(overlay.statusById[inflightDel.id], "inflight");
+
+    // Discarding the failed delete returns the item cleanly with no error status.
+    const afterDiscard = overlayTodos(
+        [failedDel],
+        discardOutboxEntry(entries, failedDel.id).filter(
+            (entry) => entry.id === failedDel.id,
+        ),
+    );
+    assert.equal(afterDiscard.items.length, 1);
+    assert.equal(afterDiscard.statusById[failedDel.id], undefined);
+});
+
+test("reconcileSyncResponse drops empty-patch entries on per-op invalid and forbidden rev races", () => {
+    const itemA = makeTodo({ id: "t-invalid-revert", text: "原字 A" });
+    const itemB = makeTodo({ id: "t-forbidden-revert", text: "原字 B" });
+
+    const currentEntries: TodoOutboxEntry[] = [
+        {
+            id: itemA.id,
+            kind: "patch",
+            base: { text: "原字 A", checked: false, category: "交通" },
+            patch: {},
+            rev: 2,
+            attempts: 0,
+            status: "inflight",
+            lastError: null,
+        },
+        {
+            id: itemB.id,
+            kind: "patch",
+            base: { text: "原字 B", checked: false, category: "交通" },
+            patch: {},
+            rev: 2,
+            attempts: 0,
+            status: "inflight",
+            lastError: null,
+        },
+    ];
+
+    const sentEntries = [
+        {
+            id: itemA.id,
+            rev: 1,
+            opId: "op-inv",
+            kind: "patch" as const,
+            sentFields: ["text" as const],
+        },
+        {
+            id: itemB.id,
+            rev: 1,
+            opId: "op-forb",
+            kind: "patch" as const,
+            sentFields: ["checked" as const],
+        },
+    ];
+
+    const reconciled = reconcileSyncResponse(
+        [itemA, itemB],
+        currentEntries,
+        sentEntries,
+        {
+            syncedAt: "2026-11-28T06:00:00.000Z",
+            results: [
+                {
+                    opId: "op-inv",
+                    id: itemA.id,
+                    status: "invalid",
+                    message: "text 不可為空",
+                },
+                {
+                    opId: "op-forb",
+                    id: itemB.id,
+                    status: "forbidden",
+                },
+            ],
+        },
+    );
+
+    assert.deepEqual(reconciled.entries, []);
+    assert.deepEqual(reconciled.failedIds, []);
+});
+
+test("overlayTodos rebases non-inflight patch entries onto refetched base and drops redundant patches", () => {
+    const refetchedBase: TodoItem[] = [
+        makeTodo({ id: "b-same", text: "一樣", checked: true, category: "交通" }),
+        makeTodo({ id: "b-other-field", text: "新文字", checked: false, category: "交通" }),
+        makeTodo({ id: "b-partial", text: "舊文字", checked: true, category: "交通" }),
+        makeTodo({ id: "b-inflight", text: "伺服器字", checked: true, category: "交通" }),
+    ];
+
+    const entries: TodoOutboxEntry[] = [
+        {
+            // Device 2 already checked b-same -> patch becomes empty and drops
+            id: "b-same",
+            kind: "patch",
+            base: { text: "一樣", checked: false, category: "交通" },
+            patch: { checked: true },
+            rev: 1,
+            attempts: 0,
+            status: "pending",
+            lastError: null,
+            opId: "op-same",
+        },
+        {
+            // Device 2 changed text -> base rebases to text:"新文字", patch & opId preserved
+            id: "b-other-field",
+            kind: "patch",
+            base: { text: "舊文字", checked: false, category: "交通" },
+            patch: { checked: true },
+            rev: 1,
+            attempts: 0,
+            status: "pending",
+            lastError: null,
+            opId: "op-other",
+        },
+        {
+            // Device 2 already checked b-partial -> patch narrows to { text: "本地字" }, rev bumps & opId clears
+            id: "b-partial",
+            kind: "patch",
+            base: { text: "舊文字", checked: false, category: "交通" },
+            patch: { text: "本地字", checked: true },
+            rev: 1,
+            attempts: 0,
+            status: "pending",
+            lastError: null,
+            opId: "op-partial",
+        },
+        {
+            // Inflight entry must remain untouched until sync response reconciles it
+            id: "b-inflight",
+            kind: "patch",
+            base: { text: "舊字", checked: false, category: "交通" },
+            patch: { checked: true },
+            rev: 1,
+            attempts: 0,
+            status: "inflight",
+            lastError: null,
+            opId: "op-inflight",
+        },
+    ];
+
+    const overlaid = overlayTodos(refetchedBase, entries, { ownerEmail: OWNER });
+    const byId = new Map(overlaid.reconciledEntries.map((e) => [e.id, e]));
+
+    assert.equal(byId.has("b-same"), false);
+    assert.equal(overlaid.statusById["b-same"], undefined);
+
+    const otherField = byId.get("b-other-field");
+    assert.ok(otherField);
+    assert.deepEqual(otherField.base, {
+        text: "新文字",
+        checked: false,
+        category: "交通",
+    });
+    assert.deepEqual(otherField.patch, { checked: true });
+    assert.equal(otherField.rev, 1);
+    assert.equal(otherField.opId, "op-other");
+
+    const partial = byId.get("b-partial");
+    assert.ok(partial);
+    assert.deepEqual(partial.base, {
+        text: "舊文字",
+        checked: true,
+        category: "交通",
+    });
+    assert.deepEqual(partial.patch, { text: "本地字" });
+    assert.equal(partial.rev, 2);
+    assert.equal(partial.opId, undefined);
+
+    const inflight = byId.get("b-inflight");
+    assert.deepEqual(inflight, entries[3]);
+});
+
+test("reconcileSyncFailure and reconcileSyncResponse emit explicit revert patch on transient failure after in-flight revert", () => {
+    const baseItem = makeTodo({
+        id: "t-timeout-revert",
+        text: "買車票",
+        checked: false,
+        category: "交通",
+    });
+    const entryRev1 = applyLocalChange(
+        undefined,
+        { type: "patch", id: baseItem.id, patch: { checked: true } },
+        baseItem,
+    )!;
+    const built = buildSyncBatches([entryRev1], {
+        generateOpId: () => "op-send-1",
+    });
+    const inflightRev1: TodoOutboxEntry = {
+        ...built.entriesWithOpIds[0],
+        status: "inflight",
+    };
+
+    // User unchecks back to base while op-send-1 is in flight -> rev 2, empty patch
+    const revertedRev2 = applyLocalChange(
+        inflightRev1,
+        { type: "patch", id: baseItem.id, patch: { checked: false } },
+        baseItem,
+    )!;
+    assert.deepEqual(revertedRev2.patch, {});
+    assert.equal(revertedRev2.rev, 2);
+
+    // 1. Whole-request TIMEOUT -> must NOT drop; keeps explicit { checked: false } patch
+    const timeoutRes = reconcileSyncFailure(
+        [revertedRev2],
+        built.batches[0].sent,
+        { code: "TIMEOUT", message: "Request timed out" },
+        { now: 50_000, random: () => 0.5 },
+    );
+    assert.equal(timeoutRes.entries.length, 1);
+    assert.equal(timeoutRes.entries[0].status, "pending");
+    assert.equal(timeoutRes.entries[0].attempts, 1);
+    assert.equal(timeoutRes.entries[0].nextAttemptAt, 55_000);
+    assert.equal(timeoutRes.entries[0].opId, undefined);
+    assert.deepEqual(timeoutRes.entries[0].patch, { checked: false });
+    assert.deepEqual(timeoutRes.transientIds, [baseItem.id]);
+
+    // 2. HTTP 200 missing per-op result (transient) -> same explicit revert patch
+    const missingRes = reconcileSyncResponse(
+        [baseItem],
+        [revertedRev2],
+        built.batches[0].sent,
+        { syncedAt: "2026-11-28T06:00:00.000Z", results: [] },
+        { now: 60_000, random: () => 0.5 },
+    );
+    assert.equal(missingRes.entries.length, 1);
+    assert.equal(missingRes.entries[0].status, "pending");
+    assert.deepEqual(missingRes.entries[0].patch, { checked: false });
+    assert.deepEqual(missingRes.transientIds, [baseItem.id]);
+
+    // 3. 401 auth rejection (server never applied op) -> empty patch still drops cleanly
+    const authRes = reconcileSyncFailure(
+        [revertedRev2],
+        built.batches[0].sent,
+        { status: 401, code: "UNAUTHORIZED" },
+        { now: 70_000 },
+    );
+    assert.deepEqual(authRes.entries, []);
+
+    // 4. Partial in-flight revert: sent { text: "新字", checked: true }, reverted checked only
+    const twoFieldEntry = applyLocalChange(
+        undefined,
+        {
+            type: "patch",
+            id: baseItem.id,
+            patch: { text: "新字", checked: true },
+        },
+        baseItem,
+    )!;
+    const builtTwo = buildSyncBatches([twoFieldEntry], {
+        generateOpId: () => "op-send-2",
+    });
+    const partialReverted = applyLocalChange(
+        { ...builtTwo.entriesWithOpIds[0], status: "inflight" },
+        { type: "patch", id: baseItem.id, patch: { checked: false } },
+        baseItem,
+    )!;
+    assert.deepEqual(partialReverted.patch, { text: "新字" });
+
+    const partialTimeout = reconcileSyncFailure(
+        [partialReverted],
+        builtTwo.batches[0].sent,
+        { code: "TIMEOUT" },
+        { now: 80_000, random: () => 0.5 },
+    );
+    assert.deepEqual(partialTimeout.entries[0].patch, {
+        text: "新字",
+        checked: false,
+    });
+});

@@ -142,6 +142,8 @@ export function createTodoSyncManager(deps: TodoSyncManagerDeps = {}) {
                     previousUpdatedAt ? { updatedAt: previousUpdatedAt } : undefined,
                 );
             },
+            cancelBaseQuery: () =>
+                client.cancelQueries({ queryKey, exact: true }),
             onBaseCacheMissing: () => {
                 void client.invalidateQueries({ queryKey, exact: true });
             },
