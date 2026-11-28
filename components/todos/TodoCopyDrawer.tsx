@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Check, CircleAlert, Loader2, TriangleAlert } from "lucide-react";
 import {
     Drawer,
@@ -11,6 +12,7 @@ import {
 } from "@/components/ui/drawer";
 import { cn } from "@/lib/utils";
 import { useCreateTodos, useTodosQuery } from "@/services/dataFetcher";
+import { getTodosQueryKey } from "@/services/todoCache";
 import type { TodoItem } from "@/src/types";
 import {
     buildCopyCandidates,
@@ -66,6 +68,7 @@ function TodoCopyDrawerBody({
     onSuccess,
     onGoToMine,
 }: TodoCopyDrawerBodyProps) {
+    const queryClient = useQueryClient();
     const myTodosQuery = useTodosQuery(sheetId, myEmail);
     const createTodosMutation = useCreateTodos(sheetId, myEmail);
 
@@ -242,17 +245,28 @@ function TodoCopyDrawerBody({
             setBatchProgress(null);
             onSuccess(summary.message);
         } catch (error) {
-            if (!mountedRef.current) {
-                return;
-            }
-
             const summary = summarizeCopyResult({
                 total: totalCount,
                 copied: copiedCount,
                 error,
             });
-            const isPartial = summary.status === "partial";
             const isUnconfirmed = summary.classification === "unconfirmed";
+
+            if (isUnconfirmed) {
+                void queryClient.invalidateQueries(
+                    {
+                        queryKey: getTodosQueryKey(sheetId, myEmail),
+                        exact: true,
+                    },
+                    { cancelRefetch: false },
+                );
+            }
+
+            if (!mountedRef.current) {
+                return;
+            }
+
+            const isPartial = summary.status === "partial";
 
             if (isPartial) {
                 const remainingCandidates =
