@@ -28,6 +28,7 @@ import {
     type TodoCompletionStats,
 } from "@/src/utils/todoList";
 import { TodoAddRow } from "./TodoAddRow";
+import { TodoExportButton } from "./TodoExportButton";
 import { TodoRow, type TodoRowEditUpdates } from "./TodoRow";
 import {
     TodoEmptyState,
@@ -339,12 +340,11 @@ function TodoListCard({
     const handleAdd = useCallback(
         async (text: string, category: string): Promise<boolean> => {
             if (!canEdit) return false;
+            const normalizedCategory = normalizeTodoCategory(category);
+            if (!normalizedCategory) return false;
             setIsAdding(true);
             try {
-                const normalizedCategory = normalizeTodoCategory(category);
-                const payload = normalizedCategory
-                    ? [{ text, category: normalizedCategory }]
-                    : [{ text }];
+                const payload = [{ text, category: normalizedCategory }];
                 const response =
                     await createTodosMutation.mutateAsync(payload);
                 const createdCategory =
@@ -638,6 +638,13 @@ function TodoListCard({
                         />
                     ) : (
                         <>
+                            <div className="border-b border-border bg-surface px-3 py-2.5">
+                                <TodoExportButton
+                                    items={sortedTodos}
+                                    ownerDisplayName={ownerName?.trim() || "我"}
+                                />
+                            </div>
+
                             {showGroupHeaders ? (
                                 <div>
                                     {groups.map((group, groupIndex) => {

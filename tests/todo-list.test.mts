@@ -21,6 +21,7 @@ import {
     TODO_TEXT_MAX_LENGTH,
     truncateUnicodeCodePoints,
     UNCATEGORIZED_LABEL,
+    validateRequiredTodoCategory,
     validateTodoCategory,
     validateTodoText,
 } from "../src/utils/todoList.ts";
@@ -560,4 +561,73 @@ test("getTodoCategories omits legacy categories longer than 30 code points", () 
         { createdAt: "2026-11-27T03:00:00.000Z", category: "a".repeat(30) },
     ];
     assert.deepEqual(getTodoCategories(items), ["行李", "a".repeat(30)]);
+});
+
+test("validateRequiredTodoCategory rejects empty, whitespace, newline-only, 未分類, and >30 code points while accepting trimmed valid values", () => {
+    assert.deepEqual(validateRequiredTodoCategory(undefined), {
+        ok: false,
+        reason: "required",
+    });
+    assert.deepEqual(validateRequiredTodoCategory(null), {
+        ok: false,
+        reason: "required",
+    });
+    assert.deepEqual(validateRequiredTodoCategory(""), {
+        ok: false,
+        reason: "required",
+    });
+    assert.deepEqual(validateRequiredTodoCategory("   \t  "), {
+        ok: false,
+        reason: "required",
+    });
+    assert.deepEqual(validateRequiredTodoCategory("\n\r\n\u2028"), {
+        ok: false,
+        reason: "required",
+    });
+
+    assert.deepEqual(validateRequiredTodoCategory("未分類"), {
+        ok: false,
+        reason: "uncategorized",
+    });
+    assert.deepEqual(validateRequiredTodoCategory("  未分類  "), {
+        ok: false,
+        reason: "uncategorized",
+    });
+    assert.deepEqual(validateRequiredTodoCategory("\n未分類\r\n"), {
+        ok: false,
+        reason: "uncategorized",
+    });
+
+    assert.deepEqual(validateRequiredTodoCategory("  行李  "), {
+        ok: true,
+        category: "行李",
+    });
+    assert.deepEqual(validateRequiredTodoCategory("第一\n第二"), {
+        ok: true,
+        category: "第一 第二",
+    });
+
+    const exact30Cjk = "字".repeat(30);
+    assert.deepEqual(validateRequiredTodoCategory(`  ${exact30Cjk}  `), {
+        ok: true,
+        category: exact30Cjk,
+    });
+    assert.deepEqual(validateRequiredTodoCategory("字".repeat(31)), {
+        ok: false,
+        reason: "too-long",
+    });
+
+    const exact30Emoji = "🎒".repeat(30);
+    assert.deepEqual(validateRequiredTodoCategory(exact30Emoji), {
+        ok: true,
+        category: exact30Emoji,
+    });
+    assert.deepEqual(validateRequiredTodoCategory("🎒".repeat(31)), {
+        ok: false,
+        reason: "too-long",
+    });
+
+    // Regression check: validateTodoCategory still allows empty and 未分類 for editing/copy.
+    assert.deepEqual(validateTodoCategory(""), { ok: true, category: "" });
+    assert.deepEqual(validateTodoCategory("未分類"), { ok: true, category: "" });
 });

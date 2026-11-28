@@ -28,10 +28,10 @@ The app is designed for real travel use: phones, intermittent network, outdoor r
 
 ## Key Routes
 
-- `/`: main expense list and expense add/edit dialog.
-- `/summary`: expense summary.
-- `/todos`: my trip todo list with optional per-user free-text categories and collapsible section grouping, read-only travel-mate todo views, and grouped copy-to-my-list flow with independent category carryover (4th bottom tab `待辦`, left of `Plan`; precached as `todos.html` in `public/sw.js`).
-- `/plan`: trip plan travel books and resource list.
+- `/`: main expense list and expense add/edit dialog (`支出` tab).
+- `/summary`: expense summary (`統計` tab).
+- `/todos`: my trip todo list with frontend-required per-user free-text category on add (backend still accepts empty so existing `未分類` items remain visible/editable), collapsible section grouping, read-only travel-mate todo views, grouped copy-to-my-list flow with independent category carryover, and offline-capable GFM Markdown clipboard export (`待辦` tab, left of `行程`; precached as `todos.html` in `public/sw.js`).
+- `/plan`: trip plan travel books and resource list (`行程` tab).
 - `/select-sheet`: selected Google Sheet picker when multiple sheets are configured.
 - `/2026-shimanami`: public Shimanami travel book.
 - `/2026-hokkaido-car`: public Hokkaido self-drive travel book.
