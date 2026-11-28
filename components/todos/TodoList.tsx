@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import { isCancelledError } from "@tanstack/react-query";
 import { ChevronDown, Pencil } from "lucide-react";
 import { useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
@@ -14,6 +15,7 @@ import {
     groupTodosByCategory,
     isForbiddenError,
     normalizeTodoCategory,
+    shouldShowTodoRefresh,
     sortTodos,
     type TodoCompletionStats,
 } from "@/src/utils/todoList";
@@ -30,6 +32,7 @@ import {
 } from "@/src/utils/todoSyncStatus";
 import { TodoAddRow } from "./TodoAddRow";
 import { TodoExportButton } from "./TodoExportButton";
+import { TodoRefreshButton } from "./TodoRefreshButton";
 import { TodoRow, type TodoRowEditUpdates } from "./TodoRow";
 import { TodoSyncStatusLine } from "./TodoSyncStatusLine";
 import {
@@ -872,6 +875,51 @@ export function TodoList({
         reauthenticate();
     }, [reauthenticate]);
 
+    const showToast = useToast();
+    const [isManualRefreshing, setIsManualRefreshing] = useState(false);
+    const manualRefreshInFlightRef = useRef(false);
+    const { flushNow, refetch } = todoView;
+
+    // Refetches only the viewed list's own query key. Own list: send pending
+    // local edits first so the refetched base data includes them.
+    const handleRefresh = useCallback(async () => {
+        if (!isOnline || manualRefreshInFlightRef.current) {
+            return;
+        }
+        manualRefreshInFlightRef.current = true;
+        setIsManualRefreshing(true);
+        try {
+            if (canEdit) {
+                await flushNow().catch(() => undefined);
+            }
+            const result = await refetch();
+            if (result.isError && !isCancelledError(result.error)) {
+                showToast({
+                    kind: "error",
+                    message: "無法更新待辦清單，請再試一次",
+                });
+            }
+        } catch (error) {
+            if (!isCancelledError(error)) {
+                showToast({
+                    kind: "error",
+                    message: "無法更新待辦清單，請再試一次",
+                });
+            }
+        } finally {
+            manualRefreshInFlightRef.current = false;
+            setIsManualRefreshing(false);
+        }
+    }, [canEdit, flushNow, isOnline, refetch, showToast]);
+
+    const showRefreshButton = shouldShowTodoRefresh({
+        hasData,
+        isError: todoView.isError,
+        error: todoView.error,
+        isOfflineNoCache,
+        isInitialLoading,
+    });
+
     return (
         <section
             aria-labelledby="todos-heading"
@@ -896,6 +944,20 @@ export function TodoList({
                     data-slot="todo-header-actions"
                     className="relative z-10 flex min-h-7 shrink-0 items-center gap-1.5"
                 >
+                    {showRefreshButton && (
+                        <TodoRefreshButton
+                            isRefreshing={
+                                isManualRefreshing || todoView.isFetching
+                            }
+                            isOnline={isOnline}
+                            offlineNoticeId={
+                                canEdit ? statusLineId : offlineBannerId
+                            }
+                            onRefresh={() => {
+                                void handleRefresh();
+                            }}
+                        />
+                    )}
                     {hasData && sortedTodos.length > 0 && (
                         <TodoExportButton
                             key={JSON.stringify([sheetId, ownerEmail])}

@@ -469,3 +469,25 @@ export function getTodoErrorMessage(
             return "無法完成，請重試";
     }
 }
+
+/**
+ * Whether the manual refresh button is shown for the viewed list: whenever
+ * there is cached/loaded data (including an empty list), or after a non-403
+ * load error; hidden during the first load, offline without cache, and for
+ * the 403 non-member screen.
+ */
+export function shouldShowTodoRefresh(input: {
+    hasData: boolean;
+    isError: boolean;
+    error: unknown;
+    isOfflineNoCache: boolean;
+    isInitialLoading: boolean;
+}): boolean {
+    if (input.hasData) {
+        return true;
+    }
+    if (input.isOfflineNoCache || input.isInitialLoading) {
+        return false;
+    }
+    return input.isError && !isForbiddenError(input.error);
+}
