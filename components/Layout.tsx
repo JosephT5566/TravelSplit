@@ -14,10 +14,10 @@ import { useSelectedSheetId } from "@/src/hooks/useSelectedSheetId";
 import { cn } from "@/lib/utils";
 
 const navigation = [
-    { href: "/", label: "Expenses", Icon: List },
-    { href: "/summary", label: "Summary", Icon: PieChart },
+    { href: "/", label: "支出", Icon: List },
+    { href: "/summary", label: "統計", Icon: PieChart },
     { href: "/todos", label: "待辦", Icon: ListChecks },
-    { href: "/plan", label: "Plan", Icon: NotebookPen },
+    { href: "/plan", label: "行程", Icon: NotebookPen },
 ];
 
 interface LayoutProps {
@@ -53,7 +53,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
                 <div className="relative z-30">
                     <ToastViewport />
                     <nav
-                        aria-label="Main navigation"
+                        aria-label="主要導覽"
                         className="border-t border-border bg-surface pt-1 pb-[calc(0.25rem+env(safe-area-inset-bottom,0px))] transition-colors"
                     >
                         <div className="mx-auto grid max-w-2xl grid-cols-4 gap-1 px-4">

@@ -25,6 +25,10 @@ export type TodoCategoryValidationResult =
     | { ok: true; category: string }
     | { ok: false; reason: "too_long" };
 
+export type TodoRequiredCategoryValidationResult =
+    | { ok: true; category: string }
+    | { ok: false; reason: "required" | "uncategorized" | "too-long" };
+
 export type TodoCategoryGroup<T> = {
     key: string;
     label: string;
@@ -148,6 +152,30 @@ export function validateTodoCategory(
     const category = normalizeTodoCategory(raw);
     if (countUnicodeCodePoints(category) > TODO_CATEGORY_MAX_LENGTH) {
         return { ok: false, reason: "too_long" };
+    }
+    return { ok: true, category };
+}
+
+/**
+ * Validates a required todo category for new items: rejects blank/whitespace-only
+ * input, literal "未分類", and values longer than 30 Unicode code points.
+ */
+export function validateRequiredTodoCategory(
+    raw: string | null | undefined,
+): TodoRequiredCategoryValidationResult {
+    if (typeof raw !== "string") {
+        return { ok: false, reason: "required" };
+    }
+    const trimmed = sanitizeTodoLineBreaks(raw).trim();
+    if (trimmed.length === 0) {
+        return { ok: false, reason: "required" };
+    }
+    const category = normalizeTodoCategory(raw);
+    if (category.length === 0) {
+        return { ok: false, reason: "uncategorized" };
+    }
+    if (countUnicodeCodePoints(category) > TODO_CATEGORY_MAX_LENGTH) {
+        return { ok: false, reason: "too-long" };
     }
     return { ok: true, category };
 }

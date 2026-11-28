@@ -28,6 +28,7 @@ import {
     type TodoCompletionStats,
 } from "@/src/utils/todoList";
 import { TodoAddRow } from "./TodoAddRow";
+import { TodoExportButton } from "./TodoExportButton";
 import { TodoRow, type TodoRowEditUpdates } from "./TodoRow";
 import {
     TodoEmptyState,
@@ -339,12 +340,11 @@ function TodoListCard({
     const handleAdd = useCallback(
         async (text: string, category: string): Promise<boolean> => {
             if (!canEdit) return false;
+            const normalizedCategory = normalizeTodoCategory(category);
+            if (!normalizedCategory) return false;
             setIsAdding(true);
             try {
-                const normalizedCategory = normalizeTodoCategory(category);
-                const payload = normalizedCategory
-                    ? [{ text, category: normalizedCategory }]
-                    : [{ text }];
+                const payload = [{ text, category: normalizedCategory }];
                 const response =
                     await createTodosMutation.mutateAsync(payload);
                 const createdCategory =
@@ -816,8 +816,8 @@ export function TodoList({
             aria-labelledby="todos-heading"
             className="flex min-w-0 flex-col gap-2.5"
         >
-            <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
+            <div className="flex items-center justify-between gap-2 min-[360px]:gap-3">
+                <div className="min-w-0 flex-1">
                     <h2
                         id="todos-heading"
                         className="text-xl font-bold text-text-main"
@@ -835,6 +835,13 @@ export function TodoList({
                     data-slot="todo-header-actions"
                     className="flex min-h-7 shrink-0 items-center gap-1.5"
                 >
+                    {hasData && sortedTodos.length > 0 && (
+                        <TodoExportButton
+                            key={JSON.stringify([sheetId, ownerEmail])}
+                            items={sortedTodos}
+                            ownerDisplayName={ownerName?.trim() || "我"}
+                        />
+                    )}
                     {headerActions}
                 </div>
             </div>
