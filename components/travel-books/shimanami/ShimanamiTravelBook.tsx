@@ -531,7 +531,7 @@ function DayNoteDialog({
                           : "新增筆記"}
                 </Button>
             </DialogTrigger>
-            <DialogContent className="flex max-h-[calc(100dvh-2rem)] flex-col gap-0 overflow-hidden bg-[#f7faf8] p-0 sm:max-w-xl">
+            <DialogContent className="flex max-h-[calc(100dvh-2rem-env(safe-area-inset-top,0px)-env(safe-area-inset-bottom,0px))] flex-col gap-0 overflow-hidden bg-[#f7faf8] p-0 sm:max-w-xl">
                 <DialogHeader className="border-b border-[#d6e3e6] bg-white px-5 py-4 text-left">
                     <DialogTitle className="flex items-center gap-2 text-[#17323b]">
                         <NotebookPen className="size-5 text-[#126b8a]" />
@@ -1062,7 +1062,14 @@ export function ShimanamiTravelBook() {
                     accountDisabledLabel="旅遊手冊中無法開啟帳戶選單"
                 />
             )}
-            <header className="relative overflow-hidden bg-[#126b8a] px-5 pb-7 pt-8 text-white">
+            <header
+                className={cn(
+                    "relative overflow-hidden bg-[#126b8a] px-5 pb-7 text-white",
+                    showUserHeader
+                        ? "pt-8"
+                        : "pt-[calc(2rem+env(safe-area-inset-top,0px))]",
+                )}
+            >
                 <div
                     aria-hidden="true"
                     className="absolute -right-14 -top-20 size-64 rounded-full border-[28px] border-white/10"
@@ -1093,7 +1100,7 @@ export function ShimanamiTravelBook() {
                                         <PackageCheck className="size-4" />
                                     </Button>
                                 </DialogTrigger>
-                                <DialogContent className="max-h-[calc(100dvh-2rem)] gap-0 overflow-y-auto bg-[#f7faf8] p-0 sm:max-w-xl">
+                                <DialogContent className="max-h-[calc(100dvh-2rem-env(safe-area-inset-top,0px)-env(safe-area-inset-bottom,0px))] gap-0 overflow-y-auto bg-[#f7faf8] p-0 sm:max-w-xl">
                                     <DialogHeader className="sr-only">
                                         <DialogTitle>40L／10kg 背包清單</DialogTitle>
                                         <DialogDescription>
@@ -1140,7 +1147,9 @@ export function ShimanamiTravelBook() {
             <div
                 className={cn(
                     "sticky z-20 border-b border-[#c8dce1] bg-[#f7faf8]/95 backdrop-blur-md",
-                    showUserHeader ? "top-16" : "top-0",
+                    showUserHeader
+                        ? "top-(--app-header-offset)"
+                        : "top-0 pt-[env(safe-area-inset-top,0px)]",
                 )}
             >
                 <div

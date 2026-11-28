@@ -21,7 +21,7 @@ The app is designed for real travel use: phones, intermittent network, outdoor r
 
 - Signed-out users see `LoginView`.
 - Signed-in users with multiple sheet IDs must choose a sheet at `/select-sheet`.
-- Authenticated main app routes render inside `Layout`.
+- Authenticated main app routes render inside `Layout`. The signed-in shell is viewport-locked (`h-dvh overflow-hidden`); only `<main>` scrolls. `viewport-fit=cover` is on, with safe-area insets handled in the header, drawer, toast, and travel books (see `docs/architecture.md`).
 - Public travel-book routes bypass auth and layout chrome so they can be opened directly by URL.
 - Expense data loads from the selected sheet and is cached by TanStack Query.
 - Travel-book data is static structured app data and must remain readable without expense API success.

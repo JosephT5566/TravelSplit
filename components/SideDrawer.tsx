@@ -112,7 +112,7 @@ export const SideDrawer: React.FC = () => {
                         onClick={closeDrawer}
                     ></label>
 
-                    <div className="menu p-4 w-80 min-h-full bg-base-100 text-base-content">
+                    <div className="menu w-80 min-h-full bg-base-100 p-4 pt-[calc(1rem+env(safe-area-inset-top,0px))] pb-[calc(1rem+env(safe-area-inset-bottom,0px))] text-base-content">
                         {/* Header */}
                         <div className="flex justify-between items-center mb-6">
                             <h2 className="text-xl font-bold">帳戶與設定</h2>

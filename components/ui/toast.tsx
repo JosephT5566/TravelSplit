@@ -99,7 +99,7 @@ export function ToastViewport() {
     return (
         <ToastPrimitive.Viewport
             label="通知（{hotkey}）"
-            className="absolute right-20 bottom-full left-4 mb-2 list-none sm:fixed sm:top-4 sm:right-4 sm:bottom-auto sm:left-auto sm:mb-0 sm:w-80"
+            className="absolute right-20 bottom-full left-4 mb-2 list-none sm:fixed sm:top-[calc(1rem+env(safe-area-inset-top,0px))] sm:right-4 sm:bottom-auto sm:left-auto sm:mb-0 sm:w-80"
         />
     );
 }

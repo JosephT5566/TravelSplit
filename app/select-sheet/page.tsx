@@ -103,8 +103,8 @@ export default function SelectSheetPage() {
     };
 
     return (
-        <main className="min-h-dvh bg-background px-4 py-8 text-text-main">
-            <div className="mx-auto flex min-h-[calc(100dvh-4rem)] w-full max-w-2xl flex-col justify-center gap-6">
+        <main className="min-h-dvh bg-background px-4 pt-[calc(2rem+env(safe-area-inset-top,0px))] pb-[calc(2rem+env(safe-area-inset-bottom,0px))] text-text-main">
+            <div className="mx-auto flex min-h-[calc(100dvh-4rem-env(safe-area-inset-top,0px)-env(safe-area-inset-bottom,0px))] w-full max-w-2xl flex-col justify-center gap-6">
                 <div className="space-y-2">
                     <h1 className="text-3xl font-bold text-primary">
                         Select Trip Sheet
