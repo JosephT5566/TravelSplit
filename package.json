@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "next dev --experimental-https --hostname travel-split-dev.josephtseng-tw.com --port 3000",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "hooks:install": "git config core.hooksPath .githooks"
   },
   "dependencies": {
     "@tailwindcss/postcss": "^4.1.18",

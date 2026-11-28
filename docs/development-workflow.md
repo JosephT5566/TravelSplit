@@ -60,6 +60,8 @@ There is no dedicated test or lint command in `package.json` yet. Run the expens
 node --test tests/*.test.mts
 ```
 
+This command also runs the repo-local `pre-push` hook tests in `tests/pre-push-hook.test.mts`.
+
 When adding tests, start with the smallest setup compatible with Next App Router and React 18. Prioritize behavior at these boundaries:
 
 - Trip date selection across timezones and trip boundaries.

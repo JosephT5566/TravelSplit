@@ -1,0 +1,185 @@
+#!/bin/sh
+# Repo-local git pre-push hook for TravelSplit.
+# Enforces that pushes to codex/issue-<n> or codex/issue-<n>-<slug> have the
+# 'ai-ready' label on GitHub issue #<n>. Fail-closed if 'gh' is unavailable.
+
+set -u
+
+ZERO_SHA="0000000000000000000000000000000000000000"
+DEFAULT_REPO="JosephT5566/TravelSplit"
+
+remote_name=${1-}
+remote_url=${2-}
+resolved_repo=""
+
+parse_github_repo() {
+  raw_url=$1
+  raw_url=${raw_url%/}
+  raw_url=${raw_url%.git}
+
+  case "$raw_url" in
+    https://github.com/*/*)
+      repo_path=${raw_url#https://github.com/}
+      ;;
+    http://github.com/*/*)
+      repo_path=${raw_url#http://github.com/}
+      ;;
+    https://*@github.com/*/*)
+      repo_path=${raw_url#*@github.com/}
+      ;;
+    ssh://git@github.com/*/*)
+      repo_path=${raw_url#ssh://git@github.com/}
+      ;;
+    ssh://*@github.com/*/*)
+      repo_path=${raw_url#*@github.com/}
+      ;;
+    git@github.com:*/*)
+      repo_path=${raw_url#git@github.com:}
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+
+  repo_owner=${repo_path%%/*}
+  repo_name=${repo_path#*/}
+
+  case "$repo_owner" in
+    ''|*/*) return 1 ;;
+  esac
+  case "$repo_name" in
+    ''|*/*) return 1 ;;
+  esac
+
+  printf '%s/%s\n' "$repo_owner" "$repo_name"
+}
+
+resolve_repo() {
+  if [ -n "$remote_url" ]; then
+    if parsed=$(parse_github_repo "$remote_url"); then
+      printf '%s\n' "$parsed"
+      return 0
+    fi
+  fi
+
+  lookup_remote=${remote_name:-origin}
+  if command -v git >/dev/null 2>&1; then
+    if git_url=$(git remote get-url "$lookup_remote" </dev/null 2>/dev/null); then
+      if parsed=$(parse_github_repo "$git_url"); then
+        printf '%s\n' "$parsed"
+        return 0
+      fi
+    fi
+  fi
+
+  printf '%s\n' "$DEFAULT_REPO"
+}
+
+while read -r local_ref local_sha remote_ref remote_sha || [ -n "${local_ref-}" ]; do
+  [ -z "${local_ref-}" ] && continue
+
+  # 1. Remote branch deletion: always allow.
+  if [ "${local_sha-}" = "$ZERO_SHA" ]; then
+    continue
+  fi
+
+  # 2 & 3. Match codex/issue-<n>(-<slug>) or warn on issue-<n>(-<slug>).
+  case "$local_ref" in
+    refs/heads/codex/issue-*)
+      rest=${local_ref#refs/heads/codex/issue-}
+      issue_num=${rest%%-*}
+      case "$issue_num" in
+        ''|*[!0-9]*)
+          continue
+          ;;
+      esac
+      ;;
+    refs/heads/issue-*)
+      rest=${local_ref#refs/heads/issue-}
+      warn_num=${rest%%-*}
+      case "$warn_num" in
+        ''|*[!0-9]*)
+          ;;
+        *)
+          branch_name=${local_ref#refs/heads/}
+          printf '%s\n' \
+            "pre-push: warning: branch '${branch_name}' is missing the 'codex/' prefix." \
+            "pre-push: TravelSplit's convention is 'codex/issue-${warn_num}-<slug>'; this hook will not enforce 'ai-ready' on '${branch_name}'." >&2
+          ;;
+      esac
+      continue
+      ;;
+    *)
+      continue
+      ;;
+  esac
+
+  branch_name=${local_ref#refs/heads/}
+
+  # 4. Enforce 'ai-ready' label via gh CLI (fail-closed).
+  if [ -z "$resolved_repo" ]; then
+    resolved_repo=$(resolve_repo)
+  fi
+
+  if ! command -v gh >/dev/null 2>&1; then
+    printf '%s\n' \
+      "pre-push: blocked push of '${branch_name}' (issue #${issue_num}): 'gh' CLI is not installed or not in PATH." \
+      "pre-push: 推送已阻擋：找不到 'gh' CLI，無法驗證 issue #${issue_num} 的 'ai-ready' 標籤。" \
+      "pre-push: Install/authenticate GitHub CLI, or bypass intentionally with: git push --no-verify" >&2
+    exit 1
+  fi
+
+  if ! issue_json=$(gh issue view "$issue_num" --repo "$resolved_repo" --json labels,state </dev/null); then
+    printf '%s\n' \
+      "pre-push: blocked push of '${branch_name}' (issue #${issue_num} in ${resolved_repo}): 'gh issue view' failed." \
+      "pre-push: 推送已阻擋：無法透過 'gh' 讀取 issue #${issue_num}，請確認登入狀態與網路連線。" \
+      "pre-push: To bypass intentionally: git push --no-verify" >&2
+    exit 1
+  fi
+
+  compact=$(printf '%s' "$issue_json" | tr -d ' \t\r\n')
+  if [ -z "$compact" ]; then
+    printf '%s\n' \
+      "pre-push: blocked push of '${branch_name}' (issue #${issue_num} in ${resolved_repo}): 'gh issue view' returned empty output." \
+      "pre-push: 推送已阻擋：'gh issue view' 回傳空內容，無法驗證 issue #${issue_num} 的 'ai-ready' 標籤。" \
+      "pre-push: To bypass intentionally: git push --no-verify" >&2
+    exit 1
+  fi
+
+  case "$compact" in
+    *'"labels":['*)
+      ;;
+    *)
+      printf '%s\n' \
+        "pre-push: blocked push of '${branch_name}' (issue #${issue_num} in ${resolved_repo}): unexpected output from 'gh issue view'." \
+        "pre-push: 推送已阻擋：無法解析 issue #${issue_num} 的標籤資料。" \
+        "pre-push: To bypass intentionally: git push --no-verify" >&2
+      exit 1
+      ;;
+  esac
+
+  case "$compact" in
+    *'{"name":"ai-ready"}'*|*'{"name":"ai-ready",'*|*',"name":"ai-ready"}'*|*',"name":"ai-ready",'*)
+      continue
+      ;;
+  esac
+
+  issue_state=""
+  case "$compact" in
+    *'"state":"OPEN"'*) issue_state="OPEN" ;;
+    *'"state":"CLOSED"'*) issue_state="CLOSED" ;;
+  esac
+
+  state_note=""
+  if [ -n "$issue_state" ]; then
+    state_note=" (state: ${issue_state})"
+  fi
+
+  printf '%s\n' \
+    "pre-push: blocked push of '${branch_name}' — issue #${issue_num}${state_note} in ${resolved_repo} is missing the 'ai-ready' label." \
+    "pre-push: 推送已阻擋：issue #${issue_num} 尚未加上 'ai-ready' 標籤，請先取得規格核准並加上標籤後再推送。" \
+    "pre-push: To bypass intentionally: git push --no-verify" >&2
+  exit 1
+done
+
+exit 0
