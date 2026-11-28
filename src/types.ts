@@ -104,6 +104,7 @@ export type TodoItem = {
     ownerEmail: string;
     text: string;
     checked: boolean;
+    category?: string;
     createdAt: string;
     updatedAt: string;
 };
@@ -111,6 +112,7 @@ export type TodoItem = {
 export type CreateTodoItemInput = {
     text: string;
     checked?: boolean;
+    category?: string;
 };
 
 export type CreateTodosResponse = {
@@ -121,6 +123,7 @@ export type UpdateTodoRequest = {
     id: string;
     text?: string;
     checked?: boolean;
+    category?: string;
 };
 
 export type UpdateTodoResponse = {

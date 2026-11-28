@@ -2,6 +2,11 @@ export const TODO_TEXT_MAX_LENGTH = 500;
 export const TODO_TEXT_COUNTER_SHOW_THRESHOLD = 400;
 export const TODO_TEXT_COUNTER_WARN_THRESHOLD = 480;
 
+export const TODO_CATEGORY_MAX_LENGTH = 30;
+export const TODO_CATEGORY_COUNTER_SHOW_THRESHOLD = 24;
+export const TODO_CATEGORY_COUNTER_WARN_THRESHOLD = 28;
+export const UNCATEGORIZED_LABEL = "未分類";
+
 export type TodoAction = "load" | "create" | "update" | "delete";
 
 export type TodoErrorKind =
@@ -15,6 +20,20 @@ export type TodoErrorKind =
 export type TodoTextValidationResult =
     | { ok: true; text: string }
     | { ok: false; reason: "empty" | "too_long" };
+
+export type TodoCategoryValidationResult =
+    | { ok: true; category: string }
+    | { ok: false; reason: "too_long" };
+
+export type TodoCategoryGroup<T> = {
+    key: string;
+    label: string;
+    isUncategorized: boolean;
+    showHeader: boolean;
+    items: T[];
+    completed: number;
+    total: number;
+};
 
 export type TodoTextCounter = {
     label: string;
@@ -85,6 +104,191 @@ export function getTextCounter(length: number): TodoTextCounter | null {
         label: `${length} / ${TODO_TEXT_MAX_LENGTH}`,
         level: "normal",
     };
+}
+
+/**
+ * Counts Unicode code points (treating surrogate pairs such as emoji as 1).
+ */
+export function countUnicodeCodePoints(value: string): number {
+    return Array.from(value).length;
+}
+
+/**
+ * Truncates a string to at most maxLength Unicode code points without splitting surrogate pairs.
+ */
+export function truncateUnicodeCodePoints(
+    value: string,
+    maxLength: number,
+): string {
+    if (maxLength <= 0) {
+        return "";
+    }
+    return Array.from(value).slice(0, maxLength).join("");
+}
+
+/**
+ * Normalizes a todo category by converting line breaks to single spaces, trimming edges
+ * (without collapsing internal spaces), and mapping blank or "未分類" to "".
+ * Does not truncate overlong legacy values so display can render them safely.
+ */
+export function normalizeTodoCategory(raw: string | null | undefined): string {
+    if (typeof raw !== "string") {
+        return "";
+    }
+    const normalized = sanitizeTodoLineBreaks(raw).trim();
+    return normalized === UNCATEGORIZED_LABEL ? "" : normalized;
+}
+
+/**
+ * Validates a normalized todo category against the 0..30 Unicode code point bound.
+ */
+export function validateTodoCategory(
+    raw: string | null | undefined,
+): TodoCategoryValidationResult {
+    const category = normalizeTodoCategory(raw);
+    if (countUnicodeCodePoints(category) > TODO_CATEGORY_MAX_LENGTH) {
+        return { ok: false, reason: "too_long" };
+    }
+    return { ok: true, category };
+}
+
+/**
+ * Returns category character counter metadata once length reaches 24 code points.
+ */
+export function getCategoryCounter(length: number): TodoTextCounter | null {
+    if (length < TODO_CATEGORY_COUNTER_SHOW_THRESHOLD) {
+        return null;
+    }
+    if (length >= TODO_CATEGORY_MAX_LENGTH) {
+        return {
+            label: `已達上限 ${length} / ${TODO_CATEGORY_MAX_LENGTH}`,
+            level: "limit",
+        };
+    }
+    if (length >= TODO_CATEGORY_COUNTER_WARN_THRESHOLD) {
+        return {
+            label: `${length} / ${TODO_CATEGORY_MAX_LENGTH}`,
+            level: "warn",
+        };
+    }
+    return {
+        label: `${length} / ${TODO_CATEGORY_MAX_LENGTH}`,
+        level: "normal",
+    };
+}
+
+/**
+ * Snaps a category input to an existing category spelling when they match
+ * case-insensitively after normalization; otherwise returns the normalized input.
+ */
+export function snapToExistingCategory(
+    raw: string | null | undefined,
+    existing: readonly string[],
+): string {
+    const normalized = normalizeTodoCategory(raw);
+    if (!normalized) {
+        return "";
+    }
+    const needle = normalized.toLowerCase();
+    for (const entry of existing) {
+        const candidate = normalizeTodoCategory(entry);
+        if (candidate && candidate.toLowerCase() === needle) {
+            return candidate;
+        }
+    }
+    return normalized;
+}
+
+/**
+ * Returns unique non-empty categories present in items, ordered by group order
+ * (earliest createdAt item per category, oldest first).
+ */
+export function getTodoCategories(
+    items: readonly { createdAt: string; category?: string }[],
+): string[] {
+    const sorted = sortTodos(items);
+    const seen = new Set<string>();
+    const categories: string[] = [];
+    for (const item of sorted) {
+        const category = normalizeTodoCategory(item.category);
+        if (category && !seen.has(category)) {
+            seen.add(category);
+            categories.push(category);
+        }
+    }
+    return categories;
+}
+
+/**
+ * Groups todos by normalized category. Groups are ordered by their earliest createdAt item
+ * (oldest first), with "未分類" fixed last. Within each group, items keep sortTodos order.
+ * When all items are uncategorized, returns a single uncategorized group with showHeader=false.
+ */
+export function groupTodosByCategory<
+    T extends { createdAt: string; checked?: boolean; category?: string },
+>(items: readonly T[]): TodoCategoryGroup<T>[] {
+    if (items.length === 0) {
+        return [];
+    }
+
+    const sorted = sortTodos(items);
+    const categorized = new Map<string, T[]>();
+    const uncategorized: T[] = [];
+
+    for (const item of sorted) {
+        const key = normalizeTodoCategory(item.category);
+        if (!key) {
+            uncategorized.push(item);
+            continue;
+        }
+        const bucket = categorized.get(key);
+        if (bucket) {
+            bucket.push(item);
+        } else {
+            categorized.set(key, [item]);
+        }
+    }
+
+    const hasCategorized = categorized.size > 0;
+    const groups: TodoCategoryGroup<T>[] = [];
+
+    for (const [key, groupItems] of categorized.entries()) {
+        let completed = 0;
+        for (const item of groupItems) {
+            if (item.checked === true) {
+                completed += 1;
+            }
+        }
+        groups.push({
+            key,
+            label: key,
+            isUncategorized: false,
+            showHeader: true,
+            items: groupItems,
+            completed,
+            total: groupItems.length,
+        });
+    }
+
+    if (uncategorized.length > 0) {
+        let completed = 0;
+        for (const item of uncategorized) {
+            if (item.checked === true) {
+                completed += 1;
+            }
+        }
+        groups.push({
+            key: "",
+            label: UNCATEGORIZED_LABEL,
+            isUncategorized: true,
+            showHeader: hasCategorized,
+            items: uncategorized,
+            completed,
+            total: uncategorized.length,
+        });
+    }
+
+    return groups;
 }
 
 /**

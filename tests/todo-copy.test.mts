@@ -6,9 +6,12 @@ import {
     buildMemberOptions,
     chunkCopyItems,
     classifyCopyError,
+    groupCopyCandidatesByCategory,
     isInvalidParamsError,
+    resolveCopyCategories,
     summarizeCopyResult,
     TODO_COPY_BATCH_SIZE,
+    toggleGroupSelection,
 } from "../src/utils/todoCopy.ts";
 
 test("buildMemberOptions places current user first as 我, keeps others in key order, and falls back to email local part", () => {
@@ -106,11 +109,51 @@ test("buildCopyCandidates sorts by createdAt stably and flags case-sensitive nor
     const candidates = buildCopyCandidates(source, myItems);
 
     assert.deepEqual(candidates, [
-        { id: "t1", text: "確認護照效期", isDuplicate: true },
-        { id: "t2a", text: "JR Pass", isDuplicate: true },
-        { id: "t2b", text: "jr pass", isDuplicate: false },
-        { id: "t2c", text: "預約\n租車", isDuplicate: true },
-        { id: "t3", text: "換日幣", isDuplicate: false },
+        {
+            id: "t1",
+            text: "確認護照效期",
+            createdAt: "2026-11-27T01:00:00.000Z",
+            sourceCategory: "",
+            category: "",
+            categoryMatchKind: "uncategorized",
+            isDuplicate: true,
+        },
+        {
+            id: "t2a",
+            text: "JR Pass",
+            createdAt: "2026-11-27T02:00:00.000Z",
+            sourceCategory: "",
+            category: "",
+            categoryMatchKind: "uncategorized",
+            isDuplicate: true,
+        },
+        {
+            id: "t2b",
+            text: "jr pass",
+            createdAt: "2026-11-27T02:00:00.000Z",
+            sourceCategory: "",
+            category: "",
+            categoryMatchKind: "uncategorized",
+            isDuplicate: false,
+        },
+        {
+            id: "t2c",
+            text: "預約\n租車",
+            createdAt: "2026-11-27T02:00:00.000Z",
+            sourceCategory: "",
+            category: "",
+            categoryMatchKind: "uncategorized",
+            isDuplicate: true,
+        },
+        {
+            id: "t3",
+            text: "換日幣",
+            createdAt: "2026-11-27T03:00:00.000Z",
+            sourceCategory: "",
+            category: "",
+            categoryMatchKind: "uncategorized",
+            isDuplicate: false,
+        },
     ]);
 
     // Original array is untouched
@@ -316,4 +359,195 @@ test("summarizeCopyResult formats success, partial, and failure messages without
     assert.equal(fail400.status, "failed");
     assert.equal(fail400.classification, "definitely-not-sent");
     assert.equal(fail400.message, "無法複製待辦，請重試");
+});
+
+test("resolveCopyCategories snaps to my existing categories case-insensitively, truncates >30 code points, and keeps first batch spelling", () => {
+    const longEmoji = "🍜".repeat(31);
+    const longWithTrailingSpace = `${"a".repeat(29)} b`;
+
+    const source = [
+        { id: "1", createdAt: "2026-11-27T01:00:00.000Z", category: "行李" },
+        { id: "2", createdAt: "2026-11-27T02:00:00.000Z", category: "  food\n " },
+        { id: "3", createdAt: "2026-11-27T03:00:00.000Z", category: "Cafe" },
+        { id: "4", createdAt: "2026-11-27T04:00:00.000Z", category: "cafe" },
+        { id: "5", createdAt: "2026-11-27T05:00:00.000Z", category: longEmoji },
+        { id: "6", createdAt: "2026-11-27T06:00:00.000Z", category: longWithTrailingSpace },
+        { id: "7", createdAt: "2026-11-27T07:00:00.000Z", category: "未分類" },
+        { id: "8", createdAt: "2026-11-27T08:00:00.000Z" },
+    ];
+    const myItems = [
+        { createdAt: "2026-11-26T01:00:00.000Z", category: "行李" },
+        { createdAt: "2026-11-26T02:00:00.000Z", category: "Food" },
+    ];
+
+    const resolved = resolveCopyCategories(source, myItems);
+
+    assert.deepEqual(resolved.get("行李"), {
+        sourceCategory: "行李",
+        targetCategory: "行李",
+        matchKind: "exact",
+    });
+    assert.deepEqual(resolved.get("food"), {
+        sourceCategory: "food",
+        targetCategory: "Food",
+        matchKind: "merged",
+    });
+    assert.deepEqual(resolved.get("Cafe"), {
+        sourceCategory: "Cafe",
+        targetCategory: "Cafe",
+        matchKind: "new",
+    });
+    assert.deepEqual(resolved.get("cafe"), {
+        sourceCategory: "cafe",
+        targetCategory: "Cafe",
+        matchKind: "new",
+    });
+    assert.deepEqual(resolved.get(longEmoji), {
+        sourceCategory: longEmoji,
+        targetCategory: "🍜".repeat(30),
+        matchKind: "new",
+    });
+    assert.deepEqual(resolved.get(longWithTrailingSpace), {
+        sourceCategory: longWithTrailingSpace,
+        targetCategory: "a".repeat(29),
+        matchKind: "new",
+    });
+    assert.deepEqual(resolved.get(""), {
+        sourceCategory: "",
+        targetCategory: "",
+        matchKind: "uncategorized",
+    });
+
+    // When myItems is undefined, matchKind is "unknown" (never falsely "new" or "merged").
+    const withoutMine = resolveCopyCategories(source, undefined);
+    assert.equal(withoutMine.get("行李")?.matchKind, "unknown");
+    assert.equal(withoutMine.get("food")?.targetCategory, "food");
+    assert.equal(withoutMine.get("cafe")?.targetCategory, "Cafe");
+    assert.equal(withoutMine.get("")?.matchKind, "uncategorized");
+});
+
+test("buildCopyCandidates checks duplicates by text only (ignoring category) and buildCopyItems carries resolved categories in source order", () => {
+    const source = [
+        { id: "s3", text: "買伴手禮", createdAt: "2026-11-27T03:00:00.000Z", category: "交通" },
+        { id: "s1", text: "護照", createdAt: "2026-11-27T01:00:00.000Z", category: "證件" },
+        { id: "s2", text: "湯咖哩", createdAt: "2026-11-27T02:00:00.000Z", category: "food" },
+        { id: "s4", text: "開 eSIM", createdAt: "2026-11-27T04:00:00.000Z" },
+    ];
+    const myItems = [
+        // Same text as s1, but in a different category -> still duplicate!
+        { text: "護照", category: "行李", createdAt: "2026-11-26T01:00:00.000Z" },
+        // Different text in Food -> not duplicate, but food snaps to Food!
+        { text: "拉麵", category: "Food", createdAt: "2026-11-26T02:00:00.000Z" },
+    ];
+
+    const candidates = buildCopyCandidates(source, myItems);
+    assert.deepEqual(
+        candidates.map((c) => ({
+            id: c.id,
+            sourceCategory: c.sourceCategory,
+            category: c.category,
+            categoryMatchKind: c.categoryMatchKind,
+            isDuplicate: c.isDuplicate,
+        })),
+        [
+            { id: "s1", sourceCategory: "證件", category: "證件", categoryMatchKind: "new", isDuplicate: true },
+            { id: "s2", sourceCategory: "food", category: "Food", categoryMatchKind: "merged", isDuplicate: false },
+            { id: "s3", sourceCategory: "交通", category: "交通", categoryMatchKind: "new", isDuplicate: false },
+            { id: "s4", sourceCategory: "", category: "", categoryMatchKind: "uncategorized", isDuplicate: false },
+        ],
+    );
+
+    // Payload preserves source creation order (s1, s2, s3, s4), always checked=false, omits category when empty.
+    const payload = buildCopyItems(candidates, new Set(["s4", "s2", "s1", "s3"]));
+    assert.deepEqual(payload, [
+        { text: "護照", checked: false, category: "證件" },
+        { text: "湯咖哩", checked: false, category: "Food" },
+        { text: "買伴手禮", checked: false, category: "交通" },
+        { text: "開 eSIM", checked: false },
+    ]);
+    assert.equal("category" in payload[3], false);
+
+    // Direct call to buildCopyItems also truncates >30 code points and resolves first batch spelling.
+    const directPayload = buildCopyItems(
+        [
+            { id: "a", text: "一", category: "Cafe" },
+            { id: "b", text: "二", category: "cafe" },
+            { id: "c", text: "三", category: "🚗".repeat(31) },
+            { id: "d", text: "四", category: "未分類" },
+        ],
+        new Set(["a", "b", "c", "d"]),
+    );
+    assert.deepEqual(directPayload, [
+        { text: "一", checked: false, category: "Cafe" },
+        { text: "二", checked: false, category: "Cafe" },
+        { text: "三", checked: false, category: "🚗".repeat(30) },
+        { text: "四", checked: false },
+    ]);
+});
+
+test("groupCopyCandidatesByCategory groups by source spelling in read-only order and hides header when all uncategorized", () => {
+    const source = [
+        { id: "u1", text: "未分類項目", createdAt: "2026-11-27T00:30:00.000Z" },
+        { id: "f1", text: "湯咖哩", createdAt: "2026-11-27T02:00:00.000Z", category: "food" },
+        { id: "d1", text: "護照", createdAt: "2026-11-27T01:00:00.000Z", category: "證件" },
+        { id: "f2", text: "海鮮丼", createdAt: "2026-11-27T03:00:00.000Z", category: "food" },
+    ];
+    const myItems = [
+        { text: "拉麵", category: "Food", createdAt: "2026-11-26T01:00:00.000Z" },
+    ];
+
+    const candidates = buildCopyCandidates(source, myItems);
+    const groups = groupCopyCandidatesByCategory(candidates);
+
+    assert.deepEqual(
+        groups.map((g) => ({
+            key: g.key,
+            label: g.label,
+            isUncategorized: g.isUncategorized,
+            showHeader: g.showHeader,
+            total: g.total,
+            ids: g.items.map((item) => item.id),
+        })),
+        [
+            { key: "證件", label: "證件", isUncategorized: false, showHeader: true, total: 1, ids: ["d1"] },
+            { key: "food", label: "food", isUncategorized: false, showHeader: true, total: 2, ids: ["f1", "f2"] },
+            { key: "", label: "未分類", isUncategorized: true, showHeader: true, total: 1, ids: ["u1"] },
+        ],
+    );
+
+    const flatCandidates = buildCopyCandidates(
+        [
+            { id: "a", text: "一", createdAt: "2026-11-27T01:00:00.000Z" },
+            { id: "b", text: "二", createdAt: "2026-11-27T02:00:00.000Z", category: "未分類" },
+        ],
+        [],
+    );
+    const flatGroups = groupCopyCandidatesByCategory(flatCandidates);
+    assert.equal(flatGroups.length, 1);
+    assert.equal(flatGroups[0].isUncategorized, true);
+    assert.equal(flatGroups[0].showHeader, false);
+});
+
+test("toggleGroupSelection handles none, partial, and all selected without mutating input or affecting other groups", () => {
+    const initial = new Set(["other-1"]);
+    const groupIds = ["g-1", "g-2-dup", "g-3"];
+
+    // None selected -> selects every item in group (including duplicates)
+    const afterSelectAll = toggleGroupSelection(initial, groupIds);
+    assert.notEqual(afterSelectAll, initial);
+    assert.deepEqual([...initial], ["other-1"]);
+    assert.deepEqual([...afterSelectAll].sort(), ["g-1", "g-2-dup", "g-3", "other-1"]);
+
+    // Partial selection -> selects every item in group (including duplicates)
+    const partial = new Set(["other-1", "g-1"]);
+    const afterPartial = toggleGroupSelection(partial, groupIds);
+    assert.deepEqual([...afterPartial].sort(), ["g-1", "g-2-dup", "g-3", "other-1"]);
+
+    // All selected -> deselects only items in this group
+    const afterDeselectAll = toggleGroupSelection(afterSelectAll, groupIds);
+    assert.deepEqual([...afterDeselectAll], ["other-1"]);
+
+    // Empty group -> unchanged copy
+    const afterEmpty = toggleGroupSelection(initial, []);
+    assert.deepEqual([...afterEmpty], ["other-1"]);
 });

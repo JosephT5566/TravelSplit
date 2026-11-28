@@ -106,8 +106,17 @@ export function createCreateTodosMutationOptions({
 
 function isCheckOnlyUpdate(
     input: UpdateTodoRequest,
-): input is { id: string; checked: boolean; text?: undefined } {
-    return input.checked !== undefined && input.text === undefined;
+): input is {
+    id: string;
+    checked: boolean;
+    text?: undefined;
+    category?: undefined;
+} {
+    return (
+        input.checked !== undefined &&
+        input.text === undefined &&
+        input.category === undefined
+    );
 }
 
 export function createUpdateTodoMutationOptions({

@@ -2,8 +2,9 @@
 
 import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Pencil } from "lucide-react";
+import { ChevronDown, Pencil } from "lucide-react";
 import { useToast } from "@/components/ui/toast";
+import { cn } from "@/lib/utils";
 import {
     useCreateTodos,
     useDeleteTodo,
@@ -15,16 +16,19 @@ import { useOnlineStatus } from "@/src/hooks/useOnlineStatus";
 import type { TodoItem } from "@/src/types";
 import {
     getCompletionStats,
+    getTodoCategories,
     getTodoErrorMessage,
+    groupTodosByCategory,
     isForbiddenError,
     isNotFoundError,
     isOfflineError,
+    normalizeTodoCategory,
     sortTodos,
     type TodoAction,
     type TodoCompletionStats,
 } from "@/src/utils/todoList";
 import { TodoAddRow } from "./TodoAddRow";
-import { TodoRow } from "./TodoRow";
+import { TodoRow, type TodoRowEditUpdates } from "./TodoRow";
 import {
     TodoEmptyState,
     TodoLoadErrorState,
@@ -105,6 +109,7 @@ function TodoListCard({
 }: TodoListCardProps) {
     const showToast = useToast();
     const queryClient = useQueryClient();
+    const groupIdPrefix = useId();
 
     const createTodosMutation = useCreateTodos(sheetId, ownerEmail);
     const updateTodoMutation = useUpdateTodo(sheetId, ownerEmail);
@@ -115,12 +120,25 @@ function TodoListCard({
     const [pendingIds, setPendingIds] = useState<Set<string>>(() => new Set());
     const [isAdding, setIsAdding] = useState(false);
     const [pendingFocus, setPendingFocus] = useState<PendingFocus>(null);
+    const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(
+        () => new Set(),
+    );
 
     const activeRowActionRef = useRef<ActiveRowAction>(null);
     const pendingIdsRef = useRef<Set<string>>(new Set());
     const addInputRef = useRef<HTMLInputElement>(null);
     const textButtonRefs = useRef<Map<string, HTMLButtonElement>>(new Map());
     const deleteButtonRefs = useRef<Map<string, HTMLButtonElement>>(new Map());
+
+    const groups = useMemo(
+        () => groupTodosByCategory(sortedTodos),
+        [sortedTodos],
+    );
+    const showGroupHeaders = groups.some((group) => group.showHeader);
+    const existingCategories = useMemo(
+        () => (canEdit ? getTodoCategories(sortedTodos) : []),
+        [canEdit, sortedTodos],
+    );
 
     const updateActiveRowAction = useCallback(
         (
@@ -158,7 +176,11 @@ function TodoListCard({
                 : pendingFocus.target === "text"
                   ? textButtonRefs.current.get(pendingFocus.id)
                   : deleteButtonRefs.current.get(pendingFocus.id);
-        (target ?? addInputRef.current)?.focus();
+        const focusTarget = target ?? addInputRef.current;
+        focusTarget?.focus();
+        if (target) {
+            target.scrollIntoView({ block: "nearest" });
+        }
         setPendingFocus(null);
     }, [pendingFocus]);
 
@@ -198,6 +220,49 @@ function TodoListCard({
         setPendingIds(new Set(pendingIdsRef.current));
     }, []);
 
+    const expandGroup = useCallback((groupKey: string) => {
+        setCollapsedGroups((current) => {
+            if (!current.has(groupKey)) {
+                return current;
+            }
+            const next = new Set(current);
+            next.delete(groupKey);
+            return next;
+        });
+    }, []);
+
+    const handleToggleGroup = useCallback(
+        (groupKey: string) => {
+            const willCollapse = !collapsedGroups.has(groupKey);
+            if (
+                willCollapse &&
+                activeRowActionRef.current &&
+                !isActiveRowBusy()
+            ) {
+                const activeId = activeRowActionRef.current.id;
+                const activeItem = sortedTodos.find(
+                    (candidate) => candidate.id === activeId,
+                );
+                if (
+                    activeItem &&
+                    normalizeTodoCategory(activeItem.category) === groupKey
+                ) {
+                    updateActiveRowAction(null);
+                }
+            }
+            setCollapsedGroups((current) => {
+                const next = new Set(current);
+                if (next.has(groupKey)) {
+                    next.delete(groupKey);
+                } else {
+                    next.add(groupKey);
+                }
+                return next;
+            });
+        },
+        [collapsedGroups, sortedTodos, updateActiveRowAction],
+    );
+
     const notifyWriteError = useCallback(
         (err: unknown, action: Exclude<TodoAction, "load">) => {
             const message = getTodoErrorMessage(err, action);
@@ -221,11 +286,21 @@ function TodoListCard({
     );
 
     const handleAdd = useCallback(
-        async (text: string): Promise<boolean> => {
+        async (text: string, category: string): Promise<boolean> => {
             if (!canEdit) return false;
             setIsAdding(true);
             try {
-                await createTodosMutation.mutateAsync([{ text }]);
+                const normalizedCategory = normalizeTodoCategory(category);
+                const payload = normalizedCategory
+                    ? [{ text, category: normalizedCategory }]
+                    : [{ text }];
+                const response =
+                    await createTodosMutation.mutateAsync(payload);
+                const createdCategory =
+                    response.items[0] !== undefined
+                        ? normalizeTodoCategory(response.items[0].category)
+                        : normalizedCategory;
+                expandGroup(createdCategory);
                 showToast({ kind: "success", message: "已新增待辦" });
                 return true;
             } catch (err) {
@@ -235,7 +310,13 @@ function TodoListCard({
                 setIsAdding(false);
             }
         },
-        [canEdit, createTodosMutation, notifyWriteError, showToast],
+        [
+            canEdit,
+            createTodosMutation,
+            expandGroup,
+            notifyWriteError,
+            showToast,
+        ],
     );
 
     const handleToggleCheck = useCallback(
@@ -288,12 +369,21 @@ function TodoListCard({
     );
 
     const handleSaveEdit = useCallback(
-        async (id: string, text: string): Promise<string | null> => {
+        async (
+            id: string,
+            updates: TodoRowEditUpdates,
+        ): Promise<string | null> => {
             if (!canEdit || !startRowPending(id)) {
                 return null;
             }
             try {
-                await updateTodoMutation.mutateAsync({ id, text });
+                const response = await updateTodoMutation.mutateAsync({
+                    id,
+                    ...updates,
+                });
+                if (updates.category !== undefined) {
+                    expandGroup(normalizeTodoCategory(response.item.category));
+                }
                 const restoreFocus = canRestoreFocusFor(id);
                 updateActiveRowAction((current) =>
                     current?.id === id && current.mode === "edit"
@@ -313,6 +403,7 @@ function TodoListCard({
         [
             canEdit,
             endRowPending,
+            expandGroup,
             notifyWriteError,
             startRowPending,
             updateActiveRowAction,
@@ -350,13 +441,18 @@ function TodoListCard({
             if (!canEdit || !startRowPending(item.id)) {
                 return;
             }
-            const currentIndex = sortedTodos.findIndex(
+            const visibleItems = groups.flatMap((group) =>
+                showGroupHeaders && collapsedGroups.has(group.key)
+                    ? []
+                    : group.items,
+            );
+            const currentIndex = visibleItems.findIndex(
                 (candidate) => candidate.id === item.id,
             );
             const nextItem =
-                currentIndex >= 0 ? sortedTodos[currentIndex + 1] : undefined;
+                currentIndex >= 0 ? visibleItems[currentIndex + 1] : undefined;
             const prevItem =
-                currentIndex > 0 ? sortedTodos[currentIndex - 1] : undefined;
+                currentIndex > 0 ? visibleItems[currentIndex - 1] : undefined;
 
             const focusAfterRowGone = (): PendingFocus =>
                 nextItem
@@ -394,11 +490,13 @@ function TodoListCard({
         },
         [
             canEdit,
+            collapsedGroups,
             deleteTodoMutation,
             endRowPending,
+            groups,
             notifyWriteError,
+            showGroupHeaders,
             showToast,
-            sortedTodos,
             startRowPending,
             updateActiveRowAction,
         ],
@@ -410,6 +508,33 @@ function TodoListCard({
                 ? readOnlyTopAction({ items: sortedTodos, isOnline })
                 : readOnlyTopAction
             : null;
+
+    const renderTodoRow = (item: TodoItem) => {
+        const mode =
+            activeRowAction?.id === item.id ? activeRowAction.mode : "normal";
+
+        return (
+            <TodoRow
+                key={item.id}
+                item={item}
+                canEdit={canEdit}
+                isOnline={isOnline}
+                isPending={pendingIds.has(item.id)}
+                mode={mode}
+                existingCategories={existingCategories}
+                offlineBannerId={offlineBannerId}
+                setTextButtonRef={setTextButtonRef}
+                setDeleteButtonRef={setDeleteButtonRef}
+                onToggleCheck={handleToggleCheck}
+                onStartEdit={handleStartEdit}
+                onCancelEdit={handleCancelEdit}
+                onSaveEdit={handleSaveEdit}
+                onStartDelete={handleStartDelete}
+                onCancelDelete={handleCancelDelete}
+                onConfirmDelete={handleConfirmDelete}
+            />
+        );
+    };
 
     return (
         <div className="overflow-hidden rounded-2xl border border-border bg-surface shadow-sm">
@@ -435,6 +560,7 @@ function TodoListCard({
                         <TodoAddRow
                             isOnline={isOnline}
                             isSubmitting={isAdding}
+                            existingCategories={existingCategories}
                             offlineBannerId={offlineBannerId}
                             inputRef={addInputRef}
                             onAdd={handleAdd}
@@ -450,39 +576,95 @@ function TodoListCard({
                         />
                     ) : (
                         <>
-                            <ul className="divide-y divide-border/75">
-                                {sortedTodos.map((item) => {
-                                    const mode =
-                                        activeRowAction?.id === item.id
-                                            ? activeRowAction.mode
-                                            : "normal";
+                            {showGroupHeaders ? (
+                                <div>
+                                    {groups.map((group, groupIndex) => {
+                                        const isCollapsed = collapsedGroups.has(
+                                            group.key,
+                                        );
+                                        const panelId = `${groupIdPrefix}-group-${groupIndex}`;
+                                        const isGroupDone =
+                                            group.total > 0 &&
+                                            group.completed === group.total;
 
-                                    return (
-                                        <TodoRow
-                                            key={item.id}
-                                            item={item}
-                                            canEdit={canEdit}
-                                            isOnline={isOnline}
-                                            isPending={pendingIds.has(item.id)}
-                                            mode={mode}
-                                            offlineBannerId={offlineBannerId}
-                                            setTextButtonRef={setTextButtonRef}
-                                            setDeleteButtonRef={
-                                                setDeleteButtonRef
-                                            }
-                                            onToggleCheck={handleToggleCheck}
-                                            onStartEdit={handleStartEdit}
-                                            onCancelEdit={handleCancelEdit}
-                                            onSaveEdit={handleSaveEdit}
-                                            onStartDelete={handleStartDelete}
-                                            onCancelDelete={handleCancelDelete}
-                                            onConfirmDelete={
-                                                handleConfirmDelete
-                                            }
-                                        />
-                                    );
-                                })}
-                            </ul>
+                                        return (
+                                            <div
+                                                key={
+                                                    group.key ||
+                                                    "__uncategorized__"
+                                                }
+                                                className="border-t border-border first:border-t-0"
+                                            >
+                                                <h3 className="m-0">
+                                                    <button
+                                                        type="button"
+                                                        aria-expanded={
+                                                            !isCollapsed
+                                                        }
+                                                        aria-controls={panelId}
+                                                        onClick={() =>
+                                                            handleToggleGroup(
+                                                                group.key,
+                                                            )
+                                                        }
+                                                        className={cn(
+                                                            "flex min-h-11 w-full items-center justify-between gap-2 bg-background/75 px-3.5 py-2 text-left transition-colors hover:bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary motion-reduce:transition-none",
+                                                            !isCollapsed &&
+                                                                "border-b border-border/75",
+                                                        )}
+                                                    >
+                                                        <span className="flex min-w-0 flex-1 items-center gap-2">
+                                                            <ChevronDown
+                                                                aria-hidden="true"
+                                                                className={cn(
+                                                                    "size-4 shrink-0 text-text-main/62 transition-transform duration-150 forest:text-text-main/72 ocean:text-text-main/68 motion-reduce:transition-none",
+                                                                    isCollapsed &&
+                                                                        "-rotate-90",
+                                                                )}
+                                                            />
+                                                            <span
+                                                                className={cn(
+                                                                    "min-w-0 wrap-anywhere text-[13px] leading-[18px]",
+                                                                    group.isUncategorized
+                                                                        ? "font-semibold text-text-main/62 forest:text-text-main/72 ocean:text-text-main/68"
+                                                                        : "font-bold text-text-main",
+                                                                )}
+                                                            >
+                                                                {group.label}
+                                                            </span>
+                                                        </span>
+                                                        <span
+                                                            className={cn(
+                                                                "shrink-0 text-xs font-semibold tabular-nums",
+                                                                isGroupDone
+                                                                    ? "text-primary"
+                                                                    : "text-text-main/62 forest:text-text-main/72 ocean:text-text-main/68",
+                                                            )}
+                                                        >
+                                                            {group.completed}/
+                                                            {group.total}
+                                                        </span>
+                                                    </button>
+                                                </h3>
+
+                                                <ul
+                                                    id={panelId}
+                                                    hidden={isCollapsed}
+                                                    className="divide-y divide-border/75"
+                                                >
+                                                    {group.items.map(
+                                                        renderTodoRow,
+                                                    )}
+                                                </ul>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            ) : (
+                                <ul className="divide-y divide-border/75">
+                                    {sortedTodos.map(renderTodoRow)}
+                                </ul>
+                            )}
 
                             {canEdit && isOnline && (
                                 <p className="flex items-center gap-1.5 border-t border-border/60 bg-background/40 px-4 py-2 text-[11px] text-text-main/55 forest:text-text-main/68 ocean:text-text-main/65">
@@ -490,7 +672,11 @@ function TodoListCard({
                                         aria-hidden="true"
                                         className="size-3 shrink-0"
                                     />
-                                    <span>點項目文字即可編輯</span>
+                                    <span>
+                                        {showGroupHeaders
+                                            ? "點項目文字即可編輯內容與分類"
+                                            : "點項目文字即可編輯"}
+                                    </span>
                                 </p>
                             )}
                         </>
