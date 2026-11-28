@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useSyncExternalStore } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, type QueryObserverResult } from "@tanstack/react-query";
 import { useTodosQuery } from "@/services/dataFetcher";
 import {
     EMPTY_TODO_SYNC_SNAPSHOT,
@@ -34,7 +34,7 @@ export type UseTodoViewResult = {
     status: "pending" | "error" | "success";
     fetchStatus: "fetching" | "paused" | "idle";
     dataUpdatedAt: number;
-    refetch: () => Promise<unknown>;
+    refetch: () => Promise<QueryObserverResult<TodoItem[], Error>>;
     sync: TodoSyncSnapshot;
     statusById: Readonly<Record<string, TodoOverlayItemStatus>>;
     errorById: Readonly<Record<string, string>>;
