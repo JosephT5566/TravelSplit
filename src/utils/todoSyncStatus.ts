@@ -68,6 +68,22 @@ export type TodoSyncStatusResult = {
     retryInSeconds?: number;
 };
 
+export type TodoSyncAnnouncementState = {
+    previous: TodoSyncStatusPrevious | null;
+    politeText: string;
+    alertText: string;
+    lastDroppedNotice: string | null;
+};
+
+export type AdvanceSyncAnnouncementInput = {
+    status: TodoSyncStatusResult;
+    isOnline: boolean;
+    readOnly?: boolean;
+    lastSavedAt?: number | null;
+    lastRefreshedAt?: number | null;
+    droppedNotice?: string | null;
+};
+
 function isValidPositiveTimestamp(
     value: number | null | undefined,
 ): value is number {
@@ -424,4 +440,117 @@ export function deriveSyncStatus(
         result.retryInSeconds = retryInSeconds;
     }
     return result;
+}
+
+/**
+ * Initializes the live-region announcement state tracker.
+ * Pass `initiallyIdle: true` on a cold load (no cached data yet) so the first
+ * load completing into `refreshed` is treated as a transition from `idle`.
+ */
+export function createInitialSyncAnnouncementState(options?: {
+    initiallyIdle?: boolean;
+    isOnline?: boolean;
+}): TodoSyncAnnouncementState {
+    const isOnline = options?.isOnline ?? true;
+    return {
+        previous: options?.initiallyIdle ? { kind: "idle", isOnline } : null,
+        politeText: "",
+        alertText: "",
+        lastDroppedNotice: null,
+    };
+}
+
+/**
+ * Pure transition reducer for the permanently mounted polite (`role="status"`)
+ * and assertive (`role="alert"`) live regions. Keeps `politeText` unchanged on
+ * unannounced states (`pending`, `inflight`, `refreshing`, offline edits) and
+ * announces failures once via `alertText` (clearing `alertText` once recovered).
+ */
+export function advanceSyncAnnouncementState(
+    state: TodoSyncAnnouncementState,
+    input: AdvanceSyncAnnouncementInput,
+): TodoSyncAnnouncementState {
+    const {
+        status,
+        isOnline,
+        readOnly = false,
+        lastSavedAt,
+        lastRefreshedAt,
+        droppedNotice = null,
+    } = input;
+
+    const nextPrevious: TodoSyncStatusPrevious = {
+        kind: status.kind,
+        isOnline,
+        text: status.text,
+        lastSavedAt,
+        lastRefreshedAt,
+    };
+
+    const isAlertKind =
+        !readOnly &&
+        (status.kind === "failed" || status.kind === "auth-expired");
+
+    if (state.previous === null) {
+        const nextAlertText = isAlertKind && status.text ? status.text : "";
+        const nextPoliteText = !readOnly && droppedNotice ? droppedNotice : "";
+        return {
+            previous: nextPrevious,
+            politeText: nextPoliteText,
+            alertText: nextAlertText,
+            lastDroppedNotice: droppedNotice,
+        };
+    }
+
+    const announce = getSyncStatusAnnouncement({
+        kind: status.kind,
+        text: status.text,
+        isOnline,
+        readOnly,
+        lastSavedAt,
+        lastRefreshedAt,
+        previous: state.previous,
+    });
+
+    let nextPoliteText = state.politeText;
+    let nextAlertText = isAlertKind ? state.alertText : "";
+
+    if (announce) {
+        if (announce.role === "alert") {
+            nextAlertText = announce.text;
+        } else {
+            nextPoliteText = announce.text;
+        }
+    }
+
+    if (
+        !readOnly &&
+        droppedNotice &&
+        droppedNotice !== state.lastDroppedNotice
+    ) {
+        nextPoliteText =
+            announce && announce.role === "status" && announce.text
+                ? `${announce.text}，${droppedNotice}`
+                : droppedNotice;
+    }
+
+    if (
+        state.previous.kind === nextPrevious.kind &&
+        state.previous.isOnline === nextPrevious.isOnline &&
+        state.previous.text === nextPrevious.text &&
+        state.previous.lastSavedAt === nextPrevious.lastSavedAt &&
+        state.previous.lastRefreshedAt === nextPrevious.lastRefreshedAt &&
+        state.politeText === nextPoliteText &&
+        state.alertText === nextAlertText &&
+        state.lastDroppedNotice === droppedNotice
+    ) {
+        return state;
+    }
+
+    return {
+        previous: nextPrevious,
+        politeText: nextPoliteText,
+        alertText: nextAlertText,
+        lastDroppedNotice: droppedNotice,
+    };
 }

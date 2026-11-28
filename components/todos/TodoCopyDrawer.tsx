@@ -29,10 +29,8 @@ export interface TodoCopyDrawerProps {
     myEmail: string;
     ownerName: string;
     sourceItems: readonly TodoItem[];
-    isOnline?: boolean;
     onSuccess: (message: string) => void;
     onCloseAutoFocus?: (event: Event) => void;
-    onGoToMine?: () => void;
 }
 
 interface TodoCopyDrawerBodyProps {

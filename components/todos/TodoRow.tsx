@@ -4,13 +4,17 @@ import React, { useEffect, useId, useLayoutEffect, useRef, useState } from "reac
 import {
     Check,
     CircleAlert,
+    RotateCw,
     Tag,
     Trash2,
     TriangleAlert,
+    Undo2,
     X,
 } from "lucide-react";
+import { Popover } from "radix-ui";
 import { cn } from "@/lib/utils";
 import type { TodoItem } from "@/src/types";
+import type { TodoOverlayItemStatus } from "@/src/utils/todoOutbox";
 import {
     countUnicodeCodePoints,
     getCategoryCounter,
@@ -37,6 +41,7 @@ interface TodoRowProps {
     item: TodoItem;
     canEdit: boolean;
     mode: TodoRowMode;
+    syncStatus?: TodoOverlayItemStatus;
     existingCategories: readonly string[];
     setTextButtonRef: (id: string, node: HTMLButtonElement | null) => void;
     setDeleteButtonRef: (id: string, node: HTMLButtonElement | null) => void;
@@ -50,6 +55,8 @@ interface TodoRowProps {
     onStartDelete: (item: TodoItem) => void;
     onCancelDelete: (id: string) => void;
     onConfirmDelete: (item: TodoItem) => void;
+    onRetrySync?: (id: string) => void;
+    onDiscardSync?: (id: string) => void;
 }
 
 function TodoEditRow({
@@ -401,13 +408,6 @@ function TodoEditRow({
                                 {inlineError}
                             </span>
                         </p>
-                    ) : isSaving ? (
-                        <p
-                            role="status"
-                            className="text-xs font-medium text-text-main/62 forest:text-text-main/72"
-                        >
-                            儲存中…
-                        </p>
                     ) : counter ? (
                         <span
                             aria-live="polite"
@@ -509,10 +509,111 @@ function TodoDeleteConfirmRow({
     );
 }
 
+function TodoRowSyncDot({
+    syncStatus,
+    onRetry,
+    onDiscard,
+}: {
+    syncStatus?: TodoOverlayItemStatus;
+    onRetry?: () => void;
+    onDiscard?: () => void;
+}) {
+    const [menuOpen, setMenuOpen] = useState(false);
+
+    if (!syncStatus) {
+        return null;
+    }
+
+    if (syncStatus === "pending") {
+        return (
+            <span
+                role="img"
+                aria-label="未同步"
+                data-slot="todo-sync-dot"
+                data-sync-status="pending"
+                className="mx-1.5 mt-[18px] size-2 shrink-0 rounded-full bg-amber-500"
+            />
+        );
+    }
+
+    if (syncStatus === "inflight") {
+        return (
+            <span
+                role="img"
+                aria-label="儲存中"
+                data-slot="todo-sync-dot"
+                data-sync-status="inflight"
+                className="mx-1.5 mt-[18px] size-2 shrink-0 animate-pulse rounded-full bg-primary motion-reduce:animate-none"
+            />
+        );
+    }
+
+    return (
+        <Popover.Root open={menuOpen} onOpenChange={setMenuOpen}>
+            <Popover.Trigger asChild>
+                <button
+                    type="button"
+                    aria-label="同步失敗"
+                    data-slot="todo-sync-dot"
+                    data-sync-status="failed"
+                    className="grid size-11 shrink-0 cursor-pointer place-items-center rounded-xl transition-colors hover:bg-red-50 focus-visible:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600 forest:hover:bg-red-950/55 forest:focus-visible:bg-red-950/55 motion-reduce:transition-none"
+                >
+                    <span
+                        aria-hidden="true"
+                        className="size-2.5 rounded-full bg-red-600 forest:bg-red-400"
+                    />
+                </button>
+            </Popover.Trigger>
+            <Popover.Portal>
+                <Popover.Content
+                    align="end"
+                    sideOffset={4}
+                    collisionPadding={12}
+                    data-slot="todo-failed-menu"
+                    className="z-50 w-44 rounded-xl border border-border bg-surface p-1.5 text-text-main shadow-lg outline-none data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95"
+                >
+                    <p className="px-2.5 py-1 text-xs font-semibold text-red-600 forest:text-red-300">
+                        此項目同步失敗
+                    </p>
+                    <button
+                        type="button"
+                        onClick={() => {
+                            setMenuOpen(false);
+                            onRetry?.();
+                        }}
+                        className="flex min-h-11 w-full cursor-pointer items-center gap-2 rounded-lg px-2.5 text-left text-sm font-medium text-text-main transition-colors hover:bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary motion-reduce:transition-none"
+                    >
+                        <RotateCw
+                            aria-hidden="true"
+                            className="size-4 shrink-0 text-primary"
+                        />
+                        <span>重試</span>
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => {
+                            setMenuOpen(false);
+                            onDiscard?.();
+                        }}
+                        className="flex min-h-11 w-full cursor-pointer items-center gap-2 rounded-lg px-2.5 text-left text-sm font-medium text-red-600 transition-colors hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600 forest:text-red-300 forest:hover:bg-red-950/55 motion-reduce:transition-none"
+                    >
+                        <Undo2
+                            aria-hidden="true"
+                            className="size-4 shrink-0"
+                        />
+                        <span>捨棄變更</span>
+                    </button>
+                </Popover.Content>
+            </Popover.Portal>
+        </Popover.Root>
+    );
+}
+
 export function TodoRow({
     item,
     canEdit,
     mode,
+    syncStatus,
     existingCategories,
     setTextButtonRef,
     setDeleteButtonRef,
@@ -523,10 +624,12 @@ export function TodoRow({
     onStartDelete,
     onCancelDelete,
     onConfirmDelete,
+    onRetrySync,
+    onDiscardSync,
 }: TodoRowProps) {
     if (canEdit && mode === "edit") {
         return (
-            <li>
+            <li data-todo-id={item.id}>
                 <TodoEditRow
                     item={item}
                     existingCategories={existingCategories}
@@ -539,7 +642,7 @@ export function TodoRow({
 
     if (canEdit && mode === "delete") {
         return (
-            <li>
+            <li data-todo-id={item.id}>
                 <TodoDeleteConfirmRow
                     item={item}
                     onCancel={() => onCancelDelete(item.id)}
@@ -551,7 +654,7 @@ export function TodoRow({
 
     if (!canEdit) {
         return (
-            <li>
+            <li data-todo-id={item.id}>
                 <div className="flex min-h-[48px] items-start gap-3 px-4 py-3">
                     <span
                         aria-hidden="true"
@@ -585,7 +688,7 @@ export function TodoRow({
     }
 
     return (
-        <li>
+        <li data-todo-id={item.id}>
             <div className="flex min-h-[52px] items-start gap-1 px-1.5 py-1 transition-colors duration-150 motion-reduce:transition-none">
                 <label className="grid size-11 shrink-0 cursor-pointer place-items-center">
                     <input
@@ -628,6 +731,18 @@ export function TodoRow({
                 >
                     {item.text}
                 </button>
+
+                <TodoRowSyncDot
+                    syncStatus={syncStatus}
+                    onRetry={
+                        onRetrySync ? () => onRetrySync(item.id) : undefined
+                    }
+                    onDiscard={
+                        onDiscardSync
+                            ? () => onDiscardSync(item.id)
+                            : undefined
+                    }
+                />
 
                 <button
                     ref={(node) => setDeleteButtonRef(item.id, node)}

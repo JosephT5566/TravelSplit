@@ -16,10 +16,21 @@ import {
     sortTodos,
     type TodoCompletionStats,
 } from "@/src/utils/todoList";
-import type { TodoOutboxPatch } from "@/src/utils/todoOutbox";
+import type {
+    TodoOutboxPatch,
+    TodoOverlayItemStatus,
+} from "@/src/utils/todoOutbox";
+import {
+    advanceSyncAnnouncementState,
+    createInitialSyncAnnouncementState,
+    deriveSyncStatus,
+    type TodoSyncAnnouncementState,
+    type TodoSyncStatusResult,
+} from "@/src/utils/todoSyncStatus";
 import { TodoAddRow } from "./TodoAddRow";
 import { TodoExportButton } from "./TodoExportButton";
 import { TodoRow, type TodoRowEditUpdates } from "./TodoRow";
+import { TodoSyncStatusLine } from "./TodoSyncStatusLine";
 import {
     TodoEmptyState,
     TodoLoadErrorState,
@@ -69,6 +80,7 @@ interface TodoListCardProps {
     offlineBannerId: string;
     hasData: boolean;
     sortedTodos: TodoItem[];
+    statusById: Readonly<Record<string, TodoOverlayItemStatus>>;
     stats: TodoCompletionStats;
     isOfflineNoCache: boolean;
     isInitialLoading: boolean;
@@ -79,6 +91,8 @@ interface TodoListCardProps {
     onCreate: (text: string, category?: string) => Promise<unknown>;
     onUpdate: (id: string, patch: TodoOutboxPatch) => Promise<unknown>;
     onRemove: (id: string) => Promise<unknown>;
+    onRetryItem: (id: string) => void;
+    onDiscardItem: (id: string) => void;
     readOnlyTopAction?:
         | React.ReactNode
         | ((context: ReadOnlyTopActionContext) => React.ReactNode);
@@ -92,6 +106,7 @@ function TodoListCard({
     offlineBannerId,
     hasData,
     sortedTodos,
+    statusById,
     stats,
     isOfflineNoCache,
     isInitialLoading,
@@ -102,6 +117,8 @@ function TodoListCard({
     onCreate,
     onUpdate,
     onRemove,
+    onRetryItem,
+    onDiscardItem,
     readOnlyTopAction,
     onBackToMine,
 }: TodoListCardProps) {
@@ -440,6 +457,7 @@ function TodoListCard({
                 item={item}
                 canEdit={canEdit}
                 mode={mode}
+                syncStatus={canEdit ? statusById[item.id] : undefined}
                 existingCategories={existingCategories}
                 setTextButtonRef={setTextButtonRef}
                 setDeleteButtonRef={setDeleteButtonRef}
@@ -450,6 +468,8 @@ function TodoListCard({
                 onStartDelete={handleStartDelete}
                 onCancelDelete={handleCancelDelete}
                 onConfirmDelete={handleConfirmDelete}
+                onRetrySync={canEdit ? onRetryItem : undefined}
+                onDiscardSync={canEdit ? onDiscardItem : undefined}
             />
         );
     };
@@ -624,6 +644,18 @@ function TodoListCard({
     );
 }
 
+const IDLE_SYNC_STATUS: TodoSyncStatusResult = {
+    kind: "idle",
+    tone: "ok",
+    text: "",
+    action: null,
+};
+
+type VisibleDroppedNotice = {
+    scopeKey: string;
+    text: string;
+};
+
 export function TodoList({
     sheetId,
     ownerEmail,
@@ -636,6 +668,8 @@ export function TodoList({
 }: TodoListProps) {
     const isOnline = useOnlineStatus();
     const offlineBannerId = useId();
+    const statusLineId = useId();
+    const scopeKey = JSON.stringify([sheetId, ownerEmail, canEdit]);
 
     const todoView = useTodoView(sheetId, ownerEmail, { readOnly: !canEdit });
 
@@ -664,6 +698,196 @@ export function TodoList({
         Boolean(ownerName) &&
         !(todoView.isError && isForbiddenError(todoView.error));
 
+    const isSyncReady = !canEdit || todoView.sync.hydrated;
+    const isRefreshing = hasData && todoView.isFetching;
+
+    const hasFailedEntry = useMemo(
+        () =>
+            canEdit &&
+            todoView.sync.entries.some((entry) => entry.status === "failed"),
+        [canEdit, todoView.sync.entries],
+    );
+
+    const hasBackoffCountdown =
+        canEdit &&
+        isSyncReady &&
+        isOnline &&
+        !todoView.sync.inflight &&
+        !todoView.sync.authExpired &&
+        !hasFailedEntry &&
+        todoView.sync.nextRetryAt !== null;
+
+    const [countdownNow, setCountdownNow] = useState<number>(() => Date.now());
+
+    useEffect(() => {
+        if (!hasBackoffCountdown || todoView.sync.nextRetryAt === null) {
+            return;
+        }
+        const targetAt = todoView.sync.nextRetryAt;
+        setCountdownNow(Date.now());
+        const intervalId = window.setInterval(() => {
+            const current = Date.now();
+            setCountdownNow(current);
+            if (current >= targetAt) {
+                window.clearInterval(intervalId);
+            }
+        }, 1000);
+        return () => {
+            window.clearInterval(intervalId);
+        };
+    }, [hasBackoffCountdown, todoView.sync.nextRetryAt]);
+
+    const syncStatus = useMemo(() => {
+        if (!isSyncReady) {
+            return IDLE_SYNC_STATUS;
+        }
+        return deriveSyncStatus({
+            entries: todoView.sync.entries,
+            isOnline,
+            isFlushing: todoView.sync.inflight,
+            isRefreshing,
+            authExpired: todoView.sync.authExpired,
+            lastSavedAt: todoView.sync.lastSavedAt,
+            lastRefreshedAt: todoView.dataUpdatedAt,
+            now: hasBackoffCountdown ? countdownNow : undefined,
+            idbUnavailable: !todoView.sync.persistent,
+            readOnly: !canEdit,
+        });
+    }, [
+        canEdit,
+        countdownNow,
+        hasBackoffCountdown,
+        isOnline,
+        isRefreshing,
+        isSyncReady,
+        todoView.dataUpdatedAt,
+        todoView.sync.authExpired,
+        todoView.sync.entries,
+        todoView.sync.inflight,
+        todoView.sync.lastSavedAt,
+        todoView.sync.persistent,
+    ]);
+
+    const [visibleDroppedNotice, setVisibleDroppedNotice] =
+        useState<VisibleDroppedNotice | null>(null);
+
+    useEffect(() => {
+        if (
+            !canEdit ||
+            todoView.sync.droppedCount <= 0 ||
+            !todoView.sync.droppedNotice
+        ) {
+            return;
+        }
+        setVisibleDroppedNotice({
+            scopeKey,
+            text: todoView.sync.droppedNotice,
+        });
+        void todoView.dismissDropped();
+    }, [
+        canEdit,
+        scopeKey,
+        todoView.dismissDropped,
+        todoView.sync.droppedCount,
+        todoView.sync.droppedNotice,
+    ]);
+
+    const activeDroppedNotice =
+        canEdit &&
+        visibleDroppedNotice &&
+        visibleDroppedNotice.scopeKey === scopeKey
+            ? visibleDroppedNotice.text
+            : null;
+
+    const handleDismissDropped = useCallback(() => {
+        setVisibleDroppedNotice(null);
+    }, []);
+
+    const announcementScopeRef = useRef(scopeKey);
+    const announcementRef = useRef<TodoSyncAnnouncementState>(
+        createInitialSyncAnnouncementState({
+            initiallyIdle: !hasData,
+            isOnline,
+        }),
+    );
+    const [liveAnnouncements, setLiveAnnouncements] = useState({
+        politeText: "",
+        alertText: "",
+    });
+
+    useEffect(() => {
+        if (announcementScopeRef.current !== scopeKey) {
+            announcementScopeRef.current = scopeKey;
+            announcementRef.current = createInitialSyncAnnouncementState({
+                initiallyIdle: !hasData,
+                isOnline,
+            });
+            setLiveAnnouncements({ politeText: "", alertText: "" });
+        }
+        if (!isSyncReady) {
+            return;
+        }
+        const next = advanceSyncAnnouncementState(announcementRef.current, {
+            status: syncStatus,
+            isOnline,
+            readOnly: !canEdit,
+            lastSavedAt: todoView.sync.lastSavedAt,
+            lastRefreshedAt: todoView.dataUpdatedAt,
+            droppedNotice: activeDroppedNotice,
+        });
+        announcementRef.current = next;
+        setLiveAnnouncements((current) =>
+            current.politeText === next.politeText &&
+            current.alertText === next.alertText
+                ? current
+                : {
+                      politeText: next.politeText,
+                      alertText: next.alertText,
+                  },
+        );
+    }, [
+        activeDroppedNotice,
+        canEdit,
+        hasData,
+        isOnline,
+        isSyncReady,
+        scopeKey,
+        syncStatus,
+        todoView.dataUpdatedAt,
+        todoView.sync.lastSavedAt,
+    ]);
+
+    const handleSyncNow = useCallback(() => {
+        void todoView.flushNow();
+    }, [todoView.flushNow]);
+
+    const handleRetryAll = useCallback(() => {
+        void todoView.retry();
+    }, [todoView.retry]);
+
+    const handleRetryItem = useCallback(
+        (id: string) => {
+            void todoView.retry(id);
+        },
+        [todoView.retry],
+    );
+
+    const handleDiscardItem = useCallback(
+        (id: string) => {
+            void todoView.discard(id);
+        },
+        [todoView.discard],
+    );
+
+    const handleSignIn = useCallback(() => {
+        const url = process.env.NEXT_PUBLIC_AUTH_PROXY;
+        if (!url) {
+            return;
+        }
+        const currentUrl = window.location.origin + window.location.pathname;
+        window.location.href = `${url}/auth/travel-split/login?redirect_to=${encodeURIComponent(currentUrl)}`;
+    }, []);
+
     return (
         <section
             aria-labelledby="todos-heading"
@@ -686,7 +910,7 @@ export function TodoList({
 
                 <div
                     data-slot="todo-header-actions"
-                    className="flex min-h-7 shrink-0 items-center gap-1.5"
+                    className="relative z-10 flex min-h-7 shrink-0 items-center gap-1.5"
                 >
                     {hasData && sortedTodos.length > 0 && (
                         <TodoExportButton
@@ -699,6 +923,18 @@ export function TodoList({
                 </div>
             </div>
 
+            <TodoSyncStatusLine
+                id={statusLineId}
+                status={syncStatus}
+                droppedNotice={activeDroppedNotice}
+                politeAnnouncement={liveAnnouncements.politeText}
+                alertAnnouncement={liveAnnouncements.alertText}
+                onSyncNow={canEdit ? handleSyncNow : undefined}
+                onRetryAll={canEdit ? handleRetryAll : undefined}
+                onSignIn={canEdit ? handleSignIn : undefined}
+                onDismissDropped={canEdit ? handleDismissDropped : undefined}
+            />
+
             {memberBar}
 
             {showReadOnlyBanner && ownerName && (
@@ -708,18 +944,19 @@ export function TodoList({
                 />
             )}
 
-            {!isOnline && (
-                <TodoOfflineBanner id={offlineBannerId} readOnly={!canEdit} />
+            {!canEdit && !isOnline && (
+                <TodoOfflineBanner id={offlineBannerId} readOnly />
             )}
 
             <TodoListCard
-                key={JSON.stringify([sheetId, ownerEmail, canEdit])}
+                key={scopeKey}
                 canEdit={canEdit}
                 ownerName={ownerName}
                 isOnline={isOnline}
-                offlineBannerId={offlineBannerId}
+                offlineBannerId={canEdit ? statusLineId : offlineBannerId}
                 hasData={hasData}
                 sortedTodos={sortedTodos}
+                statusById={todoView.statusById}
                 stats={stats}
                 isOfflineNoCache={isOfflineNoCache}
                 isInitialLoading={isInitialLoading}
@@ -729,6 +966,8 @@ export function TodoList({
                 onCreate={todoView.create}
                 onUpdate={todoView.update}
                 onRemove={todoView.remove}
+                onRetryItem={handleRetryItem}
+                onDiscardItem={handleDiscardItem}
                 readOnlyTopAction={readOnlyTopAction}
                 onBackToMine={onBackToMine}
                 onRetry={() => {

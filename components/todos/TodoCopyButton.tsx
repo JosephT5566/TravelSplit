@@ -11,8 +11,6 @@ export interface TodoCopyButtonProps {
     myEmail: string;
     ownerName: string;
     sourceItems: readonly TodoItem[];
-    isOnline?: boolean;
-    onBackToMine?: () => void;
 }
 
 export function TodoCopyButton({
@@ -20,8 +18,6 @@ export function TodoCopyButton({
     myEmail,
     ownerName,
     sourceItems,
-    isOnline,
-    onBackToMine,
 }: TodoCopyButtonProps) {
     const [open, setOpen] = useState(false);
     const triggerRef = useRef<HTMLButtonElement>(null);
@@ -34,11 +30,6 @@ export function TodoCopyButton({
         },
         [showToast],
     );
-
-    const handleGoToMine = useCallback(() => {
-        setOpen(false);
-        onBackToMine?.();
-    }, [onBackToMine]);
 
     return (
         <div className="border-b border-border bg-background/55 p-3">
@@ -61,7 +52,6 @@ export function TodoCopyButton({
                 myEmail={myEmail}
                 ownerName={ownerName}
                 sourceItems={sourceItems}
-                isOnline={isOnline}
                 onSuccess={handleSuccess}
                 onCloseAutoFocus={(event) => {
                     // Restore focus to the opener (the drawer is not rendered via a
@@ -69,7 +59,6 @@ export function TodoCopyButton({
                     event.preventDefault();
                     triggerRef.current?.focus();
                 }}
-                onGoToMine={onBackToMine ? handleGoToMine : undefined}
             />
         </div>
     );

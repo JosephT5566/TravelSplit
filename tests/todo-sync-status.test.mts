@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
+    advanceSyncAnnouncementState,
+    createInitialSyncAnnouncementState,
     deriveSyncStatus,
     formatTodoSyncTime,
     TODO_BACK_ONLINE_ANNOUNCEMENT,
@@ -521,4 +523,201 @@ test("deriveSyncStatus transition announcements fire only on meaningful transiti
         politeness: "polite",
         text: "已更新 · 18:21",
     });
+});
+
+test("advanceSyncAnnouncementState de-duplicates live-region updates across pending, inflight, offline, back-online, failed, and dropped transitions", () => {
+    const now = localTime(2026, 11, 28, 18, 30);
+    const t1 = localTime(2026, 11, 28, 18, 20);
+    const t2 = localTime(2026, 11, 28, 18, 21);
+
+    // Cold load: idle -> refreshed announces once
+    let state = createInitialSyncAnnouncementState({
+        initiallyIdle: true,
+        isOnline: true,
+    });
+    const refreshedStatus = deriveSyncStatus({
+        entries: [],
+        isOnline: true,
+        lastRefreshedAt: t1,
+        now,
+    });
+    state = advanceSyncAnnouncementState(state, {
+        status: refreshedStatus,
+        isOnline: true,
+        lastRefreshedAt: t1,
+    });
+    assert.equal(state.politeText, "已更新 · 18:20");
+    assert.equal(state.alertText, "");
+
+    // Repeated pending edits & inflight MUST NOT change politeText or alertText
+    const pending1 = deriveSyncStatus({
+        entries: [{ id: "a", status: "pending" }],
+        isOnline: true,
+        lastRefreshedAt: t1,
+        now,
+    });
+    state = advanceSyncAnnouncementState(state, {
+        status: pending1,
+        isOnline: true,
+        lastRefreshedAt: t1,
+    });
+    assert.equal(state.politeText, "已更新 · 18:20");
+    assert.equal(state.alertText, "");
+
+    const pending2 = deriveSyncStatus({
+        entries: [
+            { id: "a", status: "pending" },
+            { id: "b", status: "pending" },
+        ],
+        isOnline: true,
+        lastRefreshedAt: t1,
+        now,
+    });
+    state = advanceSyncAnnouncementState(state, {
+        status: pending2,
+        isOnline: true,
+        lastRefreshedAt: t1,
+    });
+    assert.equal(state.politeText, "已更新 · 18:20");
+
+    const inflight = deriveSyncStatus({
+        entries: [{ id: "a", status: "inflight" }],
+        isOnline: true,
+        isFlushing: true,
+        lastRefreshedAt: t1,
+        now,
+    });
+    state = advanceSyncAnnouncementState(state, {
+        status: inflight,
+        isOnline: true,
+        lastRefreshedAt: t1,
+    });
+    assert.equal(state.politeText, "已更新 · 18:20");
+
+    // inflight -> saved announces via polite region
+    const saved = deriveSyncStatus({
+        entries: [],
+        isOnline: true,
+        lastSavedAt: t2,
+        lastRefreshedAt: t1,
+        now,
+    });
+    state = advanceSyncAnnouncementState(state, {
+        status: saved,
+        isOnline: true,
+        lastSavedAt: t2,
+        lastRefreshedAt: t1,
+    });
+    assert.equal(state.politeText, "已儲存 · 18:21");
+    assert.equal(state.alertText, "");
+
+    // Online -> offline announces once; editing while offline stays silent
+    const offlineIdle = deriveSyncStatus({
+        entries: [],
+        isOnline: false,
+        lastSavedAt: t2,
+        lastRefreshedAt: t1,
+        now,
+    });
+    state = advanceSyncAnnouncementState(state, {
+        status: offlineIdle,
+        isOnline: false,
+        lastSavedAt: t2,
+        lastRefreshedAt: t1,
+    });
+    assert.equal(state.politeText, "離線 · 顯示 18:21 的資料");
+
+    const offlinePending = deriveSyncStatus({
+        entries: [{ id: "c", status: "pending" }],
+        isOnline: false,
+        lastSavedAt: t2,
+        lastRefreshedAt: t1,
+        now,
+    });
+    state = advanceSyncAnnouncementState(state, {
+        status: offlinePending,
+        isOnline: false,
+        lastSavedAt: t2,
+        lastRefreshedAt: t1,
+    });
+    assert.equal(state.politeText, "離線 · 顯示 18:21 的資料");
+
+    // Back online announces 已恢復連線 even while immediately inflight
+    state = advanceSyncAnnouncementState(state, {
+        status: inflight,
+        isOnline: true,
+        lastSavedAt: t2,
+        lastRefreshedAt: t1,
+    });
+    assert.equal(state.politeText, TODO_BACK_ONLINE_ANNOUNCEMENT);
+
+    // Failure announces once via alertText; re-rendering same failure is a no-op
+    const failed1 = deriveSyncStatus({
+        entries: [{ id: "c", status: "failed" }],
+        isOnline: true,
+        lastSavedAt: t2,
+        lastRefreshedAt: t1,
+        now,
+    });
+    state = advanceSyncAnnouncementState(state, {
+        status: failed1,
+        isOnline: true,
+        lastSavedAt: t2,
+        lastRefreshedAt: t1,
+    });
+    assert.equal(state.alertText, "同步失敗 · 1 項（點擊重試）");
+    assert.equal(state.politeText, TODO_BACK_ONLINE_ANNOUNCEMENT);
+
+    const sameFailedRef = state;
+    state = advanceSyncAnnouncementState(state, {
+        status: failed1,
+        isOnline: true,
+        lastSavedAt: t2,
+        lastRefreshedAt: t1,
+    });
+    assert.equal(state, sameFailedRef);
+
+    // Retrying clears alertText so a subsequent failure alerts again
+    state = advanceSyncAnnouncementState(state, {
+        status: inflight,
+        isOnline: true,
+        lastSavedAt: t2,
+        lastRefreshedAt: t1,
+    });
+    assert.equal(state.alertText, "");
+
+    // Dropped notice announces once via polite region
+    state = advanceSyncAnnouncementState(state, {
+        status: saved,
+        isOnline: true,
+        lastSavedAt: t2,
+        lastRefreshedAt: t1,
+        droppedNotice: "1 項已在其他裝置刪除，已移除你的變更",
+    });
+    assert.equal(
+        state.politeText,
+        "已儲存 · 18:21，1 項已在其他裝置刪除，已移除你的變更",
+    );
+
+    // Warm-cache mount seeds silently (unless mounted directly into failed)
+    const warmStart = createInitialSyncAnnouncementState({
+        initiallyIdle: false,
+        isOnline: true,
+    });
+    const warmSaved = advanceSyncAnnouncementState(warmStart, {
+        status: saved,
+        isOnline: true,
+        lastSavedAt: t2,
+        lastRefreshedAt: t1,
+    });
+    assert.equal(warmSaved.politeText, "");
+    assert.equal(warmSaved.alertText, "");
+
+    const warmFailed = advanceSyncAnnouncementState(warmStart, {
+        status: failed1,
+        isOnline: true,
+        lastSavedAt: t2,
+        lastRefreshedAt: t1,
+    });
+    assert.equal(warmFailed.alertText, "同步失敗 · 1 項（點擊重試）");
 });

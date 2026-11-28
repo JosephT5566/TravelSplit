@@ -71,7 +71,7 @@ export function TodoOfflineBanner({
             <span className="min-w-0 flex-1">
                 {readOnly
                     ? "目前離線：顯示的是已快取的清單。"
-                    : "目前離線：可瀏覽已快取的清單，恢復連線後即可修改。"}
+                    : "目前離線：變更會先儲存在此裝置，恢復連線後自動同步。"}
             </span>
         </div>
     );

@@ -58,17 +58,15 @@ function TodosSheetView({
     }, [handleSelectMember, myEmail]);
 
     const renderReadOnlyTopAction = useCallback(
-        ({ items, isOnline }: ReadOnlyTopActionContext) => (
+        ({ items }: ReadOnlyTopActionContext) => (
             <TodoCopyButton
                 sheetId={sheetId}
                 myEmail={myEmail}
                 ownerName={activeMember?.displayName ?? ""}
                 sourceItems={items}
-                isOnline={isOnline}
-                onBackToMine={handleBackToMine}
             />
         ),
-        [activeMember?.displayName, handleBackToMine, myEmail, sheetId],
+        [activeMember?.displayName, myEmail, sheetId],
     );
 
     return (
