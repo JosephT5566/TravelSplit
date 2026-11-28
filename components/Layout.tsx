@@ -38,10 +38,10 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
     return (
         <ToastProvider key={JSON.stringify([sheetId, user.email])}>
             <SideDrawer />
-            <div className="grid h-dvh grid-rows-[auto_minmax(0,1fr)_auto]">
+            <div className="grid h-dvh grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden overscroll-none">
                 <AppHeader user={user} onAccountClick={openDrawer} />
 
-                <main className="mx-auto w-full max-w-2xl overflow-auto">
+                <main className="mx-auto min-h-0 w-full max-w-2xl overflow-auto overscroll-y-contain">
                     {apiState.error && (
                         <div className="mb-4 p-3 bg-red-100 text-red-700 rounded text-sm border border-red-200">
                             {apiState.error}

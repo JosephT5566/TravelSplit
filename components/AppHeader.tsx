@@ -40,7 +40,7 @@ export function AppHeader({
     return (
         <header
             className={cn(
-                "sticky top-0 z-30 flex h-16 items-center justify-between border-b border-border bg-surface px-4 shadow-sm transition-colors",
+                "sticky top-0 z-30 flex h-(--app-header-offset) items-center justify-between border-b border-border bg-surface px-4 pt-[env(safe-area-inset-top,0px)] shadow-sm transition-colors",
                 className,
             )}
         >

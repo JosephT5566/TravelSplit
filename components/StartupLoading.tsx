@@ -8,7 +8,7 @@ type StartupLoadingProps = {
 export function StartupLoading({ value, detail }: StartupLoadingProps) {
     return (
         <main
-            className="flex min-h-dvh items-center justify-center bg-background px-6 text-text-main"
+            className="flex min-h-dvh items-center justify-center bg-background px-6 pt-[env(safe-area-inset-top,0px)] pb-[env(safe-area-inset-bottom,0px)] text-text-main"
             aria-busy="true"
             aria-live="polite"
         >

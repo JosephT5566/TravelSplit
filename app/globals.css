@@ -178,6 +178,13 @@
 }
 
 @layer base {
+    :root {
+        /* Content height of AppHeader; the top safe-area inset is added on top of it. */
+        --app-header-height: 4rem;
+        --app-header-offset: calc(
+            var(--app-header-height) + env(safe-area-inset-top, 0px)
+        );
+    }
     * {
         @apply border-border outline-ring/50;
     }
@@ -186,6 +193,11 @@
     }
     html {
         @apply font-sans;
+    }
+    /* No rubber-band on the document itself; scrolling happens inside the signed-in shell's <main>. */
+    html,
+    body {
+        overscroll-behavior: none;
     }
 }
 

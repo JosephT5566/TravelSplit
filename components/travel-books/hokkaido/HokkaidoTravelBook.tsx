@@ -787,7 +787,14 @@ export function HokkaidoTravelBook() {
                 />
             )}
 
-            <header className="relative aspect-[4/3] overflow-hidden bg-[#172a36] px-5 py-5 text-white md:aspect-auto md:min-h-[38rem] md:px-8 md:pb-10 md:pt-8 lg:px-12">
+            <header
+                className={cn(
+                    "relative aspect-[4/3] overflow-hidden bg-[#172a36] px-5 pb-5 text-white md:aspect-auto md:min-h-[38rem] md:px-8 md:pb-10 lg:px-12",
+                    showUserHeader
+                        ? "pt-5 md:pt-8"
+                        : "pt-[calc(1.25rem+env(safe-area-inset-top,0px))] md:pt-[calc(2rem+env(safe-area-inset-top,0px))]",
+                )}
+            >
                 <picture aria-hidden="true" className="absolute inset-0">
                     <source
                         media="(min-width: 768px)"
@@ -824,7 +831,7 @@ export function HokkaidoTravelBook() {
                                         <PackageCheck className="size-4" />
                                     </Button>
                                 </DialogTrigger>
-                                <DialogContent className="max-h-[calc(100dvh-2rem)] gap-0 overflow-y-auto bg-[#f6f8f7] p-0 sm:max-w-xl">
+                                <DialogContent className="max-h-[calc(100dvh-2rem-env(safe-area-inset-top,0px)-env(safe-area-inset-bottom,0px))] gap-0 overflow-y-auto bg-[#f6f8f7] p-0 sm:max-w-xl">
                                     <DialogHeader className="sr-only">
                                         <DialogTitle>北海道行前清單</DialogTitle>
                                         <DialogDescription>
@@ -902,7 +909,9 @@ export function HokkaidoTravelBook() {
             <div
                 className={cn(
                     "sticky z-20 border-b border-[#cad7da] bg-[#f6f8f7]/95 backdrop-blur-md",
-                    showUserHeader ? "top-16" : "top-0",
+                    showUserHeader
+                        ? "top-(--app-header-offset)"
+                        : "top-0 pt-[env(safe-area-inset-top,0px)]",
                 )}
             >
                 <div

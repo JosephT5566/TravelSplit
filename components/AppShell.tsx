@@ -14,6 +14,7 @@ import { useSelectedSheetId } from "@/src/hooks/useSelectedSheetId";
 import { isPublicTravelBookPath } from "@/src/travel/registry";
 import { todoSyncManager } from "@/services/todoSyncManager";
 import { StartupLoading } from "./StartupLoading";
+import { cn } from "@/lib/utils";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
     const { isAuthInitialized, isSignedIn, user } = useAuthState();
@@ -114,7 +115,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     }
 
     return (
-        <div className="min-h-dvh bg-background text-text-main font-sans transition-colors duration-300">
+        <div
+            className={cn(
+                "relative h-dvh bg-background text-text-main font-sans transition-colors duration-300",
+                pathname === "/select-sheet"
+                    ? "overflow-y-auto overscroll-y-contain"
+                    : "overflow-hidden overscroll-none",
+            )}
+        >
             {pathname === "/select-sheet" ? (
                 children
             ) : (
