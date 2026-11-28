@@ -131,7 +131,16 @@ export function createTodoSyncManager(deps: TodoSyncManagerDeps = {}) {
             transport,
             getBaseItems: () => client.getQueryData<TodoItem[]>(queryKey),
             setBaseItems: (items) => {
-                client.setQueryData<TodoItem[]>(queryKey, items);
+                // Keep the last fetch time: a sync write-back is not a refetch, and
+                // bumping dataUpdatedAt would make the status line show 已更新
+                // instead of 已儲存 (spec §4 rows 7/8).
+                const previousUpdatedAt =
+                    client.getQueryState(queryKey)?.dataUpdatedAt;
+                client.setQueryData<TodoItem[]>(
+                    queryKey,
+                    items,
+                    previousUpdatedAt ? { updatedAt: previousUpdatedAt } : undefined,
+                );
             },
             onBaseCacheMissing: () => {
                 void client.invalidateQueries({ queryKey, exact: true });
