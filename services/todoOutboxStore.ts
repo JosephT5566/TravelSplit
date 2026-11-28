@@ -53,7 +53,7 @@ export interface TodoOutboxStore {
     setMeta(scope: TodoOutboxScope, meta: TodoOutboxMeta): Promise<void>;
     clearScope(scope: TodoOutboxScope): Promise<void>;
     clearOwnerScopes(ownerEmail: string): Promise<void>;
-    clearOtherScopes(keepScope: TodoOutboxScope): Promise<void>;
+    clearOtherOwnerScopes(keepOwnerEmail: string): Promise<void>;
 }
 
 export type TodoOutboxKvBackend = {
@@ -180,18 +180,14 @@ function readScopeFromRecords(
     return { entries: loadedEntries, meta };
 }
 
-function collectOtherScopeKeys(
+function collectOtherOwnerKeys(
     allKeys: Iterable<unknown>,
-    keepScope: TodoOutboxScope,
+    keepOwnerEmail: string,
 ): IDBValidKey[] {
-    const keepPrefix = buildTodoOutboxScopePrefix(
-        keepScope.sheetId,
-        keepScope.ownerEmail,
-    );
-    const keepMetaKey = buildTodoOutboxMetaKey(
-        keepScope.sheetId,
-        keepScope.ownerEmail,
-    );
+    const trimmedOwner = keepOwnerEmail.trim();
+    if (!trimmedOwner) {
+        return [];
+    }
     const toDelete: IDBValidKey[] = [];
 
     for (const rawKey of allKeys) {
@@ -199,7 +195,18 @@ function collectOtherScopeKeys(
             toDelete.push(rawKey as IDBValidKey);
             continue;
         }
-        if (rawKey === keepMetaKey || rawKey.startsWith(keepPrefix)) {
+        const entryParts = parseTodoOutboxKey(rawKey);
+        if (entryParts) {
+            if (entryParts.ownerEmail !== trimmedOwner) {
+                toDelete.push(rawKey);
+            }
+            continue;
+        }
+        const metaParts = parseMetaKey(rawKey);
+        if (metaParts) {
+            if (metaParts.ownerEmail !== trimmedOwner) {
+                toDelete.push(rawKey);
+            }
             continue;
         }
         toDelete.push(rawKey);
@@ -365,8 +372,11 @@ export function createInMemoryTodoOutboxStore({
             }
         },
 
-        async clearOtherScopes(keepScope) {
-            for (const key of collectOtherScopeKeys(records.keys(), keepScope)) {
+        async clearOtherOwnerScopes(keepOwnerEmail) {
+            for (const key of collectOtherOwnerKeys(
+                records.keys(),
+                keepOwnerEmail,
+            )) {
                 records.delete(String(key));
             }
         },
@@ -598,8 +608,11 @@ export function createIndexedDbTodoOutboxStore(
             }
         },
 
-        async clearOtherScopes(keepScope) {
-            for (const key of collectOtherScopeKeys(memory.keys(), keepScope)) {
+        async clearOtherOwnerScopes(keepOwnerEmail) {
+            for (const key of collectOtherOwnerKeys(
+                memory.keys(),
+                keepOwnerEmail,
+            )) {
                 memory.delete(String(key));
             }
 
@@ -607,12 +620,15 @@ export function createIndexedDbTodoOutboxStore(
             if (kv) {
                 try {
                     const allKeys = await kv.keys();
-                    const toDelete = collectOtherScopeKeys(allKeys, keepScope);
+                    const toDelete = collectOtherOwnerKeys(
+                        allKeys,
+                        keepOwnerEmail,
+                    );
                     if (toDelete.length > 0) {
                         await kv.delMany(toDelete);
                     }
                 } catch (error) {
-                    failOverToMemory("clearOtherScopes", error);
+                    failOverToMemory("clearOtherOwnerScopes", error);
                 }
             }
         },

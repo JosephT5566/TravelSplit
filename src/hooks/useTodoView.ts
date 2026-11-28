@@ -69,7 +69,10 @@ const EMPTY_FLUSH_RESULT: TodoSyncFlushResult = Object.freeze({
     offline: false,
 });
 
-const getServerSnapshot = (): TodoSyncSnapshot => EMPTY_TODO_SYNC_SNAPSHOT;
+const UNHYDRATED_TODO_SYNC_SNAPSHOT: TodoSyncSnapshot = Object.freeze({
+    ...EMPTY_TODO_SYNC_SNAPSHOT,
+    hydrated: false,
+});
 
 /**
  * Returns the todo list for `(sheetId, ownerEmail)`:
@@ -153,8 +156,14 @@ export function useTodoView(
             sheetId: trimmedSheetId,
             ownerEmail: trimmedOwnerEmail,
         });
-        return engine ? engine.getSnapshot() : EMPTY_TODO_SYNC_SNAPSHOT;
+        return engine ? engine.getSnapshot() : UNHYDRATED_TODO_SYNC_SNAPSHOT;
     }, [useOutbox, trimmedSheetId, trimmedOwnerEmail]);
+
+    const getServerSnapshot = useCallback((): TodoSyncSnapshot => {
+        return useOutbox
+            ? UNHYDRATED_TODO_SYNC_SNAPSHOT
+            : EMPTY_TODO_SYNC_SNAPSHOT;
+    }, [useOutbox]);
 
     const sync = useSyncExternalStore(
         subscribe,
@@ -320,41 +329,4 @@ export function useTodoView(
         dismissDropped,
         flushNow,
     };
-}
-
-/**
- * Subscribes to the currently active user+sheet todo outbox snapshot from anywhere
- * in the authenticated shell (e.g. SideDrawer sign-out flow).
- */
-export function useActiveTodoSyncSnapshot(): TodoSyncSnapshot {
-    const subscribe = useCallback((onStoreChange: () => void) => {
-        let currentEngine = todoSyncManager.getActiveEngine();
-        let unsubscribeEngine = currentEngine
-            ? currentEngine.subscribe(onStoreChange)
-            : null;
-
-        const unsubscribeManager = todoSyncManager.subscribeActiveEngine(() => {
-            const nextEngine = todoSyncManager.getActiveEngine();
-            if (nextEngine !== currentEngine) {
-                unsubscribeEngine?.();
-                unsubscribeEngine = nextEngine
-                    ? nextEngine.subscribe(onStoreChange)
-                    : null;
-                currentEngine = nextEngine;
-            }
-            onStoreChange();
-        });
-
-        return () => {
-            unsubscribeEngine?.();
-            unsubscribeManager();
-        };
-    }, []);
-
-    const getSnapshot = useCallback((): TodoSyncSnapshot => {
-        const engine = todoSyncManager.getActiveEngine();
-        return engine ? engine.getSnapshot() : EMPTY_TODO_SYNC_SNAPSHOT;
-    }, []);
-
-    return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 }

@@ -27,6 +27,7 @@ import { AppConfig } from "../src/types";
 import { useUI } from "../src/stores/UIStore";
 import { useConfig } from "../src/stores/ConfigStore";
 import { format } from "date-fns";
+import { todoSyncManager } from "@/services/todoSyncManager";
 import { isSheetSelectionRequired } from "@/src/utils/sheetSelection";
 
 export const SideDrawer: React.FC = () => {
@@ -143,7 +144,13 @@ export const SideDrawer: React.FC = () => {
                         {isSheetSelectionRequired() && (
                             <Link
                                 href="/select-sheet"
-                                onClick={closeDrawer}
+                                onClick={() => {
+                                    void todoSyncManager
+                                        .getActiveEngine()
+                                        ?.flushNow()
+                                        .catch(() => undefined);
+                                    closeDrawer();
+                                }}
                                 className="mb-3 flex w-full items-center gap-3 rounded-lg border border-primary/30 bg-primary/10 px-4 py-3 text-sm font-semibold text-primary transition hover:border-primary hover:bg-primary/15 active:scale-[0.99]"
                             >
                                 <ArrowLeftRight size={18} />

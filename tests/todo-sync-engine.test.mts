@@ -988,7 +988,7 @@ test("IndexedDB store failover flips persistent to false without losing queued e
     assert.equal(engine.getSnapshot().entries.length, 2);
 });
 
-test("scope isolation and sign-out plumbing: other scopes cleared and never sent; passive sign-out preserves outbox; explicit sign-out flushes then clears only after confirmation", async () => {
+test("scope isolation and sign-out plumbing: other owners cleared and never sent; same owner's other-sheet outbox preserved; passive sign-out preserves outbox; explicit sign-out flushes then clears only after confirmation", async () => {
     const store = createInMemoryTodoOutboxStore();
     const queryClient = new QueryClient();
     const clock = new FakeClock();
@@ -1066,20 +1066,33 @@ test("scope isolation and sign-out plumbing: other scopes cleared and never sent
         0,
     );
 
-    // 6. Seed User A's entry on sheet-a, then sign in as User B on sheet-a (online):
-    // User A's entry is cleared and NEVER sent!
+    // 6. Seed User A's entries across sheet-a and sheet-b, then sign in as User B on sheet-a (online):
+    // User A's entries on ALL sheets are cleared and NEVER sent!
     const engineA2 = (await manager.activateScope({
         sheetId: SHEET_A,
         ownerEmail: USER_AN,
     }))!;
-    await engineA2.create("小安的機密待辦", "證件");
+    await engineA2.create("小安在 A 的機密待辦", "證件");
+    activeSheet = SHEET_B;
+    queryClient.setQueryData(getTodosQueryKey(SHEET_B, USER_AN), []);
+    const engineASheetB = (await manager.activateScope({
+        sheetId: SHEET_B,
+        ownerEmail: USER_AN,
+    }))!;
+    await engineASheetB.create("小安在 B 的機密待辦", "證件");
     assert.equal(
         (await store.loadScope({ sheetId: SHEET_A, ownerEmail: USER_AN }))
             .entries.length,
         1,
     );
+    assert.equal(
+        (await store.loadScope({ sheetId: SHEET_B, ownerEmail: USER_AN }))
+            .entries.length,
+        1,
+    );
 
     online = true;
+    activeSheet = SHEET_A;
     activeEmail = USER_BO;
     queryClient.setQueryData(getTodosQueryKey(SHEET_A, USER_BO), []);
     const engineB = (await manager.activateScope({
@@ -1095,8 +1108,14 @@ test("scope isolation and sign-out plumbing: other scopes cleared and never sent
             .entries.length,
         0,
     );
+    assert.equal(
+        (await store.loadScope({ sheetId: SHEET_B, ownerEmail: USER_AN }))
+            .entries.length,
+        0,
+    );
 
-    // 7. Switching sheet to sheet-b clears sheet-a entries and never sends them to sheet-b.
+    // 7. Switching sheet to sheet-b preserves User B's unsynced sheet-a entries without sending them to sheet-b;
+    // switching back to sheet-a flushes them to sheet-a.
     online = false;
     await engineB.create("小博在 A 的待辦", "行李");
     online = true;
@@ -1113,19 +1132,108 @@ test("scope isolation and sign-out plumbing: other scopes cleared and never sent
     assert.equal(
         (await store.loadScope({ sheetId: SHEET_A, ownerEmail: USER_BO }))
             .entries.length,
+        1,
+    );
+
+    // Returning to sheet-a recovers and flushes User B's preserved sheet-a outbox.
+    activeSheet = SHEET_A;
+    const engineBBackOnA = (await manager.activateScope({
+        sheetId: SHEET_A,
+        ownerEmail: USER_BO,
+    }))!;
+    await clock.advanceBy(0);
+
+    assert.equal(sentCalls.length, 1);
+    assert.equal(sentCalls[0].sheetId, SHEET_A);
+    assert.equal(engineBBackOnA.getUnsyncedCount(), 0);
+    assert.equal(
+        (await store.loadScope({ sheetId: SHEET_A, ownerEmail: USER_BO }))
+            .entries.length,
         0,
     );
 
     // 8. Explicit sign-out when online flushes pending changes automatically -> flushed: true, remainingCount: 0!
-    await engineBSheetB.create("登出前自動送出", "行前");
+    activeSheet = SHEET_B;
+    const engineBSheetB2 = (await manager.activateScope({
+        sheetId: SHEET_B,
+        ownerEmail: USER_BO,
+    }))!;
+    await engineBSheetB2.create("登出前自動送出", "行前");
     const onlineSignOut = await manager.attemptSignOutFlush({
         sheetId: SHEET_B,
         ownerEmail: USER_BO,
     });
     assert.deepEqual(onlineSignOut, { flushed: true, remainingCount: 0 });
-    assert.equal(sentCalls.length, 1);
-    assert.equal(sentCalls[0].sheetId, SHEET_B);
+    assert.equal(sentCalls.length, 2);
+    assert.equal(sentCalls[1].sheetId, SHEET_B);
     manager.disposeActiveEngine();
+});
+
+test("clearOtherOwnerScopes removes only other owners' entries and meta keys while preserving all sheets of keepOwnerEmail", async () => {
+    const backing = new Map<string, unknown>();
+    const fakeBackend = {
+        async entries(): Promise<[IDBValidKey, unknown][]> {
+            return Array.from(backing.entries());
+        },
+        async keys(): Promise<IDBValidKey[]> {
+            return Array.from(backing.keys());
+        },
+        async set(key: IDBValidKey, value: unknown): Promise<void> {
+            backing.set(String(key), value);
+        },
+        async setMany(pairs: [IDBValidKey, unknown][]): Promise<void> {
+            for (const [k, v] of pairs) {
+                backing.set(String(k), v);
+            }
+        },
+        async del(key: IDBValidKey): Promise<void> {
+            backing.delete(String(key));
+        },
+        async delMany(keys: IDBValidKey[]): Promise<void> {
+            for (const k of keys) {
+                backing.delete(String(k));
+            }
+        },
+    };
+    const store = createIndexedDbTodoOutboxStore(fakeBackend);
+    const makeEntry = (id: string, text: string): TodoOutboxEntry => ({
+        id,
+        kind: "create",
+        base: null,
+        patch: { text, checked: false, category: "行前" },
+        rev: 1,
+        attempts: 0,
+        status: "pending",
+        lastError: null,
+        createdAt: "2026-11-28T01:00:00.000Z",
+    });
+
+    await store.putEntry({ sheetId: SHEET_A, ownerEmail: USER_AN }, makeEntry("t-an-a", "安 A"));
+    await store.setMeta({ sheetId: SHEET_A, ownerEmail: USER_AN }, { lastSavedAt: 1001 });
+    await store.putEntry({ sheetId: SHEET_B, ownerEmail: USER_AN }, makeEntry("t-an-b", "安 B"));
+    await store.setMeta({ sheetId: SHEET_B, ownerEmail: USER_AN }, { lastSavedAt: 1002 });
+    await store.putEntry({ sheetId: SHEET_A, ownerEmail: USER_BO }, makeEntry("t-bo-a", "博 A"));
+    await store.setMeta({ sheetId: SHEET_A, ownerEmail: USER_BO }, { lastSavedAt: 2001 });
+    await store.putEntry({ sheetId: SHEET_B, ownerEmail: USER_BO }, makeEntry("t-bo-b", "博 B"));
+    await store.setMeta({ sheetId: SHEET_B, ownerEmail: USER_BO }, { lastSavedAt: 2002 });
+    backing.set("corrupt-stray-key", { junk: true });
+
+    await store.clearOtherOwnerScopes(USER_AN);
+
+    const anA = await store.loadScope({ sheetId: SHEET_A, ownerEmail: USER_AN });
+    const anB = await store.loadScope({ sheetId: SHEET_B, ownerEmail: USER_AN });
+    const boA = await store.loadScope({ sheetId: SHEET_A, ownerEmail: USER_BO });
+    const boB = await store.loadScope({ sheetId: SHEET_B, ownerEmail: USER_BO });
+
+    assert.deepEqual(anA.entries.map((e) => e.id), ["t-an-a"]);
+    assert.equal(anA.meta.lastSavedAt, 1001);
+    assert.deepEqual(anB.entries.map((e) => e.id), ["t-an-b"]);
+    assert.equal(anB.meta.lastSavedAt, 1002);
+    assert.equal(boA.entries.length, 0);
+    assert.equal(boA.meta.lastSavedAt, null);
+    assert.equal(boB.entries.length, 0);
+    assert.equal(boB.meta.lastSavedAt, null);
+    assert.equal(backing.has("corrupt-stray-key"), false);
 });
 
 test("TodoSyncEngine and TodoSyncManager cancel in-flight GET /todos before sending and before setBaseItems on commit", async () => {

@@ -953,7 +953,7 @@ test("AC10: auth-clear removes all todos and expenses queries so dehydrated/rest
         "utf8",
     );
     const clearCalls = authStoreSrc.match(/clearExpensesCache\(\)/g) ?? [];
-    assert.equal(clearCalls.length, 4);
+    assert.equal(clearCalls.length, 5);
 
     const providersSrc = readFileSync(
         path.join(REPO_ROOT, "components/Providers.tsx"),

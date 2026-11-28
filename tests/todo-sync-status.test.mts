@@ -5,6 +5,7 @@ import {
     createInitialSyncAnnouncementState,
     deriveSyncStatus,
     formatTodoSyncTime,
+    getSyncStatusAnnouncement,
     TODO_BACK_ONLINE_ANNOUNCEMENT,
     TODO_IDB_UNAVAILABLE_WARNING,
 } from "../src/utils/todoSyncStatus.ts";
@@ -101,11 +102,6 @@ test("deriveSyncStatus follows exact spec §4 priority table where each row beat
     assert.equal(s1.text, "同步失敗 · 2 項（點擊重試）");
     assert.equal(s1.action, "retry");
     assert.equal(s1.count, 2);
-    assert.deepEqual(s1.announce, {
-        role: "alert",
-        politeness: "assertive",
-        text: "同步失敗 · 2 項（點擊重試）",
-    });
 
     // 2. auth-expired beats offline, inflight, pending, refreshing, saved, refreshed
     const s2 = deriveSyncStatus({
@@ -122,11 +118,6 @@ test("deriveSyncStatus follows exact spec §4 priority table where each row beat
     assert.equal(s2.tone, "failed");
     assert.equal(s2.text, "登入已過期，登入後會繼續同步");
     assert.equal(s2.action, "sign-in");
-    assert.deepEqual(s2.announce, {
-        role: "alert",
-        politeness: "assertive",
-        text: "登入已過期，登入後會繼續同步",
-    });
 
     // 3. offline-with-changes beats offline-no-changes, inflight, pending, refreshing, saved, refreshed
     const s3 = deriveSyncStatus({
@@ -148,11 +139,6 @@ test("deriveSyncStatus follows exact spec §4 priority table where each row beat
     assert.equal(s3.text, "離線，2 項變更會在連線後同步");
     assert.equal(s3.action, null);
     assert.equal(s3.count, 2);
-    assert.deepEqual(s3.announce, {
-        role: "status",
-        politeness: "polite",
-        text: "離線，2 項變更會在連線後同步",
-    });
 
     // 3b. offline-no-changes beats inflight, refreshing, saved, refreshed (uses latest of saved/refreshed)
     const s3b = deriveSyncStatus({
@@ -201,7 +187,6 @@ test("deriveSyncStatus follows exact spec §4 priority table where each row beat
     assert.equal(s4.tone, "syncing");
     assert.equal(s4.text, "儲存中…");
     assert.equal(s4.action, null);
-    assert.equal(s4.announce, undefined);
 
     // Also enters inflight via entry status === "inflight" even if isFlushing omitted
     const s4ByEntry = deriveSyncStatus({
@@ -230,7 +215,6 @@ test("deriveSyncStatus follows exact spec §4 priority table where each row beat
     assert.equal(s5.text, "3 項尚未同步");
     assert.equal(s5.action, "sync-now");
     assert.equal(s5.count, 3);
-    assert.equal(s5.announce, undefined);
 
     // 5b. pending with backoff countdown when all pending entries are backing off
     const s5Backoff = deriveSyncStatus({
@@ -245,7 +229,6 @@ test("deriveSyncStatus follows exact spec §4 priority table where each row beat
     assert.equal(s5Backoff.text, "2 項尚未同步（15 秒後重試）");
     assert.equal(s5Backoff.retryInSeconds, 15);
     assert.equal(s5Backoff.action, "sync-now");
-    assert.equal(s5Backoff.announce, undefined);
 
     // If a fresh edit has no nextAttemptAt, do NOT show backoff countdown
     const s5Mixed = deriveSyncStatus({
@@ -272,7 +255,6 @@ test("deriveSyncStatus follows exact spec §4 priority table where each row beat
     assert.equal(s6.tone, "syncing");
     assert.equal(s6.text, "更新中…");
     assert.equal(s6.action, null);
-    assert.equal(s6.announce, undefined);
 
     // 7. saved beats refreshed when lastSavedAt > lastRefreshedAt
     const s7 = deriveSyncStatus({
@@ -286,11 +268,6 @@ test("deriveSyncStatus follows exact spec §4 priority table where each row beat
     assert.equal(s7.tone, "ok");
     assert.equal(s7.text, "已儲存 · 18:25");
     assert.equal(s7.action, null);
-    assert.deepEqual(s7.announce, {
-        role: "status",
-        politeness: "polite",
-        text: "已儲存 · 18:25",
-    });
 
     // 8. refreshed when lastRefreshedAt >= lastSavedAt (or lastSavedAt absent)
     const s8 = deriveSyncStatus({
@@ -304,11 +281,6 @@ test("deriveSyncStatus follows exact spec §4 priority table where each row beat
     assert.equal(s8.tone, "ok");
     assert.equal(s8.text, "已更新 · 18:25");
     assert.equal(s8.action, null);
-    assert.deepEqual(s8.announce, {
-        role: "status",
-        politeness: "polite",
-        text: "已更新 · 18:25",
-    });
 
     // Idle when neither timestamp is available (or TanStack Query 0)
     const idle = deriveSyncStatus({
@@ -320,7 +292,6 @@ test("deriveSyncStatus follows exact spec §4 priority table where each row beat
     });
     assert.equal(idle.kind, "idle");
     assert.equal(idle.text, "");
-    assert.equal(idle.announce, undefined);
 });
 
 test("deriveSyncStatus surfaces IndexedDB-unavailable warning and supports read-only teammate mode", () => {
@@ -371,161 +342,182 @@ test("deriveSyncStatus surfaces IndexedDB-unavailable warning and supports read-
     assert.equal(readOnlyEmpty.text, "");
 });
 
-test("deriveSyncStatus transition announcements fire only on meaningful transitions (saved, refreshed, offline, failed alert, back-online)", () => {
-    const now = localTime(2026, 11, 28, 18, 30);
+test("getSyncStatusAnnouncement fires only on meaningful transitions (saved, refreshed, offline, failed alert, back-online)", () => {
     const t1 = localTime(2026, 11, 28, 18, 20);
     const t2 = localTime(2026, 11, 28, 18, 21);
 
     // saved -> pending (silent) -> inflight (silent) -> saved with newer ts (announced) -> same ts (silent)
-    const pending = deriveSyncStatus({
-        entries: [{ id: "a", status: "pending" }],
-        isOnline: true,
-        lastSavedAt: t1,
-        now,
-        previous: { kind: "saved", isOnline: true, lastSavedAt: t1 },
-    });
-    assert.equal(pending.announce, undefined);
+    assert.equal(
+        getSyncStatusAnnouncement({
+            kind: "pending",
+            text: "1 項尚未同步",
+            isOnline: true,
+            lastSavedAt: t1,
+            previous: { kind: "saved", isOnline: true, lastSavedAt: t1 },
+        }),
+        undefined,
+    );
 
-    const inflight = deriveSyncStatus({
-        entries: [{ id: "a", status: "inflight" }],
-        isOnline: true,
-        isFlushing: true,
-        lastSavedAt: t1,
-        now,
-        previous: { kind: "pending", isOnline: true, lastSavedAt: t1 },
-    });
-    assert.equal(inflight.announce, undefined);
+    assert.equal(
+        getSyncStatusAnnouncement({
+            kind: "inflight",
+            text: "儲存中…",
+            isOnline: true,
+            lastSavedAt: t1,
+            previous: { kind: "pending", isOnline: true, lastSavedAt: t1 },
+        }),
+        undefined,
+    );
 
-    const savedNew = deriveSyncStatus({
-        entries: [],
-        isOnline: true,
-        lastSavedAt: t2,
-        now,
-        previous: { kind: "inflight", isOnline: true, lastSavedAt: t1 },
-    });
-    assert.deepEqual(savedNew.announce, {
-        role: "status",
-        politeness: "polite",
-        text: "已儲存 · 18:21",
-    });
+    assert.deepEqual(
+        getSyncStatusAnnouncement({
+            kind: "saved",
+            text: "已儲存 · 18:21",
+            isOnline: true,
+            lastSavedAt: t2,
+            previous: { kind: "inflight", isOnline: true, lastSavedAt: t1 },
+        }),
+        {
+            role: "status",
+            politeness: "polite",
+            text: "已儲存 · 18:21",
+        },
+    );
 
-    const savedSame = deriveSyncStatus({
-        entries: [],
-        isOnline: true,
-        lastSavedAt: t2,
-        now,
-        previous: { kind: "saved", isOnline: true, lastSavedAt: t2 },
-    });
-    assert.equal(savedSame.announce, undefined);
+    assert.equal(
+        getSyncStatusAnnouncement({
+            kind: "saved",
+            text: "已儲存 · 18:21",
+            isOnline: true,
+            lastSavedAt: t2,
+            previous: { kind: "saved", isOnline: true, lastSavedAt: t2 },
+        }),
+        undefined,
+    );
 
     // Going offline announces once; editing while already offline does not spam announcements.
-    const wentOffline = deriveSyncStatus({
-        entries: [],
-        isOnline: false,
-        lastSavedAt: t2,
-        now,
-        previous: { kind: "saved", isOnline: true, lastSavedAt: t2 },
-    });
-    assert.deepEqual(wentOffline.announce, {
-        role: "status",
-        politeness: "polite",
-        text: "離線 · 顯示 18:21 的資料",
-    });
+    assert.deepEqual(
+        getSyncStatusAnnouncement({
+            kind: "offline-idle",
+            text: "離線 · 顯示 18:21 的資料",
+            isOnline: false,
+            lastSavedAt: t2,
+            previous: { kind: "saved", isOnline: true, lastSavedAt: t2 },
+        }),
+        {
+            role: "status",
+            politeness: "polite",
+            text: "離線 · 顯示 18:21 的資料",
+        },
+    );
 
-    const editedOffline = deriveSyncStatus({
-        entries: [{ id: "a", status: "pending" }],
-        isOnline: false,
-        lastSavedAt: t2,
-        now,
-        previous: { kind: "offline-idle", isOnline: false, lastSavedAt: t2 },
-    });
-    assert.equal(editedOffline.announce, undefined);
+    assert.equal(
+        getSyncStatusAnnouncement({
+            kind: "offline-pending",
+            text: "離線，1 項變更會在連線後同步",
+            isOnline: false,
+            lastSavedAt: t2,
+            previous: { kind: "offline-idle", isOnline: false, lastSavedAt: t2 },
+        }),
+        undefined,
+    );
 
     // Coming back online announces back-online even when immediately transitioning into inflight.
-    const backOnline = deriveSyncStatus({
-        entries: [{ id: "a", status: "inflight" }],
-        isOnline: true,
-        isFlushing: true,
-        lastSavedAt: t2,
-        now,
-        previous: { kind: "offline-pending", isOnline: false, lastSavedAt: t2 },
-    });
-    assert.deepEqual(backOnline.announce, {
-        role: "status",
-        politeness: "polite",
-        text: TODO_BACK_ONLINE_ANNOUNCEMENT,
-    });
+    assert.deepEqual(
+        getSyncStatusAnnouncement({
+            kind: "inflight",
+            text: "儲存中…",
+            isOnline: true,
+            lastSavedAt: t2,
+            previous: {
+                kind: "offline-pending",
+                isOnline: false,
+                lastSavedAt: t2,
+            },
+        }),
+        {
+            role: "status",
+            politeness: "polite",
+            text: TODO_BACK_ONLINE_ANNOUNCEMENT,
+        },
+    );
 
     // Entering failed announces alert once; unchanged failed stays quiet; changed count alerts again.
-    const enteredFailed = deriveSyncStatus({
-        entries: [{ id: "a", status: "failed" }],
-        isOnline: true,
-        now,
-        previous: { kind: "inflight", isOnline: true },
-    });
-    assert.deepEqual(enteredFailed.announce, {
-        role: "alert",
-        politeness: "assertive",
-        text: "同步失敗 · 1 項（點擊重試）",
-    });
-
-    const sameFailed = deriveSyncStatus({
-        entries: [{ id: "a", status: "failed" }],
-        isOnline: true,
-        now,
-        previous: {
+    assert.deepEqual(
+        getSyncStatusAnnouncement({
             kind: "failed",
+            text: "同步失敗 · 1 項（點擊重試）",
             isOnline: true,
+            previous: { kind: "inflight", isOnline: true },
+        }),
+        {
+            role: "alert",
+            politeness: "assertive",
             text: "同步失敗 · 1 項（點擊重試）",
         },
-    });
-    assert.equal(sameFailed.announce, undefined);
+    );
 
-    const moreFailed = deriveSyncStatus({
-        entries: [
-            { id: "a", status: "failed" },
-            { id: "b", status: "failed" },
-        ],
-        isOnline: true,
-        now,
-        previous: {
+    assert.equal(
+        getSyncStatusAnnouncement({
             kind: "failed",
-            isOnline: true,
             text: "同步失敗 · 1 項（點擊重試）",
+            isOnline: true,
+            previous: {
+                kind: "failed",
+                isOnline: true,
+                text: "同步失敗 · 1 項（點擊重試）",
+            },
+        }),
+        undefined,
+    );
+
+    assert.deepEqual(
+        getSyncStatusAnnouncement({
+            kind: "failed",
+            text: "同步失敗 · 2 項（點擊重試）",
+            isOnline: true,
+            previous: {
+                kind: "failed",
+                isOnline: true,
+                text: "同步失敗 · 1 項（點擊重試）",
+            },
+        }),
+        {
+            role: "alert",
+            politeness: "assertive",
+            text: "同步失敗 · 2 項（點擊重試）",
         },
-    });
-    assert.deepEqual(moreFailed.announce, {
-        role: "alert",
-        politeness: "assertive",
-        text: "同步失敗 · 2 項（點擊重試）",
-    });
+    );
 
     // refreshing (silent) -> refreshed with newer timestamp (announced)
-    const refreshing = deriveSyncStatus({
-        entries: [],
-        isOnline: true,
-        isRefreshing: true,
-        lastRefreshedAt: t1,
-        now,
-        previous: { kind: "refreshed", isOnline: true, lastRefreshedAt: t1 },
-    });
-    assert.equal(refreshing.announce, undefined);
+    assert.equal(
+        getSyncStatusAnnouncement({
+            kind: "refreshing",
+            text: "更新中…",
+            isOnline: true,
+            lastRefreshedAt: t1,
+            previous: { kind: "refreshed", isOnline: true, lastRefreshedAt: t1 },
+        }),
+        undefined,
+    );
 
-    const refreshed = deriveSyncStatus({
-        entries: [],
-        isOnline: true,
-        lastRefreshedAt: t2,
-        now,
-        previous: { kind: "refreshing", isOnline: true, lastRefreshedAt: t1 },
-    });
-    assert.deepEqual(refreshed.announce, {
-        role: "status",
-        politeness: "polite",
-        text: "已更新 · 18:21",
-    });
+    assert.deepEqual(
+        getSyncStatusAnnouncement({
+            kind: "refreshed",
+            text: "已更新 · 18:21",
+            isOnline: true,
+            lastRefreshedAt: t2,
+            previous: { kind: "refreshing", isOnline: true, lastRefreshedAt: t1 },
+        }),
+        {
+            role: "status",
+            politeness: "polite",
+            text: "已更新 · 18:21",
+        },
+    );
 });
 
-test("advanceSyncAnnouncementState de-duplicates live-region updates across pending, inflight, offline, back-online, failed, and dropped transitions", () => {
+test("advanceSyncAnnouncementState clears politeText on entering pending/inflight/refreshing and de-duplicates live-region transitions", () => {
     const now = localTime(2026, 11, 28, 18, 30);
     const t1 = localTime(2026, 11, 28, 18, 20);
     const t2 = localTime(2026, 11, 28, 18, 21);
@@ -549,7 +541,8 @@ test("advanceSyncAnnouncementState de-duplicates live-region updates across pend
     assert.equal(state.politeText, "已更新 · 18:20");
     assert.equal(state.alertText, "");
 
-    // Repeated pending edits & inflight MUST NOT change politeText or alertText
+    // Entering pending clears politeText silently so a subsequent same-minute save/refresh updates DOM;
+    // repeated pending edits & inflight stay silent (empty).
     const pending1 = deriveSyncStatus({
         entries: [{ id: "a", status: "pending" }],
         isOnline: true,
@@ -561,7 +554,7 @@ test("advanceSyncAnnouncementState de-duplicates live-region updates across pend
         isOnline: true,
         lastRefreshedAt: t1,
     });
-    assert.equal(state.politeText, "已更新 · 18:20");
+    assert.equal(state.politeText, "");
     assert.equal(state.alertText, "");
 
     const pending2 = deriveSyncStatus({
@@ -578,7 +571,7 @@ test("advanceSyncAnnouncementState de-duplicates live-region updates across pend
         isOnline: true,
         lastRefreshedAt: t1,
     });
-    assert.equal(state.politeText, "已更新 · 18:20");
+    assert.equal(state.politeText, "");
 
     const inflight = deriveSyncStatus({
         entries: [{ id: "a", status: "inflight" }],
@@ -592,7 +585,7 @@ test("advanceSyncAnnouncementState de-duplicates live-region updates across pend
         isOnline: true,
         lastRefreshedAt: t1,
     });
-    assert.equal(state.politeText, "已更新 · 18:20");
+    assert.equal(state.politeText, "");
 
     // inflight -> saved announces via polite region
     const saved = deriveSyncStatus({
@@ -677,7 +670,7 @@ test("advanceSyncAnnouncementState de-duplicates live-region updates across pend
     });
     assert.equal(state, sameFailedRef);
 
-    // Retrying clears alertText so a subsequent failure alerts again
+    // Retrying clears alertText and politeText so subsequent failure or save announces again
     state = advanceSyncAnnouncementState(state, {
         status: inflight,
         isOnline: true,
@@ -685,6 +678,7 @@ test("advanceSyncAnnouncementState de-duplicates live-region updates across pend
         lastRefreshedAt: t1,
     });
     assert.equal(state.alertText, "");
+    assert.equal(state.politeText, "");
 
     // Dropped notice announces once via polite region
     state = advanceSyncAnnouncementState(state, {
@@ -720,4 +714,164 @@ test("advanceSyncAnnouncementState de-duplicates live-region updates across pend
         lastRefreshedAt: t1,
     });
     assert.equal(warmFailed.alertText, "同步失敗 · 1 項（點擊重試）");
+});
+
+test("advanceSyncAnnouncementState announces repeated saves and repeated refreshes within the same minute", () => {
+    const save1At = new Date(2026, 10, 28, 18, 20, 5).getTime();
+    const save2At = new Date(2026, 10, 28, 18, 20, 20).getTime();
+    const refresh1At = new Date(2026, 10, 28, 18, 20, 25).getTime();
+    const refresh2At = new Date(2026, 10, 28, 18, 20, 45).getTime();
+    const now = new Date(2026, 10, 28, 18, 20, 50).getTime();
+
+    // Two saves in the same minute (18:20)
+    let state = createInitialSyncAnnouncementState({
+        initiallyIdle: true,
+        isOnline: true,
+    });
+    const saved1 = deriveSyncStatus({
+        entries: [],
+        isOnline: true,
+        lastSavedAt: save1At,
+        now,
+    });
+    state = advanceSyncAnnouncementState(state, {
+        status: saved1,
+        isOnline: true,
+        lastSavedAt: save1At,
+    });
+    assert.equal(state.politeText, "已儲存 · 18:20");
+
+    // Second edit enters pending -> politeText clears to "" so the next save mutates the live region
+    const pending = deriveSyncStatus({
+        entries: [{ id: "t1", status: "pending" }],
+        isOnline: true,
+        lastSavedAt: save1At,
+        now,
+    });
+    state = advanceSyncAnnouncementState(state, {
+        status: pending,
+        isOnline: true,
+        lastSavedAt: save1At,
+    });
+    assert.equal(state.politeText, "");
+
+    const inflight = deriveSyncStatus({
+        entries: [{ id: "t1", status: "inflight" }],
+        isOnline: true,
+        isFlushing: true,
+        lastSavedAt: save1At,
+        now,
+    });
+    state = advanceSyncAnnouncementState(state, {
+        status: inflight,
+        isOnline: true,
+        lastSavedAt: save1At,
+    });
+    assert.equal(state.politeText, "");
+
+    const saved2 = deriveSyncStatus({
+        entries: [],
+        isOnline: true,
+        lastSavedAt: save2At,
+        now,
+    });
+    state = advanceSyncAnnouncementState(state, {
+        status: saved2,
+        isOnline: true,
+        lastSavedAt: save2At,
+    });
+    assert.equal(state.politeText, "已儲存 · 18:20");
+
+    // Two refreshes in the same minute (18:20)
+    const refreshing1 = deriveSyncStatus({
+        entries: [],
+        isOnline: true,
+        isRefreshing: true,
+        lastSavedAt: save2At,
+        now,
+    });
+    state = advanceSyncAnnouncementState(state, {
+        status: refreshing1,
+        isOnline: true,
+        lastSavedAt: save2At,
+    });
+    assert.equal(state.politeText, "");
+
+    const refreshed1 = deriveSyncStatus({
+        entries: [],
+        isOnline: true,
+        lastSavedAt: save2At,
+        lastRefreshedAt: refresh1At,
+        now,
+    });
+    state = advanceSyncAnnouncementState(state, {
+        status: refreshed1,
+        isOnline: true,
+        lastSavedAt: save2At,
+        lastRefreshedAt: refresh1At,
+    });
+    assert.equal(state.politeText, "已更新 · 18:20");
+
+    const refreshing2 = deriveSyncStatus({
+        entries: [],
+        isOnline: true,
+        isRefreshing: true,
+        lastSavedAt: save2At,
+        lastRefreshedAt: refresh1At,
+        now,
+    });
+    state = advanceSyncAnnouncementState(state, {
+        status: refreshing2,
+        isOnline: true,
+        lastSavedAt: save2At,
+        lastRefreshedAt: refresh1At,
+    });
+    assert.equal(state.politeText, "");
+
+    const refreshed2 = deriveSyncStatus({
+        entries: [],
+        isOnline: true,
+        lastSavedAt: save2At,
+        lastRefreshedAt: refresh2At,
+        now,
+    });
+    state = advanceSyncAnnouncementState(state, {
+        status: refreshed2,
+        isOnline: true,
+        lastSavedAt: save2At,
+        lastRefreshedAt: refresh2At,
+    });
+    assert.equal(state.politeText, "已更新 · 18:20");
+
+    // Coming back online into pending keeps 已恢復連線 across pending -> inflight before saved replaces it
+    const offlinePending = deriveSyncStatus({
+        entries: [{ id: "t2", status: "pending" }],
+        isOnline: false,
+        lastSavedAt: save2At,
+        lastRefreshedAt: refresh2At,
+        now,
+    });
+    state = advanceSyncAnnouncementState(state, {
+        status: offlinePending,
+        isOnline: false,
+        lastSavedAt: save2At,
+        lastRefreshedAt: refresh2At,
+    });
+    assert.equal(state.politeText, "離線，1 項變更會在連線後同步");
+
+    state = advanceSyncAnnouncementState(state, {
+        status: pending,
+        isOnline: true,
+        lastSavedAt: save2At,
+        lastRefreshedAt: refresh2At,
+    });
+    assert.equal(state.politeText, TODO_BACK_ONLINE_ANNOUNCEMENT);
+
+    state = advanceSyncAnnouncementState(state, {
+        status: inflight,
+        isOnline: true,
+        lastSavedAt: save2At,
+        lastRefreshedAt: refresh2At,
+    });
+    assert.equal(state.politeText, TODO_BACK_ONLINE_ANNOUNCEMENT);
 });

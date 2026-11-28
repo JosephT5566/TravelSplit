@@ -81,8 +81,9 @@ function scopeMatches(
 
 /**
  * Manages the single active `TodoSyncEngine` for the signed-in user and selected sheet,
- * handling scope switching (clearing other scopes), passive sign-out (keeping outbox),
- * and explicit sign-out flush + post-confirmation clearing.
+ * handling scope switching (clearing other owners' scopes while preserving the signed-in
+ * user's other-sheet outboxes), passive sign-out (keeping outbox), and explicit sign-out
+ * flush + post-confirmation clearing.
  */
 export function createTodoSyncManager(deps: TodoSyncManagerDeps = {}) {
     const store = deps.store ?? defaultTodoOutboxStore;
@@ -160,7 +161,7 @@ export function createTodoSyncManager(deps: TodoSyncManagerDeps = {}) {
             random: deps.random,
             timers: deps.timers,
             locks: deps.locks,
-            clearOtherScopesOnInit: true,
+            clearOtherOwnersOnInit: true,
         });
         if (shouldAttachBrowserEvents) {
             engine.attachBrowserEvents();

@@ -95,7 +95,7 @@ export type TodoSyncEngineOptions = {
     debounceMs?: number;
     maxWaitMs?: number;
     maxTransientAttempts?: number;
-    clearOtherScopesOnInit?: boolean;
+    clearOtherOwnersOnInit?: boolean;
 };
 
 const EMPTY_STATUS_BY_ID: Readonly<Record<string, TodoOverlayItemStatus>> =
@@ -287,7 +287,7 @@ export class TodoSyncEngine {
     private readonly debounceMs: number;
     private readonly maxWaitMs: number;
     private readonly maxTransientAttempts: number;
-    private readonly clearOtherScopesOnInit: boolean;
+    private readonly clearOtherOwnersOnInit: boolean;
 
     private entries: TodoOutboxEntry[] = [];
     private hydrated = false;
@@ -338,7 +338,7 @@ export class TodoSyncEngine {
         this.maxWaitMs = options.maxWaitMs ?? TODO_OUTBOX_MAX_WAIT_MS;
         this.maxTransientAttempts =
             options.maxTransientAttempts ?? TODO_OUTBOX_MAX_TRANSIENT_ATTEMPTS;
-        this.clearOtherScopesOnInit = Boolean(options.clearOtherScopesOnInit);
+        this.clearOtherOwnersOnInit = Boolean(options.clearOtherOwnersOnInit);
         this.persistent = this.store.persistent;
 
         this.snapshot = buildSnapshot({
@@ -472,8 +472,8 @@ export class TodoSyncEngine {
     }
 
     private async performInit(): Promise<void> {
-        if (this.clearOtherScopesOnInit) {
-            await this.store.clearOtherScopes(this.scope);
+        if (this.clearOtherOwnersOnInit) {
+            await this.store.clearOtherOwnerScopes(this.scope.ownerEmail);
         }
         const loaded = await this.store.loadScope(this.scope);
         if (this.disposed) {

@@ -40,7 +40,7 @@ The app is designed for real travel use: phones, intermittent network, outdoor r
 
 - Sheet config controls users, categories, currencies, dates, resources, and allowed users.
 - User expense rows are normalized in `services/api.ts` with `mapRawExpenseToExpense`.
-- Todo writes persist in the separate `tripsplit-todo-outbox` IndexedDB store keyed by `<sheetId>::<ownerEmail>::<todoId>` and overlay onto the TanStack Query base via `useTodoView` (refetch replaces only the base; sync write-back preserves `dataUpdatedAt`; `flushNow()` supports a future #76 refresh button). Passive sign-out preserves the outbox for re-login, explicit sign-out attempts a final flush and prompts before clearing unsynced changes, and activating a different `(sheetId, ownerEmail)` scope clears other scopes on init.
+- Todo writes persist in the separate `tripsplit-todo-outbox` IndexedDB store keyed by `<sheetId>::<ownerEmail>::<todoId>` and overlay onto the TanStack Query base via `useTodoView` (refetch replaces only the base; sync write-back preserves `dataUpdatedAt`; `flushNow()` supports a future #76 refresh button). Passive sign-out and `reauthenticate()` preserve the outbox for re-login, explicit sign-out attempts a final flush and prompts before clearing unsynced changes, and activating a `(sheetId, ownerEmail)` scope clears other owners' scopes on init while preserving other-sheet outboxes of the same signed-in user.
 - Travel-book registration is in `src/travel/registry.ts`.
 - Shared travel-book types live in `src/travel/types.ts`; richer itinerary data is under trip-specific files such as `src/travel/shimanami.ts` and `src/travel/hokkaido.ts`.
 - Do not put private booking sessions, sensitive personal identifiers, or full reservation documents into static client data.

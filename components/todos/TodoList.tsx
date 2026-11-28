@@ -6,6 +6,7 @@ import { useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 import { useOnlineStatus } from "@/src/hooks/useOnlineStatus";
 import { useTodoView } from "@/src/hooks/useTodoView";
+import { useAuthActions } from "@/src/stores/AuthStore";
 import type { TodoItem } from "@/src/types";
 import {
     getCompletionStats,
@@ -81,6 +82,7 @@ interface TodoListCardProps {
     hasData: boolean;
     sortedTodos: TodoItem[];
     statusById: Readonly<Record<string, TodoOverlayItemStatus>>;
+    errorById: Readonly<Record<string, string>>;
     stats: TodoCompletionStats;
     isOfflineNoCache: boolean;
     isInitialLoading: boolean;
@@ -107,6 +109,7 @@ function TodoListCard({
     hasData,
     sortedTodos,
     statusById,
+    errorById,
     stats,
     isOfflineNoCache,
     isInitialLoading,
@@ -458,6 +461,7 @@ function TodoListCard({
                 canEdit={canEdit}
                 mode={mode}
                 syncStatus={canEdit ? statusById[item.id] : undefined}
+                syncError={canEdit ? errorById[item.id] : undefined}
                 existingCategories={existingCategories}
                 setTextButtonRef={setTextButtonRef}
                 setDeleteButtonRef={setDeleteButtonRef}
@@ -667,6 +671,7 @@ export function TodoList({
     onBackToMine,
 }: TodoListProps) {
     const isOnline = useOnlineStatus();
+    const { reauthenticate } = useAuthActions();
     const offlineBannerId = useId();
     const statusLineId = useId();
     const scopeKey = JSON.stringify([sheetId, ownerEmail, canEdit]);
@@ -701,43 +706,11 @@ export function TodoList({
     const isSyncReady = !canEdit || todoView.sync.hydrated;
     const isRefreshing = hasData && todoView.isFetching;
 
-    const hasFailedEntry = useMemo(
-        () =>
-            canEdit &&
-            todoView.sync.entries.some((entry) => entry.status === "failed"),
-        [canEdit, todoView.sync.entries],
-    );
-
-    const hasBackoffCountdown =
-        canEdit &&
-        isSyncReady &&
-        isOnline &&
-        !todoView.sync.inflight &&
-        !todoView.sync.authExpired &&
-        !hasFailedEntry &&
-        todoView.sync.nextRetryAt !== null;
-
-    const [countdownNow, setCountdownNow] = useState<number>(() => Date.now());
-
-    useEffect(() => {
-        if (!hasBackoffCountdown || todoView.sync.nextRetryAt === null) {
-            return;
-        }
-        const targetAt = todoView.sync.nextRetryAt;
-        setCountdownNow(Date.now());
-        const intervalId = window.setInterval(() => {
-            const current = Date.now();
-            setCountdownNow(current);
-            if (current >= targetAt) {
-                window.clearInterval(intervalId);
-            }
-        }, 1000);
-        return () => {
-            window.clearInterval(intervalId);
-        };
-    }, [hasBackoffCountdown, todoView.sync.nextRetryAt]);
+    const [countdownTick, setCountdownTick] = useState(0);
 
     const syncStatus = useMemo(() => {
+        // Re-evaluate once per second while a backoff countdown is visible.
+        void countdownTick;
         if (!isSyncReady) {
             return IDLE_SYNC_STATUS;
         }
@@ -749,14 +722,12 @@ export function TodoList({
             authExpired: todoView.sync.authExpired,
             lastSavedAt: todoView.sync.lastSavedAt,
             lastRefreshedAt: todoView.dataUpdatedAt,
-            now: hasBackoffCountdown ? countdownNow : undefined,
             idbUnavailable: !todoView.sync.persistent,
             readOnly: !canEdit,
         });
     }, [
         canEdit,
-        countdownNow,
-        hasBackoffCountdown,
+        countdownTick,
         isOnline,
         isRefreshing,
         isSyncReady,
@@ -767,6 +738,24 @@ export function TodoList({
         todoView.sync.lastSavedAt,
         todoView.sync.persistent,
     ]);
+
+    const isShowingBackoffCountdown = syncStatus.retryInSeconds !== undefined;
+
+    useEffect(() => {
+        if (!isShowingBackoffCountdown || todoView.sync.nextRetryAt === null) {
+            return;
+        }
+        const targetAt = todoView.sync.nextRetryAt;
+        const intervalId = window.setInterval(() => {
+            setCountdownTick((tick) => tick + 1);
+            if (Date.now() >= targetAt) {
+                window.clearInterval(intervalId);
+            }
+        }, 1000);
+        return () => {
+            window.clearInterval(intervalId);
+        };
+    }, [isShowingBackoffCountdown, todoView.sync.nextRetryAt]);
 
     const [visibleDroppedNotice, setVisibleDroppedNotice] =
         useState<VisibleDroppedNotice | null>(null);
@@ -880,13 +869,8 @@ export function TodoList({
     );
 
     const handleSignIn = useCallback(() => {
-        const url = process.env.NEXT_PUBLIC_AUTH_PROXY;
-        if (!url) {
-            return;
-        }
-        const currentUrl = window.location.origin + window.location.pathname;
-        window.location.href = `${url}/auth/travel-split/login?redirect_to=${encodeURIComponent(currentUrl)}`;
-    }, []);
+        reauthenticate();
+    }, [reauthenticate]);
 
     return (
         <section
@@ -957,6 +941,7 @@ export function TodoList({
                 hasData={hasData}
                 sortedTodos={sortedTodos}
                 statusById={todoView.statusById}
+                errorById={todoView.errorById}
                 stats={stats}
                 isOfflineNoCache={isOfflineNoCache}
                 isInitialLoading={isInitialLoading}

@@ -54,7 +54,6 @@ export type DeriveSyncStatusInput = {
     now?: number;
     idbUnavailable?: boolean;
     readOnly?: boolean;
-    previous?: TodoSyncStatusPrevious | null;
 };
 
 export type TodoSyncStatusResult = {
@@ -62,7 +61,6 @@ export type TodoSyncStatusResult = {
     tone: TodoSyncStatusTone;
     text: string;
     action: TodoSyncStatusAction;
-    announce?: TodoSyncAnnouncement;
     warning?: string;
     count?: number;
     retryInSeconds?: number;
@@ -267,24 +265,12 @@ export function deriveSyncStatus(
         const text = hasRefreshed
             ? `已更新 · ${formatTodoSyncTime(input.lastRefreshedAt!, now)}`
             : "";
-        const announce = getSyncStatusAnnouncement({
-            kind,
-            text,
-            isOnline,
-            readOnly: true,
-            lastRefreshedAt: input.lastRefreshedAt,
-            previous: input.previous,
-        });
-        const result: TodoSyncStatusResult = {
+        return {
             kind,
             tone: "ok",
             text,
             action: null,
         };
-        if (announce) {
-            result.announce = announce;
-        }
-        return result;
     }
 
     const entries = input.entries ?? [];
@@ -411,25 +397,12 @@ export function deriveSyncStatus(
         text = "";
     }
 
-    const announce = getSyncStatusAnnouncement({
-        kind,
-        text,
-        isOnline,
-        readOnly: false,
-        lastSavedAt: input.lastSavedAt,
-        lastRefreshedAt: input.lastRefreshedAt,
-        previous: input.previous,
-    });
-
     const result: TodoSyncStatusResult = {
         kind,
         tone,
         text,
         action,
     };
-    if (announce) {
-        result.announce = announce;
-    }
     if (input.idbUnavailable) {
         result.warning = TODO_IDB_UNAVAILABLE_WARNING;
     }
@@ -440,6 +413,10 @@ export function deriveSyncStatus(
         result.retryInSeconds = retryInSeconds;
     }
     return result;
+}
+
+function isInProgressSyncKind(kind: TodoSyncStatusKind): boolean {
+    return kind === "pending" || kind === "inflight" || kind === "refreshing";
 }
 
 /**
@@ -462,9 +439,10 @@ export function createInitialSyncAnnouncementState(options?: {
 
 /**
  * Pure transition reducer for the permanently mounted polite (`role="status"`)
- * and assertive (`role="alert"`) live regions. Keeps `politeText` unchanged on
- * unannounced states (`pending`, `inflight`, `refreshing`, offline edits) and
- * announces failures once via `alertText` (clearing `alertText` once recovered).
+ * and assertive (`role="alert"`) live regions. Clears `politeText` when entering
+ * unannounced in-progress states (`pending`, `inflight`, `refreshing`) so
+ * repeated `已儲存` / `已更新` announcements in the same minute update the DOM,
+ * and announces failures once via `alertText` (clearing `alertText` once recovered).
  */
 export function advanceSyncAnnouncementState(
     state: TodoSyncAnnouncementState,
@@ -512,7 +490,11 @@ export function advanceSyncAnnouncementState(
         previous: state.previous,
     });
 
-    let nextPoliteText = state.politeText;
+    const enteringInProgress =
+        isInProgressSyncKind(status.kind) &&
+        !isInProgressSyncKind(state.previous.kind);
+
+    let nextPoliteText = enteringInProgress ? "" : state.politeText;
     let nextAlertText = isAlertKind ? state.alertText : "";
 
     if (announce) {

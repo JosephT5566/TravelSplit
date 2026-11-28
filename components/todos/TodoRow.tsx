@@ -42,6 +42,7 @@ interface TodoRowProps {
     canEdit: boolean;
     mode: TodoRowMode;
     syncStatus?: TodoOverlayItemStatus;
+    syncError?: string;
     existingCategories: readonly string[];
     setTextButtonRef: (id: string, node: HTMLButtonElement | null) => void;
     setDeleteButtonRef: (id: string, node: HTMLButtonElement | null) => void;
@@ -54,7 +55,7 @@ interface TodoRowProps {
     ) => Promise<string | null>;
     onStartDelete: (item: TodoItem) => void;
     onCancelDelete: (id: string) => void;
-    onConfirmDelete: (item: TodoItem) => void;
+    onConfirmDelete: (item: TodoItem) => Promise<void> | void;
     onRetrySync?: (id: string) => void;
     onDiscardSync?: (id: string) => void;
 }
@@ -459,18 +460,36 @@ function TodoDeleteConfirmRow({
 }: {
     item: TodoItem;
     onCancel: () => void;
-    onConfirm: () => void;
+    onConfirm: () => Promise<void> | void;
 }) {
     const cancelButtonRef = useRef<HTMLButtonElement>(null);
+    const deletingRef = useRef(false);
+    const [isDeleting, setIsDeleting] = useState(false);
 
     useEffect(() => {
         cancelButtonRef.current?.focus();
     }, []);
 
+    const handleConfirm = async () => {
+        if (deletingRef.current || isDeleting) {
+            return;
+        }
+        deletingRef.current = true;
+        setIsDeleting(true);
+        try {
+            await onConfirm();
+        } finally {
+            deletingRef.current = false;
+            setIsDeleting(false);
+        }
+    };
+
     const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
         if (event.key === "Escape") {
             event.preventDefault();
-            onCancel();
+            if (!deletingRef.current && !isDeleting) {
+                onCancel();
+            }
         }
     };
 
@@ -492,6 +511,7 @@ function TodoDeleteConfirmRow({
                 <button
                     ref={cancelButtonRef}
                     type="button"
+                    disabled={isDeleting}
                     onClick={onCancel}
                     className="inline-flex min-h-11 items-center justify-center rounded-xl border border-border bg-surface px-4 text-sm font-medium whitespace-nowrap text-text-main transition-colors hover:bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-50 motion-reduce:transition-none"
                 >
@@ -499,7 +519,10 @@ function TodoDeleteConfirmRow({
                 </button>
                 <button
                     type="button"
-                    onClick={onConfirm}
+                    disabled={isDeleting}
+                    onClick={() => {
+                        void handleConfirm();
+                    }}
                     className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl bg-red-600 px-4 text-sm font-semibold whitespace-nowrap text-white transition-colors hover:bg-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:ring-offset-2 focus-visible:ring-offset-red-50 forest:focus-visible:ring-offset-red-950 disabled:opacity-60 motion-reduce:transition-none"
                 >
                     <span>刪除</span>
@@ -511,10 +534,12 @@ function TodoDeleteConfirmRow({
 
 function TodoRowSyncDot({
     syncStatus,
+    syncError,
     onRetry,
     onDiscard,
 }: {
     syncStatus?: TodoOverlayItemStatus;
+    syncError?: string;
     onRetry?: () => void;
     onDiscard?: () => void;
 }) {
@@ -548,6 +573,8 @@ function TodoRowSyncDot({
         );
     }
 
+    const failedMessage = syncError?.trim() || "此項目同步失敗";
+
     return (
         <Popover.Root open={menuOpen} onOpenChange={setMenuOpen}>
             <Popover.Trigger asChild>
@@ -570,10 +597,10 @@ function TodoRowSyncDot({
                     sideOffset={4}
                     collisionPadding={12}
                     data-slot="todo-failed-menu"
-                    className="z-50 w-44 rounded-xl border border-border bg-surface p-1.5 text-text-main shadow-lg outline-none data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95"
+                    className="z-50 min-w-44 max-w-60 rounded-xl border border-border bg-surface p-1.5 text-text-main shadow-lg outline-none data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95"
                 >
-                    <p className="px-2.5 py-1 text-xs font-semibold text-red-600 forest:text-red-300">
-                        此項目同步失敗
+                    <p className="px-2.5 py-1 text-xs leading-4 font-semibold wrap-anywhere text-red-600 forest:text-red-300">
+                        {failedMessage}
                     </p>
                     <button
                         type="button"
@@ -614,6 +641,7 @@ export function TodoRow({
     canEdit,
     mode,
     syncStatus,
+    syncError,
     existingCategories,
     setTextButtonRef,
     setDeleteButtonRef,
@@ -734,6 +762,7 @@ export function TodoRow({
 
                 <TodoRowSyncDot
                     syncStatus={syncStatus}
+                    syncError={syncError}
                     onRetry={
                         onRetrySync ? () => onRetrySync(item.id) : undefined
                     }

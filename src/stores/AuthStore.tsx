@@ -6,6 +6,7 @@ import React, {
     useContext,
     useEffect,
     useMemo,
+    useRef,
     useState,
 } from "react";
 import Cookies from "js-cookie";
@@ -40,6 +41,7 @@ type AuthState = {
 type AuthActions = {
     signOut: (options?: SignOutOptions) => Promise<void>;
     prepareSignOut: () => Promise<PrepareSignOutResult>;
+    reauthenticate: () => void;
     saveUser: (user: User) => void;
 };
 
@@ -55,8 +57,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         isInitialized: isLocalUserInitialized,
     } = useLocalStorageUser();
     const [isAuthInitialized, setIsAuthInitialized] = useState(false);
+    const isRedirectingToAuthRef = useRef(false);
 
     useEffect(() => {
+        if (isRedirectingToAuthRef.current) {
+            return;
+        }
         const checkCookie = async () => {
             try {
                 if (hasAuthErrorSearchParam()) {
@@ -131,9 +137,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         };
     }, [persistedUser?.email]);
 
+    const reauthenticate = useCallback(() => {
+        const url = process.env.NEXT_PUBLIC_AUTH_PROXY;
+        if (url) {
+            isRedirectingToAuthRef.current = true;
+        }
+        // Clear local user and query caches (preserving IndexedDB todo outbox) so
+        // returning from login runs /me and scopes keep/clear per authenticated owner.
+        todoSyncManager.disposeActiveEngine();
+        clearUser();
+        clearExpensesCache();
+        if (url) {
+            const currentUrl =
+                window.location.origin + window.location.pathname;
+            window.location.href = `${url}/auth/travel-split/login?redirect_to=${encodeURIComponent(currentUrl)}`;
+        }
+    }, [clearUser]);
+
     const signOut = useCallback(
         async (options?: SignOutOptions) => {
             const ownerEmail = persistedUser?.email;
+            const url = process.env.NEXT_PUBLIC_AUTH_PROXY;
+            if (url) {
+                isRedirectingToAuthRef.current = true;
+            }
             if (options?.clearTodoOutbox && ownerEmail) {
                 await todoSyncManager.clearOutboxAfterConfirmedSignOut(
                     ownerEmail,
@@ -143,7 +170,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             }
             clearUser();
             clearExpensesCache();
-            const url = process.env.NEXT_PUBLIC_AUTH_PROXY;
             if (url) {
                 const currentUrl =
                     window.location.origin + window.location.pathname;
@@ -160,9 +186,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             isAuthInitialized,
             signOut,
             prepareSignOut,
+            reauthenticate,
             saveUser,
         }),
-        [persistedUser, isAuthInitialized, signOut, prepareSignOut, saveUser],
+        [
+            persistedUser,
+            isAuthInitialized,
+            signOut,
+            prepareSignOut,
+            reauthenticate,
+            saveUser,
+        ],
     );
 
     return (
@@ -188,6 +222,6 @@ export function useAuthState() {
 }
 
 export function useAuthActions() {
-    const { signOut, prepareSignOut, saveUser } = useAuth();
-    return { signOut, prepareSignOut, saveUser };
+    const { signOut, prepareSignOut, reauthenticate, saveUser } = useAuth();
+    return { signOut, prepareSignOut, reauthenticate, saveUser };
 }
